@@ -69,10 +69,13 @@ export async function middleware(request: NextRequest) {
   // ── Rutas accesibles para cualquier usuario autenticado ──────
   if (RUTAS_CON_SESION.some(r => pathname.startsWith(r))) return response
 
-  // ── Panel admin: solo para el email administrador ─────────────
+  // ── Panel admin: superadmin o admin registrado ───────────────
   if (pathname.startsWith('/admin')) {
-    if (user.email !== process.env.ADMIN_EMAIL) {
-      return NextResponse.redirect(new URL('/login', request.url))
+    const isSuperAdmin = user.email === process.env.ADMIN_EMAIL
+    if (!isSuperAdmin) {
+      const { data: adminRec } = await supabase
+        .from('admins').select('id').eq('email', user.email).maybeSingle()
+      if (!adminRec) return NextResponse.redirect(new URL('/login', request.url))
     }
     return response
   }
