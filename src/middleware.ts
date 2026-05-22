@@ -90,7 +90,8 @@ export async function middleware(request: NextRequest) {
   const rutaCorrecta = usuario ? RUTA_POR_ROL[usuario.rol] : null
 
   // Logueado intentando abrir /login o /registro → mandarlo a su panel
-  if (esPublica) {
+  // Excepción: /reset-password siempre debe mostrarse para completar el cambio de clave
+  if (esPublica && !pathname.startsWith('/reset-password')) {
     return NextResponse.redirect(new URL(rutaCorrecta || '/login', request.url))
   }
 

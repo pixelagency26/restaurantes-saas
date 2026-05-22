@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
-import { UtensilsCrossed, Lock, CheckCircle } from 'lucide-react'
+import { Lock, CheckCircle } from 'lucide-react'
 
 export default function ResetPasswordPage() {
   const [password, setPassword]     = useState('')
@@ -59,9 +59,9 @@ export default function ResetPasswordPage() {
 
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-500 rounded-2xl mb-4 shadow-lg">
-            <UtensilsCrossed className="text-white" size={32} />
+            <span className="text-3xl">🍽️</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Las Delicias de Mirella</h1>
+          <h1 className="text-2xl font-black text-gray-900">Restaurant Pix</h1>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
