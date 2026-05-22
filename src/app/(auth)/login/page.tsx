@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
-import { UtensilsCrossed, Lock, Mail, ArrowLeft } from 'lucide-react'
+import Link from 'next/link'
 
 export default function LoginPage() {
   const [email, setEmail]       = useState('')
@@ -24,9 +24,17 @@ export default function LoginPage() {
       setLoading(false)
       return
     }
-    const { data: usuario } = await supabase.from('usuarios').select('rol').eq('id', data.user.id).single()
-    if (!usuario) { toast.error('Usuario no encontrado en el sistema'); setLoading(false); return }
-    const rutas: Record<string, string> = { gerente: '/gerencia', mesera: '/mesera', cocina: '/cocina' }
+    const { data: usuario } = await supabase
+      .from('usuarios')
+      .select('rol, negocio:negocios(onboarding_completo)')
+      .eq('id', data.user.id)
+      .single()
+    if (!usuario) { toast.error('Usuario no encontrado'); setLoading(false); return }
+
+    const neg = usuario.negocio as { onboarding_completo: boolean } | null
+    if (neg && neg.onboarding_completo === false) { router.push('/onboarding'); return }
+
+    const rutas: Record<string, string> = { gerente: '/gerencia', mesera: '/mesera', cocina: '/cocina', domi: '/domi' }
     router.push(rutas[usuario.rol] || '/login')
   }
 
@@ -43,47 +51,48 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-amber-50 px-4">
-      <div className="w-full max-w-md fade-in">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <div className="w-full max-w-md">
 
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-500 rounded-2xl mb-4 shadow-lg">
-            <UtensilsCrossed className="text-white" size={32} />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">Las Delicias de Mirella</h1>
-          <p className="text-gray-500 text-sm mt-1">Sistema de gestión</p>
+          <Link href="/" className="inline-flex items-center gap-2 mb-4">
+            <div className="w-12 h-12 bg-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <span className="text-2xl">🍽️</span>
+            </div>
+            <span className="font-black text-gray-900 text-xl">RestaurantOS</span>
+          </Link>
+          <h1 className="text-2xl font-black text-gray-900">Bienvenido de nuevo</h1>
+          <p className="text-gray-500 text-sm mt-1">Ingresa a tu panel de gestión</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
 
           {/* ── Vista: LOGIN ── */}
           {vista === 'login' && (
-            <form onSubmit={handleLogin} className="space-y-5">
+            <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Correo electrónico</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                    placeholder="correo@ejemplo.com" required
-                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-sm" />
-                </div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1.5">
+                  Correo electrónico
+                </label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                  placeholder="correo@ejemplo.com" required
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                  <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                    placeholder="••••••••" required
-                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-sm" />
-                </div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1.5">
+                  Contraseña
+                </label>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••" required
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
               </div>
               <button type="submit" disabled={loading}
-                className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white font-semibold py-3 rounded-xl transition-colors text-sm">
+                className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-black py-4 rounded-2xl text-base transition-colors">
                 {loading ? 'Ingresando...' : 'Ingresar'}
               </button>
               <button type="button" onClick={() => { setVista('recuperar'); setEnviado(false) }}
-                className="w-full text-center text-sm text-orange-500 hover:text-orange-600 font-medium py-1">
+                className="w-full text-center text-sm text-purple-600 hover:text-purple-700 font-medium py-1">
                 ¿Olvidaste tu contraseña?
               </button>
             </form>
@@ -94,54 +103,51 @@ export default function LoginPage() {
             <div>
               <button onClick={() => setVista('login')}
                 className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-600 mb-5">
-                <ArrowLeft size={16} /> Volver
+                ← Volver
               </button>
 
               {!enviado ? (
                 <form onSubmit={handleRecuperar} className="space-y-4">
                   <div className="text-center mb-4">
-                    <p className="text-lg font-bold text-gray-900">¿Olvidaste tu contraseña?</p>
+                    <p className="text-lg font-black text-gray-900">¿Olvidaste tu contraseña?</p>
                     <p className="text-sm text-gray-500 mt-1">
                       Escribe tu correo y te enviamos un enlace para crear una nueva
                     </p>
                   </div>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                      placeholder="tu-correo@ejemplo.com" required
-                      className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-sm" />
-                  </div>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                    placeholder="tu-correo@ejemplo.com" required
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
                   <button type="submit" disabled={loading}
-                    className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white font-semibold py-3 rounded-xl transition-colors text-sm">
+                    className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-black py-4 rounded-2xl transition-colors text-sm">
                     {loading ? 'Enviando...' : 'Enviar enlace'}
                   </button>
                 </form>
               ) : (
-                // Confirmación después de enviar
                 <div className="text-center space-y-4 py-4">
                   <div className="text-5xl">📬</div>
-                  <p className="text-lg font-bold text-gray-900">¡Correo enviado!</p>
+                  <p className="text-lg font-black text-gray-900">¡Correo enviado!</p>
                   <p className="text-sm text-gray-500">
-                    Revisa tu correo <span className="font-semibold text-gray-700">{email}</span> y
+                    Revisa tu bandeja de entrada en <span className="font-semibold text-gray-700">{email}</span> y
                     haz clic en el enlace para crear tu nueva contraseña.
                   </p>
-                  <p className="text-xs text-gray-400">
-                    Si no lo ves, revisa la carpeta de spam.
-                  </p>
+                  <p className="text-xs text-gray-400">Si no lo ves, revisa spam.</p>
                   <button onClick={() => { setVista('login'); setEnviado(false) }}
-                    className="w-full bg-orange-500 text-white font-semibold py-3 rounded-xl text-sm mt-2">
+                    className="w-full bg-purple-600 text-white font-black py-4 rounded-2xl text-sm mt-2">
                     Volver al inicio
                   </button>
                 </div>
               )}
             </div>
           )}
-
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
-          Sistema exclusivo para personal autorizado
+        <p className="text-center text-sm text-gray-500 mt-6">
+          ¿No tienes cuenta?{' '}
+          <Link href="/registro" className="text-purple-600 font-bold hover:underline">
+            Empieza gratis 14 días
+          </Link>
         </p>
+
       </div>
     </div>
   )
