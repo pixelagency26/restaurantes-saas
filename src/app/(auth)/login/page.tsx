@@ -12,6 +12,8 @@ export default function LoginPage() {
   const [loading, setLoading]   = useState(false)
   const [vista, setVista]       = useState<'login' | 'recuperar'>('login')
   const [enviado, setEnviado]   = useState(false)
+  const [reenvios, setReenvios] = useState(0)
+  const [cooldown, setCooldown] = useState(0)
   const router   = useRouter()
   const supabase = createClient()
 
@@ -57,6 +59,31 @@ export default function LoginPage() {
     setLoading(false)
     if (error) { toast.error(error.message || 'Error al enviar el correo'); return }
     setEnviado(true)
+    setReenvios(1)
+    iniciarCooldown()
+  }
+
+  function iniciarCooldown() {
+    setCooldown(60)
+    const intervalo = setInterval(() => {
+      setCooldown(prev => {
+        if (prev <= 1) { clearInterval(intervalo); return 0 }
+        return prev - 1
+      })
+    }, 1000)
+  }
+
+  async function reenviarCorreo() {
+    if (cooldown > 0 || reenvios >= 3) return
+    setLoading(true)
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    setLoading(false)
+    if (error) { toast.error('Error al reenviar'); return }
+    setReenvios(r => r + 1)
+    iniciarCooldown()
+    toast.success('✅ Correo reenviado')
   }
 
   return (
@@ -140,8 +167,25 @@ export default function LoginPage() {
                     haz clic en el enlace para crear tu nueva contraseña.
                   </p>
                   <p className="text-xs text-gray-400">Si no lo ves, revisa spam.</p>
-                  <button onClick={() => { setVista('login'); setEnviado(false) }}
-                    className="w-full bg-orange-500 text-white font-black py-4 rounded-2xl text-sm mt-2">
+
+                  {/* Reenviar hasta 3 veces */}
+                  {reenvios < 3 ? (
+                    <button
+                      onClick={reenviarCorreo}
+                      disabled={cooldown > 0 || loading}
+                      className="w-full border-2 border-orange-300 text-orange-600 font-bold py-3 rounded-2xl text-sm transition-colors disabled:opacity-50 hover:bg-orange-50">
+                      {loading ? 'Enviando...' : cooldown > 0
+                        ? `Reenviar en ${cooldown}s — (${reenvios}/3 enviados)`
+                        : `Reenviar correo (${reenvios}/3)`}
+                    </button>
+                  ) : (
+                    <p className="text-xs text-gray-400 bg-gray-50 rounded-xl py-3 px-4">
+                      Enviaste el enlace 3 veces. Si no llega, revisa spam o escríbenos por WhatsApp.
+                    </p>
+                  )}
+
+                  <button onClick={() => { setVista('login'); setEnviado(false); setReenvios(0); setCooldown(0) }}
+                    className="w-full bg-orange-500 text-white font-black py-4 rounded-2xl text-sm">
                     Volver al inicio
                   </button>
                 </div>
