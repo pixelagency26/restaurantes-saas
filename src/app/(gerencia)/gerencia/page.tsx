@@ -3679,45 +3679,63 @@ export default function GerenciaPage() {
                           </div>
                         </div>
 
-                        {/* Subir de plan — solo si es básico */}
-                        {!esPro && (
+                        {/* Pagar ahora — usuario en prueba */}
+                        {!facturacion.activa && !vencido && (
+                          <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4 space-y-3">
+                            <div>
+                              <p className="font-black text-gray-900 mb-0.5">💳 Adquirir plan ahora</p>
+                              <p className="text-xs text-blue-700 leading-relaxed">
+                                Paga hoy y no pierdas tus días de prueba — la suscripción empieza cuando termine tu período gratis.
+                              </p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <a href={`/checkout?plan=basico&tipo=nuevo`}
+                                className={`block text-center py-3 rounded-xl text-xs font-bold transition-colors border-2 ${esPro ? 'border-gray-200 text-gray-500 hover:border-gray-300' : 'bg-purple-600 text-white border-purple-600 hover:bg-purple-700'}`}>
+                                Plan Básico<br /><span className="font-normal">$89.900/mes</span>
+                              </a>
+                              <a href={`/checkout?plan=pro&tipo=nuevo`}
+                                className={`block text-center py-3 rounded-xl text-xs font-bold transition-colors border-2 ${esPro ? 'bg-orange-500 text-white border-orange-500 hover:bg-orange-600' : 'border-orange-400 text-orange-600 hover:bg-orange-50'}`}>
+                                ⭐ Plan Pro<br /><span className="font-normal">$149.900/mes</span>
+                              </a>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Renovar — vence pronto o ya venció */}
+                        {facturacion.activa && (vencido || (diasRestantes !== null && diasRestantes <= 7)) && (
+                          <a href={`/checkout?plan=${facturacion.plan}&tipo=renovar`}
+                            className="block text-center bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 rounded-2xl transition-colors text-sm">
+                            🔄 {vencido ? 'Reactivar — pagar ahora' : `Renovar (${diasRestantes} días restantes)`}
+                          </a>
+                        )}
+
+                        {/* Upgrade plan — solo si es básico y ya pagó */}
+                        {facturacion.activa && !esPro && !vencido && (
                           <div className="border-2 border-orange-200 rounded-2xl p-4 space-y-3">
                             <div>
-                              <p className="font-black text-gray-900 mb-0.5">⭐ Sube al Plan Pro</p>
-                              <p className="text-xs text-gray-400 mb-2">Todo lo de Básico más:</p>
+                              <p className="font-black text-gray-900 mb-0.5">⭐ Subir al Plan Pro</p>
+                              <p className="text-xs text-gray-400 mb-1">Pagas solo la diferencia proporcional por los días que te quedan.</p>
                               <ul className="space-y-1">
-                                {['Mesas ilimitadas', 'Usuarios ilimitados', 'Domicilios con QR y seguimiento', 'Estadísticas avanzadas', 'Soporte prioritario 24/7'].map(f => (
+                                {['Mesas ilimitadas', 'Usuarios ilimitados', 'Domicilios con QR', 'Estadísticas avanzadas', 'Soporte 24/7'].map(f => (
                                   <li key={f} className="text-xs text-gray-600 flex items-center gap-2">
                                     <span className="text-orange-500 font-bold">✓</span> {f}
                                   </li>
                                 ))}
                               </ul>
                             </div>
-                            <a
-                              href={`https://wa.me/573137335448?text=${encodeURIComponent(`Hola, soy el restaurante "${facturacion.nombre}" y quiero subir al plan Pro de Restaurant Pix ⭐`)}`}
-                              target="_blank" rel="noopener noreferrer"
+                            <a href="/checkout?plan=pro&tipo=upgrade"
                               className="block text-center bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl transition-colors text-sm">
-                              💬 Contactar para subir de plan
+                              ⭐ Subir a Pro ahora
                             </a>
                           </div>
                         )}
 
-                        {/* Renovar / pagar */}
-                        {(vencido || (diasRestantes !== null && diasRestantes <= 7)) && (
-                          <a
-                            href={`https://wa.me/573137335448?text=${encodeURIComponent(`Hola, quiero renovar mi suscripción del plan ${esPro ? 'Pro' : 'Básico'} de Restaurant Pix (${facturacion.nombre})`)}`}
-                            target="_blank" rel="noopener noreferrer"
-                            className="block text-center bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 rounded-2xl transition-colors text-sm">
-                            🔄 {vencido ? 'Reactivar suscripción' : 'Renovar antes de que venza'}
-                          </a>
-                        )}
-
-                        {/* Soporte */}
+                        {/* Ayuda */}
                         <a
                           href={`https://wa.me/573137335448?text=${encodeURIComponent('Hola, tengo una pregunta sobre mi suscripción de Restaurant Pix 🍽️')}`}
                           target="_blank" rel="noopener noreferrer"
-                          className="flex items-center justify-center gap-2 border-2 border-gray-200 text-gray-600 hover:bg-gray-50 font-bold py-3 rounded-2xl text-sm transition-colors">
-                          💬 Soporte por WhatsApp
+                          className="flex items-center justify-center gap-2 border-2 border-gray-200 text-gray-500 hover:bg-gray-50 font-semibold py-2.5 rounded-2xl text-xs transition-colors">
+                          💬 Ayuda por WhatsApp
                         </a>
                       </>
                     )
