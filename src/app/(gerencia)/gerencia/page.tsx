@@ -153,7 +153,10 @@ export default function GerenciaPage() {
 
   // Panel de configuración ⚙️
   const [modalSettings, setModalSettings] = useState(false)
-  const [seccionSettings, setSeccionSettings] = useState<'cuenta' | 'usuarios' | 'permisos' | 'restablecer'>('cuenta')
+  const [seccionSettings, setSeccionSettings] = useState<'cuenta' | 'usuarios' | 'permisos' | 'restablecer' | 'facturacion'>('cuenta')
+  // Facturación
+  const [facturacion, setFacturacion] = useState<{ plan: string; activa: boolean; hasta: string | null; nombre: string } | null>(null)
+  const [cargandoFact, setCargandoFact] = useState(false)
   // Restablecer negocio
   const [restablecerScope, setRestablecerScope] = useState<'todo' | 'desde_fecha'>('todo')
   const [restablecerFecha, setRestablecerFecha] = useState('')
@@ -401,6 +404,24 @@ export default function GerenciaPage() {
       if ('bloqueo_cocina_cantidad' in cfg) setBloqueoCantidad(parseInt(cfg['bloqueo_cocina_cantidad']) || 3)
     }
   }, [supabase])
+
+  // ── FACTURACIÓN ──────────────────────────────────────────────
+  async function cargarFacturacion() {
+    setCargandoFact(true)
+    const { data } = await supabase
+      .from('negocios')
+      .select('nombre, plan, suscripcion_activa, suscripcion_hasta')
+      .single()
+    if (data) {
+      setFacturacion({
+        nombre: data.nombre || '',
+        plan: data.plan || 'basico',
+        activa: data.suscripcion_activa ?? false,
+        hasta: data.suscripcion_hasta || null,
+      })
+    }
+    setCargandoFact(false)
+  }
 
   // ── MENÚS DE TURNO ───────────────────────────────────────────
   const cargarMenusTurno = useCallback(async () => {
@@ -1383,6 +1404,7 @@ export default function GerenciaPage() {
               supabase.from('usuarios').select('id, nombre, rol, activo').order('nombre').then(({ data }) => {
                 if (data) setListaUsuarios(data)
               })
+              cargarFacturacion()
             }}
             className="w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center justify-center transition-colors">
             <Settings size={18} className="text-gray-600" />
@@ -3560,12 +3582,13 @@ export default function GerenciaPage() {
             {/* Tabs */}
             <div className="flex gap-1 px-4 py-2 border-b shrink-0 overflow-x-auto">
               {([
-                ['cuenta',      '👤 Cuenta'],
-                ['usuarios',    '👥 Usuarios'],
-                ['permisos',    '🔒 Permisos'],
-                ['restablecer', '⚠️ Restablecer'],
-              ] as ['cuenta'|'usuarios'|'permisos'|'restablecer', string][]).map(([id, label]) => (
-                <button key={id} onClick={() => setSeccionSettings(id)}
+                ['cuenta',       '👤 Cuenta'],
+                ['facturacion',  '💳 Facturación'],
+                ['usuarios',     '👥 Usuarios'],
+                ['permisos',     '🔒 Permisos'],
+                ['restablecer',  '⚠️ Restablecer'],
+              ] as ['cuenta'|'facturacion'|'usuarios'|'permisos'|'restablecer', string][]).map(([id, label]) => (
+                <button key={id} onClick={() => { setSeccionSettings(id); if (id === 'facturacion') cargarFacturacion() }}
                   className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                     seccionSettings === id
                       ? id === 'restablecer' ? 'bg-red-500 text-white' : 'bg-purple-600 text-white'
@@ -3592,6 +3615,115 @@ export default function GerenciaPage() {
                     className="w-full flex items-center justify-center gap-2 bg-red-50 hover:bg-red-100 border-2 border-red-200 text-red-600 font-bold py-3.5 rounded-2xl transition-colors">
                     <LogOut size={18} /> Cerrar sesión
                   </button>
+                </div>
+              )}
+
+              {/* ── FACTURACIÓN ── */}
+              {seccionSettings === 'facturacion' && (
+                <div className="space-y-4">
+                  {cargandoFact ? (
+                    <div className="flex items-center justify-center py-10">
+                      <span className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : facturacion ? (() => {
+                    const hasta = facturacion.hasta ? new Date(facturacion.hasta) : null
+                    const ahora = new Date()
+                    const diasRestantes = hasta ? Math.ceil((hasta.getTime() - ahora.getTime()) / 86400000) : null
+                    const vencido = diasRestantes !== null && diasRestantes <= 0
+                    const esPro = facturacion.plan === 'pro'
+
+                    return (
+                      <>
+                        {/* Tarjeta plan */}
+                        <div className={`rounded-2xl p-5 border-2 ${esPro ? 'bg-orange-50 border-orange-300' : 'bg-purple-50 border-purple-200'}`}>
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Plan actual</p>
+                              <p className="text-2xl font-black text-gray-900">{esPro ? '⭐ Plan Pro' : '📦 Plan Básico'}</p>
+                              <p className="text-sm text-gray-500 mt-1">{esPro ? '$149.900 COP/mes' : '$89.900 COP/mes'}</p>
+                            </div>
+                            <span className={`text-xs font-black px-3 py-1.5 rounded-full mt-1 ${
+                              vencido ? 'bg-red-100 text-red-700'
+                              : facturacion.activa ? 'bg-green-100 text-green-700'
+                              : 'bg-yellow-100 text-yellow-700'
+                            }`}>
+                              {vencido ? '⚠ Vencido' : facturacion.activa ? '✓ Activo' : '⏳ Prueba'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Próximo pago */}
+                        <div className="bg-gray-50 rounded-2xl p-4 flex items-center gap-4">
+                          <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center shrink-0">
+                            <CalendarDays size={20} className="text-purple-600" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">
+                              {vencido ? 'Venció el' : 'Próximo pago / vence'}
+                            </p>
+                            <p className="font-black text-gray-900">
+                              {hasta
+                                ? hasta.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })
+                                : 'No disponible'}
+                            </p>
+                            {diasRestantes !== null && !vencido && (
+                              <p className={`text-xs mt-0.5 font-semibold ${diasRestantes <= 5 ? 'text-red-500' : 'text-gray-400'}`}>
+                                {diasRestantes === 0 ? 'Vence hoy' : `${diasRestantes} días restantes`}
+                              </p>
+                            )}
+                            {vencido && (
+                              <p className="text-xs mt-0.5 text-red-500 font-semibold">
+                                Venció hace {Math.abs(diasRestantes!)} día{Math.abs(diasRestantes!) !== 1 ? 's' : ''}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Subir de plan — solo si es básico */}
+                        {!esPro && (
+                          <div className="border-2 border-orange-200 rounded-2xl p-4 space-y-3">
+                            <div>
+                              <p className="font-black text-gray-900 mb-0.5">⭐ Sube al Plan Pro</p>
+                              <p className="text-xs text-gray-400 mb-2">Todo lo de Básico más:</p>
+                              <ul className="space-y-1">
+                                {['Mesas ilimitadas', 'Usuarios ilimitados', 'Domicilios con QR y seguimiento', 'Estadísticas avanzadas', 'Soporte prioritario 24/7'].map(f => (
+                                  <li key={f} className="text-xs text-gray-600 flex items-center gap-2">
+                                    <span className="text-orange-500 font-bold">✓</span> {f}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                            <a
+                              href={`https://wa.me/573137335448?text=${encodeURIComponent(`Hola, soy el restaurante "${facturacion.nombre}" y quiero subir al plan Pro de Restaurant Pix ⭐`)}`}
+                              target="_blank" rel="noopener noreferrer"
+                              className="block text-center bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl transition-colors text-sm">
+                              💬 Contactar para subir de plan
+                            </a>
+                          </div>
+                        )}
+
+                        {/* Renovar / pagar */}
+                        {(vencido || (diasRestantes !== null && diasRestantes <= 7)) && (
+                          <a
+                            href={`https://wa.me/573137335448?text=${encodeURIComponent(`Hola, quiero renovar mi suscripción del plan ${esPro ? 'Pro' : 'Básico'} de Restaurant Pix (${facturacion.nombre})`)}`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="block text-center bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 rounded-2xl transition-colors text-sm">
+                            🔄 {vencido ? 'Reactivar suscripción' : 'Renovar antes de que venza'}
+                          </a>
+                        )}
+
+                        {/* Soporte */}
+                        <a
+                          href={`https://wa.me/573137335448?text=${encodeURIComponent('Hola, tengo una pregunta sobre mi suscripción de Restaurant Pix 🍽️')}`}
+                          target="_blank" rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-2 border-2 border-gray-200 text-gray-600 hover:bg-gray-50 font-bold py-3 rounded-2xl text-sm transition-colors">
+                          💬 Soporte por WhatsApp
+                        </a>
+                      </>
+                    )
+                  })() : (
+                    <p className="text-center text-gray-400 text-sm py-8">No se pudo cargar la información</p>
+                  )}
                 </div>
               )}
 

@@ -186,11 +186,16 @@ export default async function HomePage() {
           ¿Listo para modernizar tu restaurante?
         </h2>
         <p className="text-gray-400 mb-8 text-lg">Configura tu negocio en menos de 5 minutos. 14 días gratis.</p>
-        <div className="flex justify-center">
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link href="/registro"
             className="inline-block bg-orange-500 hover:bg-orange-600 text-white font-black px-10 py-4 rounded-2xl text-lg transition-colors">
             🚀 Crear mi cuenta gratis
           </Link>
+          <a href={`https://wa.me/${WA_NUMBER}?text=${encodeURIComponent('Hola, quiero información sobre Restaurant Pix 🍽️')}`}
+            target="_blank" rel="noopener noreferrer"
+            className="inline-block bg-white hover:bg-gray-100 text-gray-900 font-black px-10 py-4 rounded-2xl text-lg transition-colors">
+            💬 Hablar con un asesor
+          </a>
         </div>
       </section>
 
