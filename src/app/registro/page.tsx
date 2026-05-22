@@ -1,12 +1,14 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function RegistroPage() {
+function RegistroForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const plan = searchParams.get('plan') // 'basico' | 'pro' | null
   const supabase = createClient()
   const [form, setForm] = useState({ nombreNegocio: '', nombreDueno: '', email: '', password: '', confirmar: '' })
   const [cargando, setCargando] = useState(false)
@@ -30,7 +32,7 @@ export default function RegistroPage() {
       const { error } = await supabase.auth.signInWithPassword({ email: form.email, password: form.password })
       if (error) { toast.error('Cuenta creada. Inicia sesión manualmente.'); router.push('/login'); return }
       toast.success('¡Bienvenido! Vamos a configurar tu restaurante 🎉')
-      router.push('/onboarding')
+      router.push(plan ? `/onboarding?plan=${plan}` : '/onboarding')
     } catch (e) {
       toast.error('Error de conexión: ' + String(e))
       setCargando(false)
@@ -103,5 +105,13 @@ export default function RegistroPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function RegistroPage() {
+  return (
+    <Suspense>
+      <RegistroForm />
+    </Suspense>
   )
 }

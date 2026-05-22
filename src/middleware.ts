@@ -6,7 +6,7 @@ const RUTAS_PUBLICAS   = ['/login', '/reset-password', '/registro', '/suscripcio
 // Páginas del cliente que escanea el QR — acceso libre siempre
 const RUTAS_CLIENTE_QR = ['/mesa', '/domi-pedido']
 // Rutas accesibles para cualquier usuario autenticado (sin importar rol)
-const RUTAS_CON_SESION = ['/onboarding']
+const RUTAS_CON_SESION = ['/onboarding', '/checkout']
 // Rutas del panel que requieren suscripción activa
 const RUTAS_PANEL = ['/gerencia', '/mesera', '/cocina', '/domi']
 

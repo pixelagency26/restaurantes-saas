@@ -1,14 +1,16 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import toast from 'react-hot-toast'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 const PASOS = ['Bienvenida', 'Zonas y mesas', 'Tu equipo', 'Tu carta', '¡Listo!']
 
-export default function OnboardingPage() {
+function OnboardingForm() {
   const supabase = createClient()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const plan = searchParams.get('plan') // 'basico' | 'pro' | null
   const [paso, setPaso] = useState(0)
   const [negocioId, setNegocioId] = useState<string | null>(null)
   const [negocioNombre, setNegocioNombre] = useState('')
@@ -108,7 +110,11 @@ export default function OnboardingPage() {
     if (!negocioId) return
     await supabase.from('negocios').update({ onboarding_completo: true }).eq('id', negocioId)
     toast.success('¡Tu restaurante está listo! 🎉')
-    router.push('/gerencia')
+    if (plan) {
+      router.push(`/checkout?plan=${plan}`)
+    } else {
+      router.push('/gerencia')
+    }
   }
 
   const progreso = Math.round((paso / (PASOS.length - 1)) * 100)
@@ -328,5 +334,13 @@ export default function OnboardingPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense>
+      <OnboardingForm />
+    </Suspense>
   )
 }
