@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import toast from 'react-hot-toast'
 import { use } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   ShoppingCart, Plus, Minus, ChevronLeft, Star, Send,
   CalendarDays, CheckCircle, MessageSquare,
@@ -40,9 +41,10 @@ function Estrellas({ valor, onChange }: { valor: number; onChange?: (n: number) 
   )
 }
 
-// ─── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────
-export default function RestaurantePublicoPage({ params }: { params: Promise<{ negocioId: string }> }) {
+// ─── COMPONENTE PRINCIPAL (wrapped in Suspense for useSearchParams) ────────
+function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: string }> }) {
   const { negocioId } = use(params)
+  const searchParams = useSearchParams()
   const supabase = createClient()
 
   // ── Estado global ──────────────────────────────────────────────────────
@@ -67,7 +69,7 @@ export default function RestaurantePublicoPage({ params }: { params: Promise<{ n
   const [nombre, setNombre] = useState('')
   const [telefono, setTelefono] = useState('')
   const [cedula, setCedula] = useState('')
-  const [mesa, setMesa] = useState('')
+  const [mesa, setMesa] = useState(() => searchParams.get('mesa') ?? '')
   const [direccion, setDireccion] = useState('')
   const [notasPedido, setNotasPedido] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -157,7 +159,11 @@ export default function RestaurantePublicoPage({ params }: { params: Promise<{ n
     if (carrito.length === 0) { toast.error('Agrega algo al carrito primero'); return }
     const puedeOrdenar = planGte(negocio?.plan || 'starter', 'basico') && (qrConsumo || qrDomi)
     if (!puedeOrdenar) { toast.error('Los pedidos online no están habilitados en este restaurante'); return }
-    if (qrConsumo && qrDomi) {
+    // Si viene con ?mesa= en la URL, pre-seleccionar consumo y saltar selección
+    if (mesa && qrConsumo) {
+      setTipoConsumo('consumo')
+      setPaso('datos')
+    } else if (qrConsumo && qrDomi) {
       setPaso('tipo')
     } else {
       setTipoConsumo(qrConsumo ? 'consumo' : 'domi')
@@ -817,5 +823,17 @@ export default function RestaurantePublicoPage({ params }: { params: Promise<{ n
         <div className="h-8" />
       </div>
     </div>
+  )
+}
+
+export default function RestaurantePublicoPage({ params }: { params: Promise<{ negocioId: string }> }) {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-orange-50 flex items-center justify-center">
+        <div className="w-10 h-10 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <RestaurantePublicoInner params={params} />
+    </Suspense>
   )
 }
