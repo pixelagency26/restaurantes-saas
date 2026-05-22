@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 // Rutas que NO necesitan estar logueado
 const RUTAS_PUBLICAS   = ['/login', '/reset-password', '/registro', '/suscripcion-expirada']
 // Páginas del cliente que escanea el QR — acceso libre siempre
-const RUTAS_CLIENTE_QR = ['/mesa', '/domi-pedido']
+const RUTAS_CLIENTE_QR = ['/mesa', '/domi-pedido', '/restaurante']
 // Rutas accesibles para cualquier usuario autenticado (sin importar rol)
 const RUTAS_CON_SESION = ['/onboarding', '/checkout']
 // Rutas del panel que requieren suscripción activa
