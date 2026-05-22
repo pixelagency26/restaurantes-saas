@@ -48,7 +48,7 @@ interface MenuTurno {
 }
 
 type MetodoPago = 'efectivo' | 'nequi' | 'daviplata' | 'bancolombia'
-type Seccion = 'mesas' | 'carta' | 'resumen' | 'tiempos' | 'caja' | 'usuarios' | 'clientes' | 'permisos'
+type Seccion = 'mesas' | 'carta' | 'resumen' | 'tiempos' | 'caja' | 'usuarios' | 'clientes' | 'permisos' | 'reservas'
 type RangoResumen = 'hoy' | 'semana' | 'mes' | 'personalizado'
 
 const METODOS: { id: MetodoPago; label: string; color: string; emoji: string }[] = [
@@ -146,13 +146,22 @@ export default function GerenciaPage() {
   const [modoInventario, setModoInventario] = useState<'manual' | 'menu'>('manual')
   const [menuSeleccionadoId, setMenuSeleccionadoId] = useState<string | null>(null)
 
+  // Reservas
+  const [reservas, setReservas] = useState<{ id: string; nombre: string; telefono: string; fecha: string; hora: string; personas: number; notas: string | null; estado: string; created_at: string }[]>([])
+  const [cargandoReservas, setCargandoReservas] = useState(false)
+  const [filtroReservaEstado, setFiltroReservaEstado] = useState<'todos' | 'pendiente' | 'confirmada' | 'cancelada'>('todos')
+
   // Permisos / configuración cocina
   const [bloqueoActivo, setBloqueoActivo] = useState(false)
   const [bloqueoCantidad, setBloqueoCantidad] = useState(3)
   const [guardandoPermisos, setGuardandoPermisos] = useState(false)
+  // Permisos QR
+  const [qrConsumoActivo, setQrConsumoActivo] = useState(false)
+  const [qrDomiActivo, setQrDomiActivo] = useState(false)
 
   // Plan del negocio (para control de acceso)
   const [negocioPlan, setNegocioPlan] = useState<'starter' | 'basico' | 'pro'>('pro')
+  const [negocioId, setNegocioId] = useState<string | null>(null)
 
   // Panel de configuración ⚙️
   const [modalSettings, setModalSettings] = useState(false)
@@ -399,14 +408,30 @@ export default function GerenciaPage() {
     const { data } = await supabase
       .from('configuracion')
       .select('clave, valor')
-      .in('clave', ['bloqueo_cocina_activo', 'bloqueo_cocina_cantidad'])
+      .in('clave', ['bloqueo_cocina_activo', 'bloqueo_cocina_cantidad', 'qr_consumo_activo', 'qr_domi_activo'])
     if (data) {
       const cfg: Record<string, string> = {}
       data.forEach((r: { clave: string; valor: string }) => { cfg[r.clave] = r.valor })
       if ('bloqueo_cocina_activo' in cfg) setBloqueoActivo(cfg['bloqueo_cocina_activo'] === 'true')
       if ('bloqueo_cocina_cantidad' in cfg) setBloqueoCantidad(parseInt(cfg['bloqueo_cocina_cantidad']) || 3)
+      if ('qr_consumo_activo' in cfg) setQrConsumoActivo(cfg['qr_consumo_activo'] === 'true')
+      if ('qr_domi_activo' in cfg) setQrDomiActivo(cfg['qr_domi_activo'] === 'true')
     }
   }, [supabase])
+
+  // ── RESERVAS ─────────────────────────────────────────────────
+  const cargarReservas = useCallback(async () => {
+    setCargandoReservas(true)
+    const { data } = await supabase.from('reservas').select('*').order('fecha', { ascending: true }).order('hora', { ascending: true })
+    if (data) setReservas(data as typeof reservas)
+    setCargandoReservas(false)
+  }, [supabase])
+
+  async function actualizarEstadoReserva(id: string, estado: string) {
+    await supabase.from('reservas').update({ estado }).eq('id', id)
+    toast.success(estado === 'confirmada' ? '✅ Reserva confirmada' : '❌ Reserva cancelada')
+    cargarReservas()
+  }
 
   // ── PLAN / ACCESO ────────────────────────────────────────────
   const PLAN_NIVEL: Record<string, number> = { starter: 0, basico: 1, pro: 2 }
@@ -443,8 +468,9 @@ export default function GerenciaPage() {
   }
 
   async function cargarPlan() {
-    const { data } = await supabase.from('negocios').select('plan').single()
+    const { data } = await supabase.from('negocios').select('id, plan').single()
     if (data?.plan) setNegocioPlan(data.plan as 'starter' | 'basico' | 'pro')
+    if (data?.id) setNegocioId(data.id)
   }
 
   // ── FACTURACIÓN ──────────────────────────────────────────────
@@ -575,6 +601,8 @@ export default function GerenciaPage() {
     await supabase.from('configuracion').upsert([
       { clave: 'bloqueo_cocina_activo',   valor: String(bloqueoActivo)   },
       { clave: 'bloqueo_cocina_cantidad', valor: String(bloqueoCantidad) },
+      { clave: 'qr_consumo_activo',       valor: String(qrConsumoActivo) },
+      { clave: 'qr_domi_activo',          valor: String(qrDomiActivo)    },
     ], { onConflict: 'clave' })
     toast.success('✅ Permisos guardados')
     setGuardandoPermisos(false)
@@ -781,9 +809,10 @@ export default function GerenciaPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => { cargarDatos(); cargarMesas() })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'mesas' }, cargarMesas)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'configuracion' }, cargarConfiguracion)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservas' }, cargarReservas)
       .subscribe()
     return () => { supabase.removeChannel(canal) }
-  }, [cargarDatos, cargarMesas, cargarCarta, cargarResumen, cargarConfiguracion, cargarMenusTurno, supabase, hoyStr])
+  }, [cargarDatos, cargarMesas, cargarCarta, cargarResumen, cargarConfiguracion, cargarMenusTurno, cargarReservas, supabase, hoyStr])
 
   // Cargar resumen de inventario al abrir modal cerrar turno
   useEffect(() => {
@@ -811,12 +840,13 @@ export default function GerenciaPage() {
       cargarResumen(desde, hasta)
     }
     if (seccion === 'clientes') cargarClientes()
+    if (seccion === 'reservas') cargarReservas()
     if (seccion === 'usuarios') {
       supabase.from('usuarios').select('id, nombre, rol, activo').order('nombre').then(({ data }) => {
         if (data) setListaUsuarios(data)
       })
     }
-  }, [seccion, rangoResumen, cargarResumen, cargarClientes, hoyStr, supabase])
+  }, [seccion, rangoResumen, cargarResumen, cargarClientes, cargarReservas, hoyStr, supabase])
 
   // ── DETALLE MESA ─────────────────────────────────────────────
   async function abrirDetalleMesa(mesa: typeof mesas[0]) {
@@ -1435,8 +1465,9 @@ export default function GerenciaPage() {
     { id: 'carta',    label: 'Carta',    icon: <UtensilsCrossed size={16} />, planReq: 'starter' as const },
     { id: 'resumen',  label: 'Informes', icon: <BarChart3 size={16} />,       planReq: 'basico'  as const },
     { id: 'tiempos',  label: 'Tiempos',  icon: <Timer size={16} />,           planReq: 'pro'     as const },
-    { id: 'clientes', label: 'Clientes', icon: <UserCircle size={16} />,      planReq: 'basico'  as const },
-    { id: 'caja',     label: 'Caja',     icon: <DollarSign size={16} />,      planReq: 'starter' as const },
+    { id: 'clientes', label: 'Clientes',  icon: <UserCircle size={16} />,      planReq: 'basico'  as const },
+    { id: 'reservas', label: 'Reservas',  icon: <CalendarDays size={16} />,    planReq: 'basico'  as const },
+    { id: 'caja',     label: 'Caja',      icon: <DollarSign size={16} />,      planReq: 'starter' as const },
   ]
 
   return (
@@ -2605,6 +2636,7 @@ export default function GerenciaPage() {
         {/* ══ PERMISOS ════════════════════════════════════════════ */}
         {seccion === 'permisos' && (
           <div className="space-y-4">
+            {/* Cocina */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
@@ -2615,29 +2647,20 @@ export default function GerenciaPage() {
                   <p className="text-xs text-gray-400">Regula cuántos pedidos ve la cocina a la vez</p>
                 </div>
               </div>
-
-              {/* Toggle bloqueo */}
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1">
                   <p className="font-semibold text-gray-800 text-sm">Bloqueo de comandas</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    La cocina solo verá un lote de pedidos a la vez, en estricto orden de llegada
-                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">La cocina solo verá un lote de pedidos a la vez, en estricto orden de llegada</p>
                 </div>
-                <button
-                  onClick={() => setBloqueoActivo(v => !v)}
+                <button onClick={() => setBloqueoActivo(v => !v)}
                   className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${bloqueoActivo ? 'bg-purple-600' : 'bg-gray-300'}`}>
                   <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${bloqueoActivo ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
               </div>
-
-              {/* Cantidad de comandas por lote */}
               {bloqueoActivo && (
                 <div>
                   <p className="font-semibold text-gray-800 text-sm mb-1">Comandas por lote</p>
-                  <p className="text-xs text-gray-400 mb-3">
-                    Cuántos pedidos puede ver cocina al mismo tiempo antes de que aparezca el siguiente
-                  </p>
+                  <p className="text-xs text-gray-400 mb-3">Cuántos pedidos puede ver cocina al mismo tiempo antes de que aparezca el siguiente</p>
                   <div className="flex gap-2">
                     {[2, 3, 4, 5].map(n => (
                       <button key={n} onClick={() => setBloqueoCantidad(n)}
@@ -2648,28 +2671,192 @@ export default function GerenciaPage() {
                   </div>
                   <div className="mt-3 bg-purple-50 border border-purple-100 rounded-xl p-3">
                     <p className="text-xs text-purple-700 leading-relaxed">
-                      🔒 Cocina verá solo los primeros <b>{bloqueoCantidad} pedido{bloqueoCantidad !== 1 ? 's' : ''}</b> (por orden de llegada). Los siguientes aparecen conforme esos queden listos.
+                      🔒 Cocina verá solo los primeros <b>{bloqueoCantidad} pedido{bloqueoCantidad !== 1 ? 's' : ''}</b> (por orden de llegada).
                     </p>
                   </div>
                 </div>
               )}
-
               {!bloqueoActivo && (
                 <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
-                  <p className="text-xs text-gray-500">
-                    🟢 Sin restricción — la cocina ve todos los pedidos activos al mismo tiempo.
-                  </p>
+                  <p className="text-xs text-gray-500">🟢 Sin restricción — la cocina ve todos los pedidos activos al mismo tiempo.</p>
                 </div>
               )}
+            </div>
 
-              <button
-                onClick={guardarConfiguracion}
-                disabled={guardandoPermisos}
-                className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl transition-colors">
-                {guardandoPermisos ? 'Guardando...' : '💾 Guardar configuración'}
+            {/* QR — solo basico/pro */}
+            <div className={`bg-white rounded-2xl border border-gray-100 p-5 space-y-5 ${!puedeAcceder('basico') ? 'opacity-60' : ''}`}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+                    <span className="text-xl">📱</span>
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-gray-900">Pedidos por QR</h2>
+                    <p className="text-xs text-gray-400">Permite que los clientes pidan desde su celular</p>
+                  </div>
+                </div>
+                {!puedeAcceder('basico') && (
+                  <span className="text-[10px] bg-orange-100 text-orange-700 font-bold px-2 py-1 rounded-full">Plan Profesional</span>
+                )}
+              </div>
+              {!puedeAcceder('basico') ? (
+                <p className="text-xs text-gray-400 bg-gray-50 rounded-xl p-3">
+                  🔒 Disponible desde el plan Profesional ($89.900/mes). Actualiza tu plan para habilitar pedidos por QR.
+                </p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-800 text-sm">Pedido QR — Consumo en el lugar</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Los clientes en mesa pueden ver el menú y pedir directamente desde su celular</p>
+                    </div>
+                    <button onClick={() => setQrConsumoActivo(v => !v)}
+                      className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${qrConsumoActivo ? 'bg-orange-500' : 'bg-gray-300'}`}>
+                      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${qrConsumoActivo ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-800 text-sm">Pedido QR — Domicilio</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Los clientes pueden hacer pedidos a domicilio escaneando el QR de tu página pública</p>
+                    </div>
+                    <button onClick={() => setQrDomiActivo(v => !v)}
+                      className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${qrDomiActivo ? 'bg-orange-500' : 'bg-gray-300'}`}>
+                      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${qrDomiActivo ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                  {(qrConsumoActivo || qrDomiActivo) && (
+                    <div className="bg-orange-50 border border-orange-100 rounded-xl p-3">
+                      <p className="text-xs text-orange-700 leading-relaxed">
+                        📱 Tu página pública: <b className="font-mono text-[10px] break-all">{typeof window !== 'undefined' ? `${window.location.origin}/restaurante/${negocioId || '...'}` : `/restaurante/${negocioId || '...'}`}</b>. Los clientes podrán {qrConsumoActivo && 'consumir en el lugar'}{qrConsumoActivo && qrDomiActivo && ' y '}{qrDomiActivo && 'pedir a domicilio'}.
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <button
+              onClick={guardarConfiguracion}
+              disabled={guardandoPermisos}
+              className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl transition-colors">
+              {guardandoPermisos ? 'Guardando...' : '💾 Guardar configuración'}
+            </button>
+          </div>
+        )}
+
+        {/* ══ RESERVAS ════════════════════════════════════════════ */}
+        {seccion === 'reservas' && (
+          !puedeAcceder('basico') ? renderPlanLock('basico') : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-bold text-gray-900 text-lg">Reservas</h2>
+                <p className="text-xs text-gray-400">Solicitudes de reserva de tus clientes</p>
+              </div>
+              <button onClick={cargarReservas} className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors">
+                <RotateCcw size={16} className="text-gray-600" />
               </button>
             </div>
+
+            {/* Filtros de estado */}
+            <div className="flex gap-2 overflow-x-auto pb-0.5">
+              {(['todos', 'pendiente', 'confirmada', 'cancelada'] as const).map(f => (
+                <button key={f} onClick={() => setFiltroReservaEstado(f)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border ${
+                    filtroReservaEstado === f
+                      ? f === 'pendiente' ? 'bg-amber-500 text-white border-amber-500'
+                        : f === 'confirmada' ? 'bg-green-500 text-white border-green-500'
+                        : f === 'cancelada' ? 'bg-red-400 text-white border-red-400'
+                        : 'bg-purple-600 text-white border-purple-600'
+                      : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                  }`}>
+                  {f === 'todos' ? 'Todas' : f.charAt(0).toUpperCase() + f.slice(1)}
+                  {f !== 'todos' && (
+                    <span className="ml-1.5 opacity-80">
+                      ({reservas.filter(r => r.estado === f).length})
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {cargandoReservas ? (
+              <div className="flex justify-center py-12">
+                <div className="w-8 h-8 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : reservas.filter(r => filtroReservaEstado === 'todos' || r.estado === filtroReservaEstado).length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-3">
+                  <CalendarDays size={28} className="text-gray-400" />
+                </div>
+                <p className="font-bold text-gray-500">Sin reservas</p>
+                <p className="text-xs text-gray-400 mt-1">Las solicitudes de tus clientes aparecerán aquí</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {reservas
+                  .filter(r => filtroReservaEstado === 'todos' || r.estado === filtroReservaEstado)
+                  .map(r => (
+                    <div key={r.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                          <div>
+                            <p className="font-bold text-gray-900">{r.nombre}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">📞 {r.telefono}</p>
+                          </div>
+                          <span className={`text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${
+                            r.estado === 'pendiente'  ? 'bg-amber-100 text-amber-700'
+                            : r.estado === 'confirmada' ? 'bg-green-100 text-green-700'
+                            : 'bg-red-100 text-red-600'
+                          }`}>
+                            {r.estado.charAt(0).toUpperCase() + r.estado.slice(1)}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-center mb-3">
+                          <div className="bg-gray-50 rounded-xl p-2">
+                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">Fecha</p>
+                            <p className="text-sm font-bold text-gray-900">{new Date(r.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}</p>
+                          </div>
+                          <div className="bg-gray-50 rounded-xl p-2">
+                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">Hora</p>
+                            <p className="text-sm font-bold text-gray-900">{r.hora}</p>
+                          </div>
+                          <div className="bg-gray-50 rounded-xl p-2">
+                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">Personas</p>
+                            <p className="text-sm font-bold text-gray-900">{r.personas}</p>
+                          </div>
+                        </div>
+                        {r.notas && (
+                          <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mb-3">
+                            <p className="text-xs text-amber-700">📝 {r.notas}</p>
+                          </div>
+                        )}
+                        {r.estado === 'pendiente' && (
+                          <div className="flex gap-2">
+                            <button onClick={() => actualizarEstadoReserva(r.id, 'confirmada')}
+                              className="flex-1 bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-1.5">
+                              <CheckCircle size={14} /> Confirmar
+                            </button>
+                            <button onClick={() => actualizarEstadoReserva(r.id, 'cancelada')}
+                              className="flex-1 bg-gray-100 hover:bg-red-50 text-gray-600 hover:text-red-600 text-xs font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-1.5">
+                              <X size={14} /> Cancelar
+                            </button>
+                          </div>
+                        )}
+                        {r.estado !== 'pendiente' && (
+                          <button onClick={() => actualizarEstadoReserva(r.id, 'pendiente')}
+                            className="w-full bg-gray-100 hover:bg-gray-200 text-gray-500 text-xs font-medium py-2 rounded-xl transition-colors">
+                            Marcar como pendiente
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
+          )
         )}
 
       </div>
@@ -3925,11 +4112,56 @@ export default function GerenciaPage() {
                         </div>
                       </div>
                     )}
-                    <button onClick={guardarConfiguracion} disabled={guardandoPermisos}
-                      className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl transition-colors">
-                      {guardandoPermisos ? 'Guardando...' : '💾 Guardar configuración'}
-                    </button>
                   </div>
+
+                  {/* QR — solo basico/pro */}
+                  <div className={`bg-white rounded-2xl border border-gray-100 p-5 space-y-4 ${!puedeAcceder('basico') ? 'opacity-60' : ''}`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+                          <span className="text-xl">📱</span>
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-gray-900">Pedidos por QR</h3>
+                          <p className="text-xs text-gray-400">Clientes piden desde su celular</p>
+                        </div>
+                      </div>
+                      {!puedeAcceder('basico') && (
+                        <span className="text-[10px] bg-orange-100 text-orange-700 font-bold px-2 py-1 rounded-full shrink-0">Plan Profesional</span>
+                      )}
+                    </div>
+                    {!puedeAcceder('basico') ? (
+                      <p className="text-xs text-gray-400 bg-gray-50 rounded-xl p-3">🔒 Disponible desde el plan Profesional.</p>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex-1">
+                            <p className="font-semibold text-gray-800 text-sm">QR — Consumo en el lugar</p>
+                            <p className="text-xs text-gray-400 mt-0.5">Clientes en mesa piden desde su celular</p>
+                          </div>
+                          <button onClick={() => setQrConsumoActivo(v => !v)}
+                            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${qrConsumoActivo ? 'bg-orange-500' : 'bg-gray-300'}`}>
+                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${qrConsumoActivo ? 'translate-x-6' : 'translate-x-1'}`} />
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex-1">
+                            <p className="font-semibold text-gray-800 text-sm">QR — Domicilio</p>
+                            <p className="text-xs text-gray-400 mt-0.5">Pedidos a domicilio desde la página pública</p>
+                          </div>
+                          <button onClick={() => setQrDomiActivo(v => !v)}
+                            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${qrDomiActivo ? 'bg-orange-500' : 'bg-gray-300'}`}>
+                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${qrDomiActivo ? 'translate-x-6' : 'translate-x-1'}`} />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <button onClick={guardarConfiguracion} disabled={guardandoPermisos}
+                    className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl transition-colors">
+                    {guardandoPermisos ? 'Guardando...' : '💾 Guardar configuración'}
+                  </button>
                 </div>
               )}
 
