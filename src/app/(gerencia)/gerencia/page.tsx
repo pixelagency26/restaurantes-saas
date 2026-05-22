@@ -1552,8 +1552,8 @@ export default function GerenciaPage() {
                   <Plus size={13} /> Pedido
                 </button>
                 <button onClick={() => setModalQRDomi(true)}
-                  className="text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 bg-blue-600 text-white hover:bg-blue-700 transition-colors">
-                  📱 QR Domi
+                  className="text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 bg-orange-500 text-white hover:bg-orange-600 transition-colors">
+                  🌐 Mi Página
                 </button>
                 <button onClick={() => setModoGestionMesas(g => !g)}
                   className={`text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors ${modoGestionMesas ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
@@ -1626,15 +1626,24 @@ export default function GerenciaPage() {
                         .filter(m => (m.zona || 'Sin zona') === zona)
                         .sort((a, b) => a.numero - b.numero)
                         .map(mesa => (
-                          <button key={mesa.id} onClick={() => abrirDetalleMesa(mesa)}
-                            className={`rounded-2xl p-4 text-center font-bold transition-all border-2 ${
-                              mesa.estado === 'libre'          ? 'bg-white border-gray-200 text-gray-500' :
-                              mesa.estado === 'ocupada'        ? 'bg-orange-50 border-orange-400 text-orange-700' :
-                              'bg-yellow-50 border-yellow-400 text-yellow-700'
-                            }`}>
-                            <p className="text-3xl font-black">{mesa.numero}</p>
-                            <p className="text-xs mt-1 capitalize">{mesa.estado.replace('_', ' ')}</p>
-                          </button>
+                          <div key={mesa.id} className="relative group">
+                            <button onClick={() => abrirDetalleMesa(mesa)}
+                              className={`w-full rounded-2xl p-4 text-center font-bold transition-all border-2 ${
+                                mesa.estado === 'libre'          ? 'bg-white border-gray-200 text-gray-500' :
+                                mesa.estado === 'ocupada'        ? 'bg-orange-50 border-orange-400 text-orange-700' :
+                                'bg-yellow-50 border-yellow-400 text-yellow-700'
+                              }`}>
+                              <p className="text-3xl font-black">{mesa.numero}</p>
+                              <p className="text-xs mt-1 capitalize">{mesa.estado.replace('_', ' ')}</p>
+                            </button>
+                            {/* QR icon — visible on hover */}
+                            <button
+                              onClick={e => { e.stopPropagation(); setModalQR(mesa) }}
+                              title="Ver QR de mesa"
+                              className="absolute top-1.5 right-1.5 w-6 h-6 bg-white border border-gray-200 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-purple-50 hover:border-purple-300">
+                              <span className="text-[10px] font-black text-gray-500">QR</span>
+                            </button>
+                          </div>
                         ))}
                     </div>
                   </div>
@@ -3828,6 +3837,11 @@ export default function GerenciaPage() {
                 <p className="text-xs text-gray-700 break-all font-mono">{url}</p>
               </div>
 
+              <a href={url} target="_blank" rel="noreferrer"
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
+                👁️ Ver como cliente
+              </a>
+
               <div className="flex gap-2">
                 <button
                   onClick={() => { navigator.clipboard.writeText(url); toast.success('URL copiada') }}
@@ -3844,7 +3858,7 @@ export default function GerenciaPage() {
                   }}
                   className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl text-sm transition-colors"
                 >
-                  ⬇️ Descargar
+                  ⬇️ Descargar QR
                 </button>
               </div>
             </div>
