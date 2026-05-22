@@ -2,23 +2,41 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 
+const adminClient = () => createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+)
+
+async function verificarAdmin() {
+  const supabase = await createServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return false
+
+  // Superadmin por env var
+  if (user.email === process.env.ADMIN_EMAIL) return true
+
+  // Sub-admin registrado en la tabla admins
+  const { data: rec } = await adminClient()
+    .from('admins')
+    .select('id, puede_suscripciones')
+    .eq('email', user.email)
+    .single()
+
+  return !!rec && rec.puede_suscripciones !== false
+}
+
 export async function POST(req: Request) {
   try {
-    // Verificar admin
-    const supabase = await createServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user || user.email !== process.env.ADMIN_EMAIL) {
+    const esAdmin = await verificarAdmin()
+    if (!esAdmin) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
     const { negocio_id, tipo } = await req.json()
     if (!negocio_id || !tipo) return NextResponse.json({ error: 'Faltan datos' }, { status: 400 })
 
-    const admin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
+    const admin = adminClient()
 
     // Obtener fecha actual de suscripción
     const { data: neg } = await admin
@@ -31,7 +49,6 @@ export async function POST(req: Request) {
 
     switch (tipo) {
       case 'activar': {
-        // Si tiene fecha futura, usarla como base; si no, desde hoy
         const base = neg?.suscripcion_hasta && new Date(neg.suscripcion_hasta) > new Date()
           ? new Date(neg.suscripcion_hasta)
           : new Date()

@@ -2,21 +2,38 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 
+const adminClient = () => createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+)
+
+async function verificarAdmin() {
+  const supabase = await createServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return false
+
+  // Superadmin por env var
+  if (user.email === process.env.ADMIN_EMAIL) return true
+
+  // Sub-admin registrado en la tabla admins
+  const { data: rec } = await adminClient()
+    .from('admins')
+    .select('id')
+    .eq('email', user.email)
+    .single()
+
+  return !!rec
+}
+
 export async function GET() {
   try {
-    // Verificar que sea admin
-    const supabase = await createServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user || user.email !== process.env.ADMIN_EMAIL) {
+    const esAdmin = await verificarAdmin()
+    if (!esAdmin) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
-    // Usar admin client para ver TODOS los negocios (bypass RLS)
-    const admin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
+    const admin = adminClient()
 
     const { data: negocios, error } = await admin
       .from('negocios')
