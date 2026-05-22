@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import AppPreviewTabs from '@/components/landing/AppPreviewTabs'
-import FAQAccordion    from '@/components/landing/FAQAccordion'
+import AppPreviewTabs       from '@/components/landing/AppPreviewTabs'
+import FAQAccordion         from '@/components/landing/FAQAccordion'
+import ClientPreviewPhone   from '@/components/landing/ClientPreviewPhone'
 
 const WA_NUMBER = '573137335448'
 const WA_ASESOR = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent('Hola, quiero información sobre Restaurant Pix 🍽️')}`
@@ -137,6 +138,53 @@ export default async function HomePage() {
             </p>
           </div>
           <AppPreviewTabs />
+        </div>
+      </section>
+
+      {/* ══ VISTA DEL CLIENTE (QR) ═══════════════════════════════════════════════ */}
+      <section className="px-6 py-20 bg-gray-900">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            {/* Texto */}
+            <div>
+              <span className="inline-block bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-black px-4 py-1.5 rounded-full mb-5 uppercase tracking-widest">
+                Experiencia del cliente
+              </span>
+              <h2 className="text-3xl md:text-4xl font-black text-white mb-5 leading-tight tracking-tight">
+                Tus clientes piden desde<br />
+                <span className="text-orange-400">su propio celular</span>
+              </h2>
+              <p className="text-gray-400 mb-8 leading-relaxed">
+                Con un simple QR en la mesa, el cliente abre el menú, arma su pedido y lo envía directo a cocina — sin esperar al mesero para lo básico.
+              </p>
+              <div className="space-y-4 mb-8">
+                {[
+                  { icon: '📱', title: 'Sin app que descargar', desc: 'El cliente escanea el QR y ya. Funciona desde cualquier celular.' },
+                  { icon: '📍', title: 'Seguimiento en vivo', desc: 'Ve en tiempo real si su pedido está pendiente, preparándose o listo.' },
+                  { icon: '🔔', title: 'Llama a la mesera', desc: 'Un botón en pantalla notifica al instante sin que tenga que gritar.' },
+                ].map((f, i) => (
+                  <div key={i} className="flex items-start gap-4">
+                    <div className="w-10 h-10 bg-gray-800 border border-gray-700 rounded-xl flex items-center justify-center text-xl shrink-0">
+                      {f.icon}
+                    </div>
+                    <div>
+                      <p className="font-bold text-white text-sm">{f.title}</p>
+                      <p className="text-gray-500 text-sm mt-0.5">{f.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Link href="/registro"
+                className="inline-block bg-orange-500 hover:bg-orange-600 text-white font-black px-8 py-3.5 rounded-2xl text-sm transition-all shadow-lg shadow-orange-500/20 hover:scale-105">
+                🚀 Probar gratis 14 días →
+              </Link>
+            </div>
+
+            {/* Phone mockup interactivo */}
+            <div className="flex justify-center">
+              <ClientPreviewPhone />
+            </div>
+          </div>
         </div>
       </section>
 

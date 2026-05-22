@@ -346,109 +346,156 @@ export default function MeseraPage() {
 
   // ── VISTA: MESAS ─────────────────────────────────────────────
   if (vista === 'mesas') return (
-    <div className="min-h-screen bg-gray-50 p-4 pb-8">
-      {/* Pedidos listos para entregar */}
-      {pedidosListos.length > 0 && (
-        <div className="mb-4 space-y-2">
-          {pedidosListos.map(p => (
-            <div key={p.id} className="bg-green-500 text-white rounded-xl p-3 flex items-center justify-between fade-in">
-              <div className="flex items-center gap-2">
-                <Bell size={18} className="animate-bounce" />
-                <span className="font-semibold">¡Mesa {p.mesa} lista para recoger!</span>
-              </div>
-              <button onClick={() => marcarEntregado(p.id)} className="bg-white text-green-600 text-xs font-bold px-3 py-1 rounded-lg">Entregado</button>
-            </div>
-          ))}
-        </div>
-      )}
+    <div className="min-h-screen bg-gray-950">
 
-      {/* Notificaciones de cocina: plato listo */}
-      {notifsCocina.length > 0 && (
-        <div className="mb-3 space-y-2">
-          {notifsCocina.map(notif => (
-            <div key={notif.id} className="bg-blue-50 border-2 border-blue-300 rounded-xl px-4 py-3 flex items-start justify-between gap-3 fade-in">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-black text-blue-900">
-                  🍽️ El <span className="text-orange-600">{notif.plato_nombre}</span> de la Mesa {notif.mesa_numero} está listo
-                </p>
-                {notif.pendientes.length > 0 ? (
-                  <p className="text-xs text-orange-600 font-semibold mt-1">
-                    ⏳ Faltan: {notif.pendientes.join(', ')}
-                  </p>
-                ) : (
-                  <p className="text-xs text-green-600 font-semibold mt-1">
-                    ✅ ¡Pedido completo! Ya puedes recoger todo
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={() => setNotifsCocina(prev => prev.filter(n => n.id !== notif.id))}
-                className="text-blue-300 hover:text-blue-600 shrink-0 mt-0.5">
-                <X size={16} />
-              </button>
+      {/* Header sticky */}
+      <div className="sticky top-0 z-10 bg-gray-950/95 backdrop-blur-md border-b border-gray-800 px-4 pt-4 pb-3">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20">
+              <UtensilsCrossed size={20} className="text-white" />
             </div>
-          ))}
+            <div>
+              <h1 className="text-lg font-black text-white">Mesas</h1>
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                <p className="text-gray-500 text-xs">En tiempo real</p>
+              </div>
+            </div>
+          </div>
+          <button onClick={() => {
+              if (negocioPlan === 'starter') {
+                toast('🔒 Domicilios disponible desde el Plan Profesional', { icon: '⬆️' }); return
+              }
+              iniciarDomi()
+            }}
+            className={`flex items-center gap-2 font-bold px-4 py-2.5 rounded-xl text-sm transition-all
+              ${negocioPlan === 'starter'
+                ? 'bg-gray-800 text-gray-600 cursor-default border border-gray-700'
+                : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/30'}`}>
+            <Bike size={18} /> Domi
+            {negocioPlan === 'starter' && <span className="text-xs">🔒</span>}
+          </button>
         </div>
-      )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-3">
-          <div className="bg-orange-500 p-2 rounded-xl"><UtensilsCrossed size={24} className="text-white" /></div>
-          <h1 className="text-xl font-bold text-gray-900">Mesas</h1>
+        {/* Stats chips + leyenda */}
+        <div className="flex gap-2 overflow-x-auto pb-0.5">
+          <div className="flex items-center gap-1.5 bg-gray-800/60 border border-gray-700 rounded-lg px-2.5 py-1.5 shrink-0">
+            <span className="w-2 h-2 rounded-full bg-gray-500" />
+            <span className="text-[11px] font-semibold text-gray-400">Libre</span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/25 rounded-lg px-2.5 py-1.5 shrink-0">
+            <span className="w-2 h-2 rounded-full bg-orange-500" />
+            <span className="text-[11px] font-semibold text-orange-400">Ocupada</span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/25 rounded-lg px-2.5 py-1.5 shrink-0">
+            <span className="w-2 h-2 rounded-full bg-yellow-500" />
+            <span className="text-[11px] font-semibold text-yellow-400">Cobrando</span>
+          </div>
+          {pedidosListos.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/30 rounded-lg px-2.5 py-1.5 shrink-0 animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-green-500" />
+              <span className="text-[11px] font-bold text-green-400">{pedidosListos.length} listo{pedidosListos.length > 1 ? 's' : ''}</span>
+            </div>
+          )}
         </div>
-        <button onClick={() => {
-            if (negocioPlan === 'starter') {
-              toast('🔒 Domicilios disponible desde el Plan Profesional', { icon: '⬆️' }); return
-            }
-            iniciarDomi()
-          }}
-          className={`flex items-center gap-2 font-bold px-4 py-2.5 rounded-xl text-sm transition-colors
-            ${negocioPlan === 'starter'
-              ? 'bg-gray-200 text-gray-400 cursor-default'
-              : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
-          <Bike size={18} /> Domi
-          {negocioPlan === 'starter' && <span className="text-xs">🔒</span>}
-        </button>
       </div>
 
-      {/* Leyenda */}
-      <div className="flex gap-3 mb-5 text-xs">
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-gray-200 inline-block" /> Libre</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-orange-400 inline-block" /> Ocupada</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-400 inline-block" /> Cobrando</span>
-      </div>
-
-      {/* Mesas agrupadas por zona */}
-      <div className="space-y-5">
-        {zonasLista.map((zona, idx) => {
-          const tono = ZONA_TONOS[idx % ZONA_TONOS.length]
-          const mesasZona = mesas
-            .filter(m => (m.zona || 'Sin zona') === zona)
-            .sort((a, b) => a.numero - b.numero)
-          return (
-            <div key={zona} className={`rounded-2xl border p-4 ${tono.fondo} ${tono.borde}`}>
-              <p className={`text-xs font-bold uppercase tracking-widest mb-3 ${tono.titulo}`}>
-                {zona}
-              </p>
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                {mesasZona.map(mesa => (
-                  <button key={mesa.id} onClick={() => seleccionarMesa(mesa)}
-                    className={`rounded-2xl p-4 text-center font-bold transition-all border-2 ${
-                      mesa.estado === 'libre'
-                        ? `bg-white border-gray-200 text-gray-800 hover:border-orange-400 hover:shadow-md`
-                        : mesa.estado === 'ocupada'
-                        ? 'bg-orange-50 border-orange-300 text-orange-700'
-                        : 'bg-yellow-50 border-yellow-300 text-yellow-700'
-                    }`}>
-                    <p className="text-2xl font-black">{mesa.numero}</p>
-                    <p className="text-xs mt-1 capitalize">{mesa.estado.replace('_', ' ')}</p>
-                  </button>
-                ))}
+      <div className="p-4 pb-8 space-y-3">
+        {/* Pedidos listos para entregar */}
+        {pedidosListos.length > 0 && (
+          <div className="space-y-2">
+            {pedidosListos.map(p => (
+              <div key={p.id} className="bg-green-500/10 border-2 border-green-500/40 text-green-300 rounded-2xl p-3.5 flex items-center justify-between fade-in"
+                style={{ boxShadow: '0 0 16px rgba(34,197,94,0.1)' }}>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center">
+                    <Bell size={16} className="text-green-400 animate-bounce" />
+                  </div>
+                  <span className="font-bold text-sm">¡Mesa {p.mesa} lista para recoger!</span>
+                </div>
+                <button onClick={() => marcarEntregado(p.id)}
+                  className="bg-green-500 text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-green-400 transition-colors">
+                  ✓ Entregado
+                </button>
               </div>
-            </div>
-          )
-        })}
+            ))}
+          </div>
+        )}
+
+        {/* Notificaciones de cocina */}
+        {notifsCocina.length > 0 && (
+          <div className="space-y-2">
+            {notifsCocina.map(notif => (
+              <div key={notif.id} className="bg-blue-500/10 border-2 border-blue-500/30 rounded-2xl px-4 py-3 flex items-start justify-between gap-3 fade-in">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-black text-blue-300">
+                    🍽️ <span className="text-orange-400">{notif.plato_nombre}</span> — Mesa {notif.mesa_numero} listo
+                  </p>
+                  {notif.pendientes.length > 0 ? (
+                    <p className="text-xs text-orange-400 font-semibold mt-1">⏳ Faltan: {notif.pendientes.join(', ')}</p>
+                  ) : (
+                    <p className="text-xs text-green-400 font-semibold mt-1">✅ ¡Pedido completo! Puedes recoger todo</p>
+                  )}
+                </div>
+                <button onClick={() => setNotifsCocina(prev => prev.filter(n => n.id !== notif.id))}
+                  className="text-gray-600 hover:text-gray-400 shrink-0 mt-0.5">
+                  <X size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Mesas por zona */}
+        <div className="space-y-4">
+          {zonasLista.map((zona, idx) => {
+            const mesasZona = mesas
+              .filter(m => (m.zona || 'Sin zona') === zona)
+              .sort((a, b) => a.numero - b.numero)
+            const libres   = mesasZona.filter(m => m.estado === 'libre').length
+            const ocupadas = mesasZona.filter(m => m.estado === 'ocupada').length
+            return (
+              <div key={zona} className="bg-gray-900/60 border border-gray-800 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-black text-gray-400 uppercase tracking-widest">{zona}</p>
+                  <div className="flex gap-2 text-[10px]">
+                    {ocupadas > 0 && <span className="text-orange-400 font-bold">{ocupadas} ocupada{ocupadas > 1 ? 's' : ''}</span>}
+                    {libres > 0   && <span className="text-gray-600 font-semibold">{libres} libre{libres > 1 ? 's' : ''}</span>}
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                  {mesasZona.map(mesa => (
+                    <button key={mesa.id} onClick={() => seleccionarMesa(mesa)}
+                      className={`rounded-2xl py-4 px-2 text-center font-bold transition-all border-2 active:scale-95 ${
+                        mesa.estado === 'libre'
+                          ? 'bg-gray-800/60 border-gray-700 hover:border-orange-500/60 hover:bg-gray-800'
+                          : mesa.estado === 'ocupada'
+                          ? 'bg-orange-500/10 border-orange-500/40 hover:border-orange-500'
+                          : 'bg-yellow-500/10 border-yellow-500/40 hover:border-yellow-400'
+                      }`}
+                      style={
+                        mesa.estado === 'ocupada'
+                          ? { boxShadow: '0 0 12px rgba(249,115,22,0.08)' }
+                          : {}
+                      }>
+                      <p className={`text-2xl font-black leading-none mb-1.5 ${
+                        mesa.estado === 'libre' ? 'text-gray-500' :
+                        mesa.estado === 'ocupada' ? 'text-orange-400' : 'text-yellow-400'
+                      }`}>{mesa.numero}</p>
+                      <p className={`text-[10px] font-bold leading-none ${
+                        mesa.estado === 'libre' ? 'text-gray-600' :
+                        mesa.estado === 'ocupada' ? 'text-orange-500/80' : 'text-yellow-500/80'
+                      }`}>
+                        {mesa.estado === 'libre' ? 'Libre' : mesa.estado === 'ocupada' ? 'Ocupada' : 'Cobrando'}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       {/* ── POPUP: Llamada de cliente ── */}
@@ -509,79 +556,131 @@ export default function MeseraPage() {
 
   // ── VISTA: MENÚ ──────────────────────────────────────────────
   if (vista === 'menu') return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <div className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-2">
-          <button onClick={() => { setVista('mesas'); setCarrito([]); setModoDomi(false) }} className="text-gray-400 hover:text-gray-700"><X size={22} /></button>
+    <div className="min-h-screen bg-gray-950 flex flex-col">
+      {/* Header */}
+      <div className="bg-gray-950/95 backdrop-blur-md border-b border-gray-800 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+        <div className="flex items-center gap-3">
+          <button onClick={() => { setVista('mesas'); setCarrito([]); setModoDomi(false) }}
+            className="w-8 h-8 bg-gray-800 hover:bg-gray-700 rounded-lg flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+            <X size={18} />
+          </button>
           <div>
-            {modoDomi
-              ? <div className="flex items-center gap-2"><span className="bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">🛵 DOMI</span></div>
-              : <h2 className="font-bold text-gray-900">Mesa {mesaSeleccionada?.numero}</h2>
-            }
-            {pedidoExistenteId && <p className="text-xs text-orange-500 font-medium">Agregando al pedido actual</p>}
+            {modoDomi ? (
+              <div className="flex items-center gap-2">
+                <span className="bg-blue-600 text-white text-xs font-black px-2.5 py-1 rounded-lg">🛵 DOMI</span>
+              </div>
+            ) : (
+              <h2 className="font-black text-white text-base">Mesa {mesaSeleccionada?.numero}</h2>
+            )}
+            {pedidoExistenteId && (
+              <p className="text-[11px] text-orange-400 font-semibold leading-none mt-0.5">Agregando al pedido actual</p>
+            )}
           </div>
         </div>
-        <button onClick={() => setVista('carrito')} className="relative bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2">
-          <ShoppingBag size={16} /> Ver pedido
-          {carrito.length > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">{carrito.length}</span>}
+        <button onClick={() => setVista('carrito')}
+          className="relative bg-orange-500 hover:bg-orange-400 text-white px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors shadow-lg shadow-orange-900/30">
+          <ShoppingBag size={16} />
+          {carrito.reduce((a, i) => a + i.cantidad, 0) > 0
+            ? `Ver pedido (${carrito.reduce((a, i) => a + i.cantidad, 0)})`
+            : 'Ver pedido'}
+          {carrito.length > 0 && (
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold animate-bounce">
+              {carrito.length}
+            </span>
+          )}
         </button>
       </div>
 
-      <div className="flex gap-2 px-4 py-3 overflow-x-auto bg-white border-b">
+      {/* Categorías */}
+      <div className="flex gap-2 px-4 py-3 overflow-x-auto bg-gray-900/60 border-b border-gray-800 shrink-0">
         {categorias.map(cat => (
           <button key={cat.id} onClick={() => setCategoriaActiva(cat.id)}
-            className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${categoriaActiva === cat.id ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-all ${
+              categoriaActiva === cat.id
+                ? 'bg-orange-500 text-white shadow-md shadow-orange-900/30'
+                : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
+            }`}>
             {cat.nombre}
           </button>
         ))}
       </div>
 
-      <div className="flex-1 p-4 space-y-3">
+      <div className="flex-1 p-4 space-y-2.5">
         {platosFiltrados.map(plato => {
-          const disp = disponibilidadPlato(plato)
-          const sinStock = disp === 0
+          const disp      = disponibilidadPlato(plato)
+          const sinStock  = disp === 0
           const stockBajo = disp > 0 && disp <= (plato.inventario?.[0]?.alerta_minima ?? 3)
           const enCarrito = carrito.find(i => i.plato.id === plato.id)
           return (
-            <div key={plato.id} className={`bg-white rounded-2xl p-4 border flex items-center gap-3 ${sinStock ? 'opacity-50' : 'border-gray-100'}`}>
-              {plato.imagen_url && <img src={plato.imagen_url} alt={plato.nombre} className="w-16 h-16 rounded-xl object-cover" />}
+            <div key={plato.id}
+              className={`rounded-2xl border flex items-center gap-3 p-3 transition-all ${
+                sinStock
+                  ? 'opacity-40 border-gray-800 bg-gray-900/40'
+                  : enCarrito
+                  ? 'border-orange-500/40 bg-orange-500/5'
+                  : 'border-gray-800 bg-gray-900/60 hover:border-gray-700'
+              }`}>
+              {plato.imagen_url
+                ? <img src={plato.imagen_url} alt={plato.nombre} className="w-16 h-16 rounded-xl object-cover shrink-0" />
+                : <div className="w-16 h-16 rounded-xl bg-gray-800 flex items-center justify-center text-2xl shrink-0">🍽️</div>
+              }
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-900 truncate">{plato.nombre}</p>
-                {plato.descripcion && <p className="text-xs text-gray-400 truncate">{plato.descripcion}</p>}
-                <p className="text-orange-600 font-bold mt-1">${plato.precio.toLocaleString('es-CO')}</p>
-                {sinStock && <p className="text-red-500 text-xs font-semibold">Sin disponibilidad</p>}
-                {stockBajo && <p className="text-yellow-600 text-xs font-semibold">⚠️ Quedan {disp}</p>}
+                <p className="font-bold text-white truncate text-sm">{plato.nombre}</p>
+                {plato.descripcion && <p className="text-xs text-gray-500 truncate mt-0.5">{plato.descripcion}</p>}
+                <p className="text-orange-400 font-black mt-1 text-sm">${plato.precio.toLocaleString('es-CO')}</p>
+                {sinStock  && <p className="text-red-400 text-xs font-bold mt-0.5">Sin disponibilidad</p>}
+                {stockBajo && <p className="text-amber-400 text-xs font-bold mt-0.5">⚠️ Quedan {disp}</p>}
               </div>
               {!sinStock && (
                 enCarrito ? (
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => cambiarCantidad(plato.id, -1)} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><Minus size={14} /></button>
-                    <span className="font-bold w-4 text-center">{enCarrito.cantidad}</span>
-                    <button onClick={() => cambiarCantidad(plato.id, 1)} className="w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center"><Plus size={14} /></button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => cambiarCantidad(plato.id, -1)}
+                      className="w-8 h-8 bg-gray-800 hover:bg-gray-700 rounded-full flex items-center justify-center text-white transition-colors">
+                      <Minus size={14} />
+                    </button>
+                    <span className="font-black text-white w-5 text-center">{enCarrito.cantidad}</span>
+                    <button onClick={() => cambiarCantidad(plato.id, 1)}
+                      className="w-8 h-8 bg-orange-500 hover:bg-orange-400 text-white rounded-full flex items-center justify-center transition-colors">
+                      <Plus size={14} />
+                    </button>
                   </div>
                 ) : (
-                  <button onClick={() => agregarAlCarrito(plato)} className="w-9 h-9 bg-orange-500 text-white rounded-full flex items-center justify-center hover:bg-orange-600"><Plus size={18} /></button>
+                  <button onClick={() => agregarAlCarrito(plato)}
+                    className="w-10 h-10 bg-orange-500 hover:bg-orange-400 active:scale-90 text-white rounded-full flex items-center justify-center transition-all shadow-md shadow-orange-900/30 shrink-0">
+                    <Plus size={20} />
+                  </button>
                 )
               )}
             </div>
           )
         })}
-        {platosFiltrados.length === 0 && <p className="text-center text-gray-400 py-8">No hay platos en esta categoría</p>}
+        {platosFiltrados.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-gray-600 text-sm">No hay platos en esta categoría</p>
+          </div>
+        )}
       </div>
     </div>
   )
 
   // ── VISTA: CARRITO ───────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <div className="bg-white border-b px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
-        <button onClick={() => setVista('menu')} className="text-gray-400 hover:text-gray-700"><X size={22} /></button>
+    <div className="min-h-screen bg-gray-950 flex flex-col">
+      <div className="bg-gray-950/95 backdrop-blur-md border-b border-gray-800 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
+        <button onClick={() => setVista('menu')}
+          className="w-8 h-8 bg-gray-800 hover:bg-gray-700 rounded-lg flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+          <X size={18} />
+        </button>
         <div>
-          {modoDomi
-            ? <div className="flex items-center gap-2"><span className="bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">🛵 DOMI</span><span className="font-bold text-gray-900">Confirmar pedido</span></div>
-            : <h2 className="font-bold text-gray-900">Confirmar — Mesa {mesaSeleccionada?.numero}</h2>
-          }
-          {pedidoExistenteId && <p className="text-xs text-orange-500 font-medium">Se agrega al pedido actual</p>}
+          {modoDomi ? (
+            <div className="flex items-center gap-2">
+              <span className="bg-blue-600 text-white text-xs font-black px-2.5 py-1 rounded-lg">🛵 DOMI</span>
+              <span className="font-black text-white">Confirmar pedido</span>
+            </div>
+          ) : (
+            <h2 className="font-black text-white">Confirmar — Mesa {mesaSeleccionada?.numero}</h2>
+          )}
+          {pedidoExistenteId && <p className="text-[11px] text-orange-400 font-semibold leading-none mt-0.5">Se agrega al pedido actual</p>}
         </div>
       </div>
 
