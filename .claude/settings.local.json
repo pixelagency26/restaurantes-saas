@@ -22,7 +22,10 @@
       "WebFetch(domain:api.github.com)",
       "Bash(git commit -m 'fix: bypass ESLint/TS build errors blocking Vercel deploy, remove unnecessary async *)",
       "Bash(git remote *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(gh auth *)",
+      "Bash(git config *)",
+      "Bash(git -c credential.helper=\"\" push)"
     ]
   }
 }

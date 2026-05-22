@@ -57,10 +57,10 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 mb-4">
-            <div className="w-12 h-12 bg-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+            <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center shadow-lg">
               <span className="text-2xl">🍽️</span>
             </div>
-            <span className="font-black text-gray-900 text-xl">RestaurantOS</span>
+            <span className="font-black text-gray-900 text-xl">Restaurant Pix</span>
           </Link>
           <h1 className="text-2xl font-black text-gray-900">Bienvenido de nuevo</h1>
           <p className="text-gray-500 text-sm mt-1">Ingresa a tu panel de gestión</p>
@@ -77,7 +77,7 @@ export default function LoginPage() {
                 </label>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)}
                   placeholder="correo@ejemplo.com" required
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1.5">
@@ -85,14 +85,14 @@ export default function LoginPage() {
                 </label>
                 <input type="password" value={password} onChange={e => setPassword(e.target.value)}
                   placeholder="••••••••" required
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
               </div>
               <button type="submit" disabled={loading}
-                className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-black py-4 rounded-2xl text-base transition-colors">
+                className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white font-black py-4 rounded-2xl text-base transition-colors">
                 {loading ? 'Ingresando...' : 'Ingresar'}
               </button>
               <button type="button" onClick={() => { setVista('recuperar'); setEnviado(false) }}
-                className="w-full text-center text-sm text-purple-600 hover:text-purple-700 font-medium py-1">
+                className="w-full text-center text-sm text-orange-500 hover:text-orange-600 font-medium py-1">
                 ¿Olvidaste tu contraseña?
               </button>
             </form>
@@ -116,9 +116,9 @@ export default function LoginPage() {
                   </div>
                   <input type="email" value={email} onChange={e => setEmail(e.target.value)}
                     placeholder="tu-correo@ejemplo.com" required
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
                   <button type="submit" disabled={loading}
-                    className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-black py-4 rounded-2xl transition-colors text-sm">
+                    className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white font-black py-4 rounded-2xl transition-colors text-sm">
                     {loading ? 'Enviando...' : 'Enviar enlace'}
                   </button>
                 </form>
@@ -132,7 +132,7 @@ export default function LoginPage() {
                   </p>
                   <p className="text-xs text-gray-400">Si no lo ves, revisa spam.</p>
                   <button onClick={() => { setVista('login'); setEnviado(false) }}
-                    className="w-full bg-purple-600 text-white font-black py-4 rounded-2xl text-sm mt-2">
+                    className="w-full bg-orange-500 text-white font-black py-4 rounded-2xl text-sm mt-2">
                     Volver al inicio
                   </button>
                 </div>
@@ -143,7 +143,7 @@ export default function LoginPage() {
 
         <p className="text-center text-sm text-gray-500 mt-6">
           ¿No tienes cuenta?{' '}
-          <Link href="/registro" className="text-purple-600 font-bold hover:underline">
+          <Link href="/registro" className="text-orange-500 font-bold hover:underline">
             Empieza gratis 14 días
           </Link>
         </p>

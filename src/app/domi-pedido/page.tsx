@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Plato, Categoria, Inventario } from '@/types'
 import toast from 'react-hot-toast'
@@ -21,7 +22,9 @@ const ESTADO_CONFIG: Record<string, { label: string; dot: string; color: string 
   entregado:       { label: 'En camino 🛵',  dot: 'bg-blue-400',                 color: 'text-blue-600'   },
 }
 
-export default function DomiPedidoPage() {
+function DomiPedidoInner() {
+  const searchParams = useSearchParams()
+  const negocioId = searchParams.get('n')
   const [paso, setPaso]             = useState<Paso>('menu')
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [platos, setPlatos]         = useState<(Plato & { inventario: Inventario[] })[]>([])
@@ -46,19 +49,29 @@ export default function DomiPedidoPage() {
   const [enviando, setEnviando]     = useState(false)
   const [domiEnCamino, setDomiEnCamino] = useState(false)
   const [showPopupDomi, setShowPopupDomi] = useState(false)
+  const [negocioNombre, setNegocioNombre] = useState('Restaurant Pix')
 
   const supabase = createClient()
 
   // ── CARGAR MENÚ ───────────────────────────────────────────────
   const cargarMenu = useCallback(async () => {
+    // Cargar nombre del negocio
+    if (negocioId) {
+      const { data: neg } = await supabase.from('negocios').select('nombre').eq('id', negocioId).single()
+      if (neg?.nombre) setNegocioNombre(neg.nombre)
+    }
+    const catQuery = negocioId
+      ? supabase.from('categorias').select('*').eq('negocio_id', negocioId).order('orden')
+      : supabase.from('categorias').select('*').order('orden')
+    const platosQuery = negocioId
+      ? supabase.from('platos').select('*').eq('negocio_id', negocioId).eq('activo', true)
+      : supabase.from('platos').select('*').eq('activo', true)
     const [{ data: cats }, { data: pls }, { data: inv }] = await Promise.all([
-      supabase.from('categorias').select('*').order('orden'),
-      supabase.from('platos').select('*').eq('activo', true),
-      supabase.from('inventario').select('*'),
+      catQuery, platosQuery, supabase.from('inventario').select('*'),
     ])
     if (cats) { setCategorias(cats); if (cats[0]) setCatActiva(cats[0].id) }
     if (pls) setPlatos(pls.map(p => ({ ...p, inventario: (inv || []).filter((i: Inventario) => i.plato_id === p.id) })) as unknown as (Plato & { inventario: Inventario[] })[])
-  }, [supabase])
+  }, [supabase, negocioId])
 
   useEffect(() => { cargarMenu() }, [cargarMenu])
 
@@ -526,7 +539,7 @@ export default function DomiPedidoPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <div className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 shadow-sm">
         <div>
-          <h1 className="font-bold text-gray-900">Las Delicias de Mirella</h1>
+          <h1 className="font-bold text-gray-900">{negocioNombre}</h1>
           <p className="text-xs text-gray-400 flex items-center gap-1"><Bike size={11} /> Pedido a domicilio</p>
         </div>
         <button onClick={() => setPaso('carrito')}
@@ -579,5 +592,13 @@ export default function DomiPedidoPage() {
         })}
       </div>
     </div>
+  )
+}
+
+export default function DomiPedidoPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>}>
+      <DomiPedidoInner />
+    </Suspense>
   )
 }

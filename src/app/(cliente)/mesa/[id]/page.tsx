@@ -37,6 +37,7 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
   const [categoriaActiva, setCategoriaActiva] = useState<number | null>(null)
   const [carrito, setCarrito]             = useState<ItemCarrito[]>([])
   const [mesa, setMesa]                   = useState<{ numero: number; estado: string } | null>(null)
+  const [negocioNombre, setNegocioNombre] = useState('Restaurant Pix')
   const [enviando, setEnviando]           = useState(false)
 
   // Seguimiento del pedido activo
@@ -56,7 +57,7 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
     const [{ data: cats }, { data: pls }, { data: mesaData }, { data: invData }] = await Promise.all([
       supabase.from('categorias').select('*').order('orden'),
       supabase.from('platos').select('*').eq('activo', true),
-      supabase.from('mesas').select('numero, estado').eq('id', mesaId).single(),
+      supabase.from('mesas').select('numero, estado, negocio:negocios(nombre)').eq('id', mesaId).single(),
       supabase.from('inventario').select('*'),
     ])
     if (cats) { setCategorias(cats); if (cats[0]) setCategoriaActiva(cats[0].id) }
@@ -67,7 +68,9 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
       })) as unknown as (Plato & { inventario: Inventario[] })[])
     }
     if (mesaData) {
-      setMesa(mesaData as { numero: number; estado: string })
+      const md = mesaData as { numero: number; estado: string; negocio?: { nombre: string } }
+      setMesa(md)
+      if (md.negocio?.nombre) setNegocioNombre(md.negocio.nombre)
       // Si la mesa no está libre, verificar si hay pedido activo
       if ((mesaData as { estado: string }).estado !== 'libre') {
         const { data: pedidoActivo } = await supabase
@@ -479,7 +482,7 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <div className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm">
         <div>
-          <h1 className="font-bold text-gray-900">Las Delicias de Mirella</h1>
+          <h1 className="font-bold text-gray-900">{negocioNombre}</h1>
           {mesa && <p className="text-xs text-gray-400 mt-0.5">Mesa {mesa.numero}</p>}
         </div>
         <button onClick={() => setPaso('carrito')}

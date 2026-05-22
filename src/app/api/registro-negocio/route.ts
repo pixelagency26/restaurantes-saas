@@ -13,9 +13,10 @@ export async function POST(req: Request) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    // 1. Crear negocio
+    // 1. Crear negocio con trial de 14 días
+    const trialHasta = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
     const { data: negocio, error: errN } = await admin
-      .from('negocios').insert({ nombre: nombreNegocio }).select('id').single()
+      .from('negocios').insert({ nombre: nombreNegocio, suscripcion_hasta: trialHasta, suscripcion_activa: false }).select('id').single()
     if (errN || !negocio)
       return NextResponse.json({ error: errN?.message || 'Error al crear negocio' }, { status: 400 })
 

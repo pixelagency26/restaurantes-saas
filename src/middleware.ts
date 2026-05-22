@@ -2,11 +2,13 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 // Rutas que NO necesitan estar logueado
-const RUTAS_PUBLICAS   = ['/login', '/reset-password', '/registro']
+const RUTAS_PUBLICAS   = ['/login', '/reset-password', '/registro', '/suscripcion-expirada']
 // Páginas del cliente que escanea el QR — acceso libre siempre
 const RUTAS_CLIENTE_QR = ['/mesa', '/domi-pedido']
 // Rutas accesibles para cualquier usuario autenticado (sin importar rol)
 const RUTAS_CON_SESION = ['/onboarding']
+// Rutas del panel que requieren suscripción activa
+const RUTAS_PANEL = ['/gerencia', '/mesera', '/cocina', '/domi']
 
 // Qué panel corresponde a cada rol
 const RUTA_POR_ROL: Record<string, string> = {
@@ -79,6 +81,21 @@ export async function middleware(request: NextRequest) {
   // Logueado intentando abrir /login o /registro → mandarlo a su panel
   if (esPublica) {
     return NextResponse.redirect(new URL(rutaCorrecta || '/login', request.url))
+  }
+
+  // ── Chequeo de suscripción para rutas del panel ──────────────
+  if (RUTAS_PANEL.some(r => pathname.startsWith(r))) {
+    const { data: neg } = await supabase
+      .from('negocios')
+      .select('suscripcion_activa, suscripcion_hasta')
+      .eq('id', (await supabase.from('usuarios').select('negocio_id').eq('id', user.id).single()).data?.negocio_id)
+      .single()
+    const ahora = new Date()
+    const hasta = neg?.suscripcion_hasta ? new Date(neg.suscripcion_hasta) : null
+    const activa = neg?.suscripcion_activa === true || (hasta !== null && hasta > ahora)
+    if (!activa) {
+      return NextResponse.redirect(new URL('/suscripcion-expirada', request.url))
+    }
   }
 
   // Logueado en una ruta que no le corresponde → redirigir a la suya
