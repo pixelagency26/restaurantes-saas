@@ -204,7 +204,7 @@ export default async function HomePage() {
                 'Comparativo establecimiento vs domicilios',
                 '📱 Domicilios con verificación de comprobante de pago',
                 '📊 Exportar base de datos de clientes a Excel',
-                '💬 Chat interno del equipo (próximamente)',
+                '💬 Chat interno del equipo en tiempo real',
                 'Soporte 24/7 prioritario',
               ].map((f, i) => (
                 <li key={i} className="flex items-start gap-3 text-sm text-gray-300">
