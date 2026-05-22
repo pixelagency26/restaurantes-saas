@@ -3,8 +3,6 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 
 const WA_NUMBER = '573137335448'
-const WA_MSG_BASICO = encodeURIComponent('Hola, quiero contratar el plan Básico de Restaurant Pix 🍽️')
-const WA_MSG_PRO    = encodeURIComponent('Hola, quiero contratar el plan Pro de Restaurant Pix 🍽️')
 
 export default async function HomePage() {
   const supabase = await createClient()
@@ -59,14 +57,10 @@ export default async function HomePage() {
         <p className="text-xl text-gray-500 mb-10 max-w-2xl mx-auto leading-relaxed">
           Gestiona mesas, pedidos, cocina, domicilios y caja — todo en tiempo real desde cualquier dispositivo.
         </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+        <div className="flex justify-center">
           <Link href="/registro"
-            className="bg-orange-500 hover:bg-orange-600 text-white font-black px-8 py-4 rounded-2xl text-lg transition-colors shadow-md">
+            className="bg-orange-500 hover:bg-orange-600 text-white font-black px-10 py-4 rounded-2xl text-lg transition-colors shadow-md">
             🚀 Empezar gratis 14 días
-          </Link>
-          <Link href="/registro?plan=pro"
-            className="bg-gray-900 hover:bg-gray-800 text-white font-bold px-8 py-4 rounded-2xl text-lg transition-colors flex items-center justify-center gap-2">
-            <span>💳</span> Contratar ahora
           </Link>
         </div>
       </section>
@@ -130,14 +124,10 @@ export default async function HomePage() {
                 </li>
               ))}
             </ul>
-            <div className="space-y-2">
+            <div>
               <Link href="/registro"
-                className="block text-center border-2 border-orange-500 text-orange-500 hover:bg-orange-50 font-bold py-3.5 rounded-2xl transition-colors text-sm">
+                className="block text-center bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-2xl transition-colors text-sm">
                 Probar gratis 14 días →
-              </Link>
-              <Link href="/registro?plan=basico"
-                className="block text-center bg-gray-900 hover:bg-gray-800 text-white font-bold py-3.5 rounded-2xl transition-colors text-sm">
-                💳 Contratar ya
               </Link>
             </div>
           </div>
@@ -171,14 +161,10 @@ export default async function HomePage() {
                 </li>
               ))}
             </ul>
-            <div className="space-y-2">
+            <div>
               <Link href="/registro"
                 className="block text-center bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-2xl transition-colors text-sm">
                 Probar gratis 14 días →
-              </Link>
-              <Link href="/registro?plan=pro"
-                className="block text-center bg-gray-900 hover:bg-gray-800 text-white font-bold py-3.5 rounded-2xl transition-colors text-sm">
-                💳 Contratar ya
               </Link>
             </div>
           </div>
@@ -200,15 +186,11 @@ export default async function HomePage() {
           ¿Listo para modernizar tu restaurante?
         </h2>
         <p className="text-gray-400 mb-8 text-lg">Configura tu negocio en menos de 5 minutos. 14 días gratis.</p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+        <div className="flex justify-center">
           <Link href="/registro"
             className="inline-block bg-orange-500 hover:bg-orange-600 text-white font-black px-10 py-4 rounded-2xl text-lg transition-colors">
             🚀 Crear mi cuenta gratis
           </Link>
-          <a href={`https://wa.me/${WA_NUMBER}?text=${WA_MSG_PRO}`} target="_blank" rel="noopener noreferrer"
-            className="inline-block bg-white hover:bg-gray-100 text-gray-900 font-black px-10 py-4 rounded-2xl text-lg transition-colors">
-            💬 Hablar con un asesor
-          </a>
         </div>
       </section>
 
