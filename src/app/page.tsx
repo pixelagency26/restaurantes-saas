@@ -116,6 +116,8 @@ export default async function HomePage() {
                 '4 usuarios (gerente + 2 meseras + cocina)',
                 'Pedidos y panel de cocina',
                 'Caja básica (efectivo)',
+                '⏰ Alerta de demora en cocina',
+                '🔔 Aviso a mesera cuando el pedido está listo',
                 'Soporte por WhatsApp',
               ].map((f, i) => (
                 <li key={i} className="flex items-start gap-3 text-sm text-gray-600">
@@ -163,6 +165,8 @@ export default async function HomePage() {
                 'Base de datos de clientes y cumpleaños',
                 'Informes de ventas por período',
                 'Inventario por turno y menús preconfigurados',
+                '⏰ Alerta de demora en cocina',
+                '🔔 Aviso a mesera cuando el pedido está listo',
                 'Soporte prioritario',
               ].map((f, i) => (
                 <li key={i} className="flex items-start gap-3 text-sm text-gray-700">
@@ -191,11 +195,16 @@ export default async function HomePage() {
               {[
                 'Mesas, zonas y usuarios ilimitados',
                 'Todo el plan Profesional +',
+                '⏰ Alerta de demora en cocina',
+                '🔔 Aviso a mesera cuando el pedido está listo',
                 'Análisis de tiempos de cocina por plato',
                 'Rendimiento por cocinero y mesera',
                 'Estadísticas avanzadas de rentabilidad',
                 'Gráficas de horas pico y días más rentables',
                 'Comparativo establecimiento vs domicilios',
+                '📱 Domicilios con verificación de comprobante de pago',
+                '📊 Exportar base de datos de clientes a Excel',
+                '💬 Chat interno del equipo (próximamente)',
                 'Soporte 24/7 prioritario',
               ].map((f, i) => (
                 <li key={i} className="flex items-start gap-3 text-sm text-gray-300">
