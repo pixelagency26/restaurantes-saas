@@ -69,6 +69,14 @@ export async function middleware(request: NextRequest) {
   // ── Rutas accesibles para cualquier usuario autenticado ──────
   if (RUTAS_CON_SESION.some(r => pathname.startsWith(r))) return response
 
+  // ── Panel admin: solo para el email administrador ─────────────
+  if (pathname.startsWith('/admin')) {
+    if (user.email !== process.env.ADMIN_EMAIL) {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+    return response
+  }
+
   // ── Con sesión: obtener el rol del usuario ───────────────────
   const { data: usuario } = await supabase
     .from('usuarios')
