@@ -5,8 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { Plato, Categoria, Inventario } from '@/types'
 import toast from 'react-hot-toast'
 import {
-  Bike, Bell, X, Plus, Minus, ShoppingBag, CheckCircle,
-  Clock, Package, Navigation, RefreshCw
+  Bike, X, Plus, Minus, ShoppingBag,
+  Clock, Package, Navigation, RefreshCw, Banknote, Wallet
 } from 'lucide-react'
 
 type ItemCarrito = { plato: Plato; cantidad: number; notas: string }
@@ -48,6 +48,19 @@ export default function DomiPage() {
   const [enviando, setEnviando] = useState(false)
   const [marcandoId, setMarcandoId] = useState<string | null>(null)
 
+  // Cobro domi
+  const [modalPagoDomi, setModalPagoDomi] = useState<string | null>(null) // pedidoId
+  const [metodoCobro, setMetodoCobro] = useState<'efectivo' | 'nequi' | 'daviplata' | 'bancolombia'>('efectivo')
+  const [cobrando, setCobrando] = useState(false)
+
+  // Mini cuadre
+  const [vistaCuadre, setVistaCuadre] = useState(false)
+  const [cuadre, setCuadre] = useState<{
+    efectivo: number; transfer: number
+    lista: { nombre: string; total: number; metodo: string }[]
+  }>({ efectivo: 0, transfer: 0, lista: [] })
+  const [cargandoCuadre, setCargandoCuadre] = useState(false)
+
   const supabase = createClient()
 
   // ── CARGAR PEDIDOS DOMI ACTIVOS ───────────────────────────────
@@ -79,8 +92,9 @@ export default function DomiPage() {
       }
     }
     const todos = data.map(mapear)
-    setPedidosActivos(todos.filter(p => ['pendiente', 'en_preparacion', 'listo'].includes(p.estado)))
-    setPedidosEntregados(todos.filter(p => ['entregado', 'pagado'].includes(p.estado)).slice(0, 8))
+    // "entregado" permanece en activos hasta que el domi cobre
+    setPedidosActivos(todos.filter(p => ['pendiente', 'en_preparacion', 'listo', 'entregado'].includes(p.estado)))
+    setPedidosEntregados(todos.filter(p => p.estado === 'pagado').slice(0, 8))
   }, [supabase])
 
   // ── CARGAR MENÚ ───────────────────────────────────────────────
@@ -139,6 +153,71 @@ export default function DomiPage() {
 
     return () => { supabase.removeChannel(canal); supabase.removeChannel(canalItems) }
   }, [cargarPedidos, cargarMenu, supabase])
+
+  // ── REGISTRAR COBRO ──────────────────────────────────────────
+  async function registrarCobro() {
+    if (!modalPagoDomi) return
+    setCobrando(true)
+    const ped = [...pedidosActivos, ...pedidosEntregados].find(p => p.id === modalPagoDomi)
+    if (!ped) { setCobrando(false); return }
+    await supabase.from('pagos').insert({
+      pedido_id: modalPagoDomi, metodo: metodoCobro, monto: ped.total, propina: 0,
+    })
+    await supabase.from('pedidos').update({
+      estado: 'pagado', pagado_en: new Date().toISOString(),
+    }).eq('id', modalPagoDomi)
+    toast.success('✅ Cobro registrado')
+    setModalPagoDomi(null)
+    setCobrando(false)
+    cargarPedidos()
+  }
+
+  // ── CARGAR MI CUADRE ─────────────────────────────────────────
+  const cargarCuadre = useCallback(async () => {
+    setCargandoCuadre(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const hoy = new Date().toISOString().split('T')[0]
+
+    const { data: pedidos } = await supabase
+      .from('pedidos')
+      .select('id, cliente_nombre, estado, items:items_pedido(cantidad, precio_unitario)')
+      .eq('tipo', 'domi')
+      .eq('mesera_id', user?.id)
+      .gte('created_at', `${hoy}T00:00:00`)
+      .neq('estado', 'cancelado')
+
+    if (!pedidos || pedidos.length === 0) {
+      setCuadre({ efectivo: 0, transfer: 0, lista: [] })
+      setCargandoCuadre(false)
+      return
+    }
+
+    const ids = (pedidos as { id: string }[]).map(p => p.id)
+    const { data: pagos } = await supabase
+      .from('pagos').select('pedido_id, metodo, monto').in('pedido_id', ids)
+
+    let efectivo = 0, transfer = 0
+    const lista: { nombre: string; total: number; metodo: string; pagado: boolean }[] = []
+
+    ;(pedidos as { id: string; cliente_nombre: string | null; estado: string; items: { cantidad: number; precio_unitario: number }[] }[]).forEach(p => {
+      const pagosPed = ((pagos || []) as { pedido_id: string; metodo: string; monto: number }[])
+        .filter(pg => pg.pedido_id === p.id)
+      const totalPed = p.items?.reduce((a, i) => a + i.cantidad * i.precio_unitario, 0) ?? 0
+
+      if (pagosPed.length > 0) {
+        const monto = pagosPed.reduce((a, pg) => a + pg.monto, 0)
+        const met = pagosPed[0].metodo
+        if (met === 'efectivo') efectivo += monto
+        else transfer += monto
+        lista.push({ nombre: p.cliente_nombre || 'Sin nombre', total: monto, metodo: met, pagado: true })
+      } else {
+        lista.push({ nombre: p.cliente_nombre || 'Sin nombre', total: totalPed, metodo: '—', pagado: false })
+      }
+    })
+
+    setCuadre({ efectivo, transfer, lista })
+    setCargandoCuadre(false)
+  }, [supabase])
 
   // ── MARCAR "SALIÓ A ENTREGAR" ─────────────────────────────────
   async function salioAEntregar(pedidoId: string) {
@@ -359,10 +438,16 @@ export default function DomiPage() {
             <p className="text-xs text-gray-400">{pedidosActivos.length} activo(s) hoy</p>
           </div>
         </div>
-        <button onClick={() => { setCarrito([]); setClienteDomi({ nombre: '', telefono: '', direccion: '', cedula: '' }); setVista('menu') }}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2.5 rounded-xl text-sm">
-          <Plus size={16} /> Nuevo domi
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => { setVistaCuadre(true); cargarCuadre() }}
+            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold px-3 py-2.5 rounded-xl text-sm">
+            <Wallet size={15} /> Mi cuadre
+          </button>
+          <button onClick={() => { setCarrito([]); setClienteDomi({ nombre: '', telefono: '', direccion: '', cedula: '' }); setVista('menu') }}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2.5 rounded-xl text-sm">
+            <Plus size={16} /> Nuevo domi
+          </button>
+        </div>
       </div>
 
       {/* Notificaciones de cocina */}
@@ -399,8 +484,13 @@ export default function DomiPage() {
             const mins = Math.floor((Date.now() - new Date(ped.created_at).getTime()) / 60000)
             const esListo = ped.estado === 'listo'
             const esPendiente = ped.estado === 'pendiente'
+            const esEntregado = ped.estado === 'entregado'
             return (
-              <div key={ped.id} className={`rounded-2xl border-2 p-4 ${esListo ? 'bg-green-50 border-green-400' : esPendiente ? 'bg-white border-gray-200' : 'bg-orange-50 border-orange-300'}`}>
+              <div key={ped.id} className={`rounded-2xl border-2 p-4 ${
+                esListo ? 'bg-green-50 border-green-400' :
+                esEntregado ? 'bg-blue-50 border-blue-400' :
+                esPendiente ? 'bg-white border-gray-200' : 'bg-orange-50 border-orange-300'
+              }`}>
                 <div className="flex items-start justify-between mb-2 gap-2">
                   <div className="flex-1 min-w-0">
                     <p className="font-black text-gray-900 text-base truncate">{ped.cliente_nombre || 'Sin nombre'}</p>
@@ -414,8 +504,12 @@ export default function DomiPage() {
                     )}
                   </div>
                   <div className="text-right shrink-0">
-                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${esListo ? 'bg-green-200 text-green-800' : esPendiente ? 'bg-gray-100 text-gray-600' : 'bg-orange-100 text-orange-700'}`}>
-                      {esListo ? '✅ LISTO' : esPendiente ? '⏳ Espera' : '🔥 Prep.'}
+                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                      esListo ? 'bg-green-200 text-green-800' :
+                      esEntregado ? 'bg-blue-200 text-blue-800' :
+                      esPendiente ? 'bg-gray-100 text-gray-600' : 'bg-orange-100 text-orange-700'
+                    }`}>
+                      {esListo ? '✅ LISTO' : esEntregado ? '🛵 En camino' : esPendiente ? '⏳ Espera' : '🔥 Prep.'}
                     </span>
                     <p className="text-xs text-gray-400 mt-1 flex items-center gap-1 justify-end"><Clock size={11} />{mins} min</p>
                   </div>
@@ -427,17 +521,26 @@ export default function DomiPage() {
                   ))}
                 </div>
 
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="font-black text-gray-900">${ped.total.toLocaleString('es-CO')}</span>
-                  {esListo && (
-                    <button
-                      onClick={() => salioAEntregar(ped.id)}
-                      disabled={marcandoId === ped.id}
-                      className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-colors">
-                      <Navigation size={16} />
-                      {marcandoId === ped.id ? 'Marcando...' : '🛵 Salió a entregar'}
-                    </button>
-                  )}
+                  <div className="flex gap-2">
+                    {esListo && (
+                      <button
+                        onClick={() => salioAEntregar(ped.id)}
+                        disabled={marcandoId === ped.id}
+                        className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-bold px-3 py-2.5 rounded-xl text-sm transition-colors">
+                        <Navigation size={15} />
+                        {marcandoId === ped.id ? '...' : '🛵 Salió'}
+                      </button>
+                    )}
+                    {(esListo || esEntregado) && (
+                      <button
+                        onClick={() => { setModalPagoDomi(ped.id); setMetodoCobro('efectivo') }}
+                        className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white font-bold px-3 py-2.5 rounded-xl text-sm transition-colors">
+                        <Banknote size={15} /> Cobrar
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             )
@@ -472,6 +575,120 @@ export default function DomiPage() {
       <button onClick={cargarPedidos} className="fixed bottom-6 right-6 w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-blue-700 transition-colors">
         <RefreshCw size={20} />
       </button>
+
+      {/* ── MODAL COBRAR ────────────────────────────────────────── */}
+      {modalPagoDomi && (() => {
+        const ped = [...pedidosActivos, ...pedidosEntregados].find(p => p.id === modalPagoDomi)
+        const METODOS = [
+          { id: 'efectivo' as const,    label: 'Efectivo',    emoji: '💵', color: 'bg-green-500' },
+          { id: 'nequi' as const,       label: 'Nequi',       emoji: '💜', color: 'bg-purple-500' },
+          { id: 'daviplata' as const,   label: 'Daviplata',   emoji: '❤️', color: 'bg-red-500' },
+          { id: 'bancolombia' as const, label: 'Bancolombia', emoji: '🟡', color: 'bg-yellow-500' },
+        ]
+        return (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center">
+            <div className="bg-white w-full max-w-lg rounded-t-3xl p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="font-black text-gray-900 text-lg">Registrar cobro</h2>
+                <button onClick={() => setModalPagoDomi(null)} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><X size={16}/></button>
+              </div>
+              {ped && (
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <p className="font-semibold text-gray-700">{ped.cliente_nombre || 'Sin nombre'}</p>
+                  <p className="text-2xl font-black text-gray-900 mt-1">${ped.total.toLocaleString('es-CO')}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-xs font-bold text-gray-500 uppercase mb-2">¿Cómo pagó el cliente?</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {METODOS.map(m => (
+                    <button key={m.id} onClick={() => setMetodoCobro(m.id)}
+                      className={`py-3 rounded-2xl font-bold text-sm border-2 transition-all flex items-center justify-center gap-2 ${metodoCobro === m.id ? `${m.color} text-white border-transparent` : 'bg-white text-gray-700 border-gray-200'}`}>
+                      {m.emoji} {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <button onClick={registrarCobro} disabled={cobrando}
+                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-black py-4 rounded-2xl text-base transition-colors">
+                {cobrando ? 'Registrando...' : `✅ Confirmar cobro — ${metodoCobro}`}
+              </button>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── MODAL MI CUADRE ─────────────────────────────────────── */}
+      {vistaCuadre && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center">
+          <div className="bg-white w-full max-w-lg rounded-t-3xl max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
+              <h2 className="font-black text-gray-900 text-lg">Mi cuadre del día</h2>
+              <button onClick={() => setVistaCuadre(false)} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><X size={16}/></button>
+            </div>
+            <div className="overflow-y-auto flex-1 p-5 space-y-4">
+              {cargandoCuadre ? (
+                <div className="flex justify-center py-8 text-gray-400">
+                  <RefreshCw size={28} className="animate-spin" />
+                </div>
+              ) : (<>
+                {/* Totales */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-green-50 border border-green-200 rounded-2xl p-4 text-center">
+                    <p className="text-2xl">💵</p>
+                    <p className="text-xl font-black text-green-700 mt-1">${cuadre.efectivo.toLocaleString('es-CO')}</p>
+                    <p className="text-xs text-green-600 font-semibold mt-0.5">Efectivo</p>
+                  </div>
+                  <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-center">
+                    <p className="text-2xl">📲</p>
+                    <p className="text-xl font-black text-blue-700 mt-1">${cuadre.transfer.toLocaleString('es-CO')}</p>
+                    <p className="text-xs text-blue-600 font-semibold mt-0.5">Transferencia</p>
+                  </div>
+                </div>
+                <div className="bg-gray-900 rounded-2xl p-4 text-center">
+                  <p className="text-xs text-gray-400 font-medium">Total recolectado</p>
+                  <p className="text-2xl font-black text-white mt-1">${(cuadre.efectivo + cuadre.transfer).toLocaleString('es-CO')}</p>
+                </div>
+
+                {/* Lista de pedidos */}
+                {cuadre.lista.length > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                    <div className="px-4 py-3 border-b"><p className="font-bold text-gray-900 text-sm">Mis entregas hoy</p></div>
+                    <div className="divide-y">
+                      {cuadre.lista.map((item, i) => {
+                        const EMOJIS: Record<string, string> = { efectivo: '💵', nequi: '💜', daviplata: '❤️', bancolombia: '🟡' }
+                        return (
+                          <div key={i} className="flex items-center justify-between px-4 py-3">
+                            <div>
+                              <p className="font-semibold text-gray-800 text-sm">{item.nombre}</p>
+                              <p className="text-xs text-gray-400">{EMOJIS[item.metodo] || '—'} {item.metodo !== '—' ? item.metodo : 'Sin cobrar'}</p>
+                            </div>
+                            <p className={`font-black text-sm ${item.pagado ? 'text-gray-900' : 'text-orange-500'}`}>
+                              ${item.total.toLocaleString('es-CO')}
+                            </p>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+                {cuadre.lista.length === 0 && (
+                  <div className="text-center py-8 text-gray-400">
+                    <Wallet size={36} className="mx-auto mb-2 opacity-30"/>
+                    <p className="text-sm">Sin entregas asignadas hoy</p>
+                  </div>
+                )}
+              </>)}
+            </div>
+            <div className="px-5 py-4 border-t shrink-0">
+              <button onClick={cargarCuadre} disabled={cargandoCuadre}
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-2xl text-sm flex items-center justify-center gap-2">
+                <RefreshCw size={15} /> Actualizar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -107,10 +107,14 @@ export default function GerenciaPage() {
   const [guardandoUsuario, setGuardandoUsuario] = useState(false)
   const [eliminandoUsuario, setEliminandoUsuario] = useState(false)
 
-  // Tiempos
+  // Tiempos (hoy — sección Tiempos)
   const [tiemposPorPlato, setTiemposPorPlato] = useState<TiempoStat[]>([])
   const [tiemposPorCocinero, setTiemposPorCocinero] = useState<CocineroStat[]>([])
   const [tiemposPorMesera, setTiemposPorMesera] = useState<{ nombre: string; pedidos: number; tiempoPromedio: number }[]>([])
+
+  // Tiempos del período (sección Informes — filtrado por fecha)
+  const [resumenTiempoPlato, setResumenTiempoPlato] = useState<TiempoStat[]>([])
+  const [resumenTiempoCocinero, setResumenTiempoCocinero] = useState<CocineroStat[]>([])
 
   // Resumen / informes
   const [rangoResumen, setRangoResumen] = useState<RangoResumen>('hoy')
@@ -244,12 +248,16 @@ export default function GerenciaPage() {
     const hastaISO = `${hasta}T23:59:59`
     const esSoloDia = desde === hasta
 
-    const [{ data: pedidos }, { data: pagos }] = await Promise.all([
+    const [{ data: pedidos }, { data: pagos }, { data: itemsTiemposRes }] = await Promise.all([
       supabase.from('pedidos')
         .select('id, created_at, tipo, items:items_pedido(cantidad, precio_unitario, plato:platos(costo))')
         .gte('created_at', desdeISO).lte('created_at', hastaISO).neq('estado', 'cancelado'),
       supabase.from('pagos')
         .select('metodo, monto, propina')
+        .gte('created_at', desdeISO).lte('created_at', hastaISO),
+      supabase.from('items_pedido')
+        .select('plato_id, cocinero, created_at, tiempo_inicio_prep, tiempo_listo, plato:platos(nombre)')
+        .not('tiempo_listo', 'is', null)
         .gte('created_at', desdeISO).lte('created_at', hastaISO),
     ])
 
@@ -313,6 +321,40 @@ export default function GerenciaPage() {
     setDatosPagosMetodo(Object.entries(porMetodo).map(([m, v]) => ({
       name: m.charAt(0).toUpperCase() + m.slice(1), value: v, color: colores[m] || '#6b7280'
     })))
+
+    // Tiempos del período
+    if (itemsTiemposRes) {
+      const porPlatoRes: Record<string, { nombre: string; esperas: number[]; preps: number[]; totales: number[] }> = {}
+      const porCocineroRes: Record<string, { platos: number; tiempos: number[] }> = {}
+      ;(itemsTiemposRes as unknown as {
+        plato_id: string; cocinero: string | null
+        created_at: string; tiempo_inicio_prep: string | null; tiempo_listo: string | null
+        plato: { nombre: string }
+      }[]).forEach(i => {
+        const nombre = i.plato?.nombre || '?'
+        const t0 = new Date(i.created_at).getTime()
+        const t1 = i.tiempo_inicio_prep ? new Date(i.tiempo_inicio_prep).getTime() : null
+        const t2 = i.tiempo_listo ? new Date(i.tiempo_listo).getTime() : null
+        if (!porPlatoRes[nombre]) porPlatoRes[nombre] = { nombre, esperas: [], preps: [], totales: [] }
+        if (t1) porPlatoRes[nombre].esperas.push((t1 - t0) / 60000)
+        if (t1 && t2) porPlatoRes[nombre].preps.push((t2 - t1) / 60000)
+        if (t2) porPlatoRes[nombre].totales.push((t2 - t0) / 60000)
+        if (i.cocinero && t1 && t2) {
+          if (!porCocineroRes[i.cocinero]) porCocineroRes[i.cocinero] = { platos: 0, tiempos: [] }
+          porCocineroRes[i.cocinero].platos++
+          porCocineroRes[i.cocinero].tiempos.push((t2 - t1) / 60000)
+        }
+      })
+      const avg = (arr: number[]) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0
+      setResumenTiempoPlato(Object.values(porPlatoRes).map(p => ({
+        nombre: p.nombre, espera: avg(p.esperas), preparacion: avg(p.preps),
+        total: avg(p.totales), cantidad: p.totales.length,
+      })).sort((a, b) => b.cantidad - a.cantidad))
+      setResumenTiempoCocinero(Object.entries(porCocineroRes).map(([nombre, d]) => ({
+        nombre, platos: d.platos, tiempoPromedio: avg(d.tiempos),
+      })).sort((a, b) => b.platos - a.platos))
+    }
+
     setCargandoResumen(false)
   }, [supabase])
 
@@ -1833,6 +1875,60 @@ export default function GerenciaPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* ── Tiempos del período ── */}
+            {(resumenTiempoCocinero.length > 0 || resumenTiempoPlato.length > 0) && (
+              <div className="space-y-3">
+                <h3 className="font-bold text-gray-900 flex items-center gap-2"><Timer size={16} className="text-orange-500"/> Tiempos del período</h3>
+
+                {resumenTiempoCocinero.length > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                    <div className="px-4 py-3 border-b flex items-center gap-2">
+                      <ChefHat size={15} className="text-orange-500"/>
+                      <p className="font-bold text-gray-900 text-sm">Rendimiento cocineras</p>
+                    </div>
+                    <div className="divide-y">
+                      {resumenTiempoCocinero.map(c => (
+                        <div key={c.nombre} className="flex items-center justify-between px-4 py-3">
+                          <div>
+                            <p className="font-semibold text-gray-900 text-sm">👩‍🍳 {c.nombre}</p>
+                            <p className="text-xs text-gray-400">{c.platos} plato(s)</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-gray-900">{c.tiempoPromedio} min</p>
+                            <p className="text-xs text-gray-400">prom. preparación</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {resumenTiempoPlato.length > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                    <div className="px-4 py-3 border-b flex items-center gap-2">
+                      <Clock size={15} className="text-blue-500"/>
+                      <p className="font-bold text-gray-900 text-sm">Tiempos por plato</p>
+                    </div>
+                    <div className="divide-y max-h-56 overflow-y-auto">
+                      {resumenTiempoPlato.map(p => (
+                        <div key={p.nombre} className="px-4 py-3">
+                          <div className="flex justify-between items-start mb-1">
+                            <p className="font-semibold text-gray-900 text-sm">{p.nombre}</p>
+                            <span className="text-xs text-gray-400">{p.cantidad} veces</span>
+                          </div>
+                          <div className="flex gap-3 text-xs">
+                            <span className="text-blue-600">⏳ Espera: <b>{p.espera} min</b></span>
+                            <span className="text-orange-600">🔥 Prep: <b>{p.preparacion} min</b></span>
+                            <span className="text-green-600">✅ Total: <b>{p.total} min</b></span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
