@@ -3631,16 +3631,19 @@ export default function GerenciaPage() {
                     const diasRestantes = hasta ? Math.ceil((hasta.getTime() - ahora.getTime()) / 86400000) : null
                     const vencido = diasRestantes !== null && diasRestantes <= 0
                     const esPro = facturacion.plan === 'pro'
+                    const esStarter = facturacion.plan === 'starter'
+                    const planLabel = esPro ? '🔥 Plan Pro' : esStarter ? '📦 Plan Básico' : '⭐ Plan Profesional'
+                    const planPrecio = esPro ? '$149.000 COP/mes' : esStarter ? '$19.000 COP/mes' : '$89.900 COP/mes'
 
                     return (
                       <>
                         {/* Tarjeta plan */}
-                        <div className={`rounded-2xl p-5 border-2 ${esPro ? 'bg-orange-50 border-orange-300' : 'bg-purple-50 border-purple-200'}`}>
+                        <div className={`rounded-2xl p-5 border-2 ${esPro ? 'bg-gray-900 border-gray-700' : esStarter ? 'bg-gray-50 border-gray-200' : 'bg-orange-50 border-orange-300'}`}>
                           <div className="flex items-start justify-between">
                             <div>
-                              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Plan actual</p>
-                              <p className="text-2xl font-black text-gray-900">{esPro ? '⭐ Plan Pro' : '📦 Plan Básico'}</p>
-                              <p className="text-sm text-gray-500 mt-1">{esPro ? '$149.900 COP/mes' : '$89.900 COP/mes'}</p>
+                              <p className={`text-xs font-bold uppercase tracking-widest mb-1 ${esPro ? 'text-gray-400' : 'text-gray-400'}`}>Plan actual</p>
+                              <p className={`text-2xl font-black ${esPro ? 'text-white' : 'text-gray-900'}`}>{planLabel}</p>
+                              <p className={`text-sm mt-1 ${esPro ? 'text-gray-400' : 'text-gray-500'}`}>{planPrecio}</p>
                             </div>
                             <span className={`text-xs font-black px-3 py-1.5 rounded-full mt-1 ${
                               vencido ? 'bg-red-100 text-red-700'
@@ -3685,17 +3688,24 @@ export default function GerenciaPage() {
                             <div>
                               <p className="font-black text-gray-900 mb-0.5">💳 Adquirir plan ahora</p>
                               <p className="text-xs text-blue-700 leading-relaxed">
-                                Paga hoy y no pierdas tus días de prueba — la suscripción empieza cuando termine tu período gratis.
+                                Paga hoy y no pierdes tus días de prueba — la suscripción empieza cuando termine tu período gratis.
                               </p>
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              <a href={`/checkout?plan=basico&tipo=nuevo`}
-                                className={`block text-center py-3 rounded-xl text-xs font-bold transition-colors border-2 ${esPro ? 'border-gray-200 text-gray-500 hover:border-gray-300' : 'bg-purple-600 text-white border-purple-600 hover:bg-purple-700'}`}>
-                                Plan Básico<br /><span className="font-normal">$89.900/mes</span>
+                            <div className="space-y-2">
+                              <a href="/checkout?plan=starter&tipo=nuevo"
+                                className="flex items-center justify-between w-full px-4 py-3 rounded-xl text-xs font-bold border-2 border-gray-200 hover:border-gray-300 text-gray-700 transition-colors">
+                                <span>📦 Plan Básico</span>
+                                <span className="text-gray-500 font-normal">$19.000/mes</span>
                               </a>
-                              <a href={`/checkout?plan=pro&tipo=nuevo`}
-                                className={`block text-center py-3 rounded-xl text-xs font-bold transition-colors border-2 ${esPro ? 'bg-orange-500 text-white border-orange-500 hover:bg-orange-600' : 'border-orange-400 text-orange-600 hover:bg-orange-50'}`}>
-                                ⭐ Plan Pro<br /><span className="font-normal">$149.900/mes</span>
+                              <a href="/checkout?plan=basico&tipo=nuevo"
+                                className="flex items-center justify-between w-full px-4 py-3 rounded-xl text-xs font-bold border-2 border-orange-400 bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors">
+                                <span>⭐ Plan Profesional — Recomendado</span>
+                                <span className="font-normal">$89.900/mes</span>
+                              </a>
+                              <a href="/checkout?plan=pro&tipo=nuevo"
+                                className="flex items-center justify-between w-full px-4 py-3 rounded-xl text-xs font-bold bg-gray-900 text-white hover:bg-gray-800 transition-colors">
+                                <span>🔥 Plan Pro</span>
+                                <span className="font-normal text-gray-400">$149.000/mes</span>
                               </a>
                             </div>
                           </div>
@@ -3709,24 +3719,27 @@ export default function GerenciaPage() {
                           </a>
                         )}
 
-                        {/* Upgrade plan — solo si es básico y ya pagó */}
+                        {/* Upgrade — si no es Pro y ya pagó */}
                         {facturacion.activa && !esPro && !vencido && (
                           <div className="border-2 border-orange-200 rounded-2xl p-4 space-y-3">
                             <div>
-                              <p className="font-black text-gray-900 mb-0.5">⭐ Subir al Plan Pro</p>
-                              <p className="text-xs text-gray-400 mb-1">Pagas solo la diferencia proporcional por los días que te quedan.</p>
-                              <ul className="space-y-1">
-                                {['Mesas ilimitadas', 'Usuarios ilimitados', 'Domicilios con QR', 'Estadísticas avanzadas', 'Soporte 24/7'].map(f => (
-                                  <li key={f} className="text-xs text-gray-600 flex items-center gap-2">
-                                    <span className="text-orange-500 font-bold">✓</span> {f}
-                                  </li>
-                                ))}
-                              </ul>
+                              <p className="font-black text-gray-900 mb-0.5">⬆️ Subir de plan</p>
+                              <p className="text-xs text-gray-400 mb-2">Pagas solo la diferencia proporcional por los días que te quedan.</p>
                             </div>
-                            <a href="/checkout?plan=pro&tipo=upgrade"
-                              className="block text-center bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl transition-colors text-sm">
-                              ⭐ Subir a Pro ahora
-                            </a>
+                            <div className="space-y-2">
+                              {esStarter && (
+                                <a href="/checkout?plan=basico&tipo=upgrade"
+                                  className="flex items-center justify-between w-full px-4 py-3 rounded-xl text-xs font-bold border-2 border-orange-400 bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors">
+                                  <span>⭐ Subir a Profesional</span>
+                                  <span className="font-normal">$89.900/mes</span>
+                                </a>
+                              )}
+                              <a href="/checkout?plan=pro&tipo=upgrade"
+                                className="flex items-center justify-between w-full px-4 py-3 rounded-xl text-xs font-bold bg-gray-900 text-white hover:bg-gray-800 transition-colors">
+                                <span>🔥 Subir a Pro</span>
+                                <span className="font-normal text-gray-400">$149.000/mes</span>
+                              </a>
+                            </div>
                           </div>
                         )}
 

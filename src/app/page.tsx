@@ -94,80 +94,122 @@ export default async function HomePage() {
       {/* ── PRICING ── */}
       <section className="px-6 py-20 max-w-4xl mx-auto">
         <h2 className="text-3xl font-black text-gray-900 text-center mb-3 tracking-tight">
-          Planes simples y transparentes
+          Planes para cada etapa de tu restaurante
         </h2>
-        <p className="text-center text-gray-500 mb-12">Sin cobros ocultos. Cancela cuando quieras.</p>
+        <p className="text-center text-gray-500 mb-12">14 días gratis en todos los planes · Sin tarjeta de crédito · Cancela cuando quieras.</p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-          {/* Plan Básico */}
-          <div className="border-2 border-gray-200 rounded-3xl p-8 space-y-6 hover:border-gray-300 transition-colors">
+          {/* ── Plan Básico ── */}
+          <div className="border-2 border-gray-200 rounded-3xl p-7 space-y-5 hover:border-gray-300 transition-colors flex flex-col">
             <div>
               <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Básico</p>
-              <div className="flex items-end gap-2">
-                <span className="text-4xl font-black text-gray-900">$89.900</span>
+              <div className="flex items-end gap-1.5">
+                <span className="text-3xl font-black text-gray-900">$19.000</span>
                 <span className="text-gray-400 mb-1 text-sm">COP/mes</span>
               </div>
-              <p className="text-xs text-gray-400 mt-1">~USD $22/mes</p>
+              <p className="text-xs text-gray-400 mt-1">Para negocios pequeños que arrancan</p>
             </div>
-            <ul className="space-y-2.5">
+            <ul className="space-y-2.5 flex-1">
               {[
-                'Hasta 15 mesas',
-                'Panel de meseras + cocina + caja',
-                'Pedidos por QR en mesa',
-                '2 usuarios incluidos',
+                '4 mesas máximo',
+                '4 usuarios (gerente + 2 meseras + cocina)',
+                'Pedidos y panel de cocina',
+                'Caja básica (efectivo)',
                 'Soporte por WhatsApp',
               ].map((f, i) => (
-                <li key={i} className="flex items-center gap-3 text-sm text-gray-700">
-                  <span className="w-5 h-5 bg-gray-100 text-gray-500 rounded-full flex items-center justify-center text-xs font-black shrink-0">✓</span>
+                <li key={i} className="flex items-start gap-3 text-sm text-gray-600">
+                  <span className="w-5 h-5 bg-gray-100 text-gray-400 rounded-full flex items-center justify-center text-xs font-black shrink-0 mt-0.5">✓</span>
+                  {f}
+                </li>
+              ))}
+              {[
+                'Sin domicilios',
+                'Sin QR para clientes',
+                'Sin informes',
+              ].map((f, i) => (
+                <li key={i} className="flex items-start gap-3 text-sm text-gray-300">
+                  <span className="w-5 h-5 bg-gray-50 text-gray-300 rounded-full flex items-center justify-center text-xs font-black shrink-0 mt-0.5">✕</span>
                   {f}
                 </li>
               ))}
             </ul>
-            <div>
-              <Link href="/registro"
-                className="block text-center bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-2xl transition-colors text-sm">
-                Probar gratis 14 días →
-              </Link>
-            </div>
+            <Link href="/registro"
+              className="block text-center border-2 border-gray-300 hover:border-gray-400 text-gray-700 font-bold py-3.5 rounded-2xl transition-colors text-sm">
+              Probar gratis 14 días →
+            </Link>
           </div>
 
-          {/* Plan Pro */}
-          <div className="border-2 border-orange-500 rounded-3xl p-8 space-y-6 relative bg-orange-50">
+          {/* ── Plan Profesional (Recomendado) ── */}
+          <div className="border-2 border-orange-500 rounded-3xl p-7 space-y-5 relative bg-orange-50 flex flex-col shadow-lg">
             <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-orange-500 text-white text-xs font-black px-4 py-1 rounded-full whitespace-nowrap">
-              ⭐ MÁS POPULAR
+              ⭐ RECOMENDADO
             </span>
             <div>
-              <p className="text-xs font-black text-orange-500 uppercase tracking-widest mb-2">Pro</p>
-              <div className="flex items-end gap-2">
-                <span className="text-4xl font-black text-gray-900">$149.900</span>
+              <p className="text-xs font-black text-orange-500 uppercase tracking-widest mb-2">Profesional</p>
+              <div className="flex items-end gap-1.5">
+                <span className="text-3xl font-black text-gray-900">$89.900</span>
                 <span className="text-gray-400 mb-1 text-sm">COP/mes</span>
               </div>
-              <p className="text-xs text-gray-400 mt-1">~USD $35/mes</p>
+              <p className="text-xs text-gray-400 mt-1">Para restaurantes en crecimiento</p>
             </div>
-            <ul className="space-y-2.5">
+            <ul className="space-y-2.5 flex-1">
               {[
-                'Mesas ilimitadas',
-                'Todo el plan Básico',
-                'Domicilios con QR y seguimiento',
-                'Usuarios ilimitados',
-                'Múltiples zonas',
-                'Estadísticas avanzadas',
-                'Soporte prioritario 24/7',
+                'Hasta 20 mesas · 3 zonas',
+                'Hasta 10 usuarios',
+                'Domicilios con seguimiento en vivo',
+                'QR en mesa — el cliente pide y ve el estado',
+                'Todos los métodos de pago (Nequi, Daviplata…)',
+                'Base de datos de clientes y cumpleaños',
+                'Informes de ventas por período',
+                'Inventario por turno y menús preconfigurados',
+                'Soporte prioritario',
               ].map((f, i) => (
-                <li key={i} className="flex items-center gap-3 text-sm text-gray-700">
-                  <span className="w-5 h-5 bg-orange-200 text-orange-700 rounded-full flex items-center justify-center text-xs font-black shrink-0">✓</span>
+                <li key={i} className="flex items-start gap-3 text-sm text-gray-700">
+                  <span className="w-5 h-5 bg-orange-200 text-orange-700 rounded-full flex items-center justify-center text-xs font-black shrink-0 mt-0.5">✓</span>
                   {f}
                 </li>
               ))}
             </ul>
-            <div>
-              <Link href="/registro"
-                className="block text-center bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-2xl transition-colors text-sm">
-                Probar gratis 14 días →
-              </Link>
-            </div>
+            <Link href="/registro"
+              className="block text-center bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-2xl transition-colors text-sm">
+              Probar gratis 14 días →
+            </Link>
           </div>
+
+          {/* ── Plan Pro ── */}
+          <div className="border-2 border-gray-900 rounded-3xl p-7 space-y-5 bg-gray-900 flex flex-col">
+            <div>
+              <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Pro</p>
+              <div className="flex items-end gap-1.5">
+                <span className="text-3xl font-black text-white">$149.000</span>
+                <span className="text-gray-500 mb-1 text-sm">COP/mes</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Para restaurantes consolidados</p>
+            </div>
+            <ul className="space-y-2.5 flex-1">
+              {[
+                'Mesas, zonas y usuarios ilimitados',
+                'Todo el plan Profesional +',
+                'Análisis de tiempos de cocina por plato',
+                'Rendimiento por cocinero y mesera',
+                'Estadísticas avanzadas de rentabilidad',
+                'Gráficas de horas pico y días más rentables',
+                'Comparativo establecimiento vs domicilios',
+                'Soporte 24/7 prioritario',
+              ].map((f, i) => (
+                <li key={i} className="flex items-start gap-3 text-sm text-gray-300">
+                  <span className="w-5 h-5 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-black shrink-0 mt-0.5">✓</span>
+                  {f}
+                </li>
+              ))}
+            </ul>
+            <Link href="/registro"
+              className="block text-center bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-2xl transition-colors text-sm">
+              Probar gratis 14 días →
+            </Link>
+          </div>
+
         </div>
 
         <p className="text-center text-gray-400 text-sm mt-8">

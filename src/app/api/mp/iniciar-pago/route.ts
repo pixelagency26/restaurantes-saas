@@ -2,8 +2,8 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 
-const PRECIOS: Record<string, number> = { basico: 89900, pro: 149900 }
-const NOMBRES: Record<string, string> = { basico: 'Básico', pro: 'Pro' }
+const PRECIOS: Record<string, number> = { starter: 19000, basico: 89900, pro: 149000 }
+const NOMBRES: Record<string, string> = { starter: 'Básico', basico: 'Profesional', pro: 'Pro' }
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://restaurantes-saas.vercel.app'
 
 function adminClient() {
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     const plan: 'basico' | 'pro' = body.plan
     const tipo: 'nuevo' | 'upgrade' | 'renovar' = body.tipo || 'nuevo'
 
-    if (!['basico', 'pro'].includes(plan))
+    if (!['starter', 'basico', 'pro'].includes(plan))
       return NextResponse.json({ error: 'Plan inválido' }, { status: 400 })
     if (!['nuevo', 'upgrade', 'renovar'].includes(tipo))
       return NextResponse.json({ error: 'Tipo inválido' }, { status: 400 })
