@@ -29,7 +29,16 @@ export default function LoginPage() {
       .select('rol, negocio:negocios(onboarding_completo)')
       .eq('id', data.user.id)
       .single()
-    if (!usuario) { toast.error('Usuario no encontrado'); setLoading(false); return }
+
+    if (!usuario) {
+      // Verificar si es un admin de la agencia
+      const { data: adminRec } = await supabase
+        .from('admins').select('id').eq('email', data.user.email || '').maybeSingle()
+      if (adminRec || data.user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL) {
+        router.push('/admin'); return
+      }
+      toast.error('Usuario no encontrado'); setLoading(false); return
+    }
 
     const neg = usuario.negocio as { onboarding_completo: boolean } | null
     if (neg && neg.onboarding_completo === false) { router.push('/onboarding'); return }
