@@ -37,6 +37,8 @@ export default function MeseraPage() {
 
   // ID del usuario actual (para filtrar notificaciones propias)
   const [usuarioId, setUsuarioId] = useState<string | null>(null)
+  // Plan del negocio
+  const [negocioPlan, setNegocioPlan] = useState<'starter' | 'basico' | 'pro'>('pro')
 
   const supabase = createClient()
 
@@ -75,6 +77,10 @@ export default function MeseraPage() {
     // Cargar el id del usuario actual una sola vez
     supabase.auth.getUser().then(({ data }) => {
       if (data?.user) setUsuarioId(data.user.id)
+    })
+    // Cargar plan del negocio
+    supabase.from('negocios').select('plan').single().then(({ data }) => {
+      if (data?.plan) setNegocioPlan(data.plan as 'starter' | 'basico' | 'pro')
     })
     cargarDatos()
     cargarPedidosListos()
@@ -391,9 +397,18 @@ export default function MeseraPage() {
           <div className="bg-orange-500 p-2 rounded-xl"><UtensilsCrossed size={24} className="text-white" /></div>
           <h1 className="text-xl font-bold text-gray-900">Mesas</h1>
         </div>
-        <button onClick={iniciarDomi}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-colors">
+        <button onClick={() => {
+            if (negocioPlan === 'starter') {
+              toast('🔒 Domicilios disponible desde el Plan Profesional', { icon: '⬆️' }); return
+            }
+            iniciarDomi()
+          }}
+          className={`flex items-center gap-2 font-bold px-4 py-2.5 rounded-xl text-sm transition-colors
+            ${negocioPlan === 'starter'
+              ? 'bg-gray-200 text-gray-400 cursor-default'
+              : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
           <Bike size={18} /> Domi
+          {negocioPlan === 'starter' && <span className="text-xs">🔒</span>}
         </button>
       </div>
 

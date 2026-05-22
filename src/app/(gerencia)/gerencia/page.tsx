@@ -151,6 +151,9 @@ export default function GerenciaPage() {
   const [bloqueoCantidad, setBloqueoCantidad] = useState(3)
   const [guardandoPermisos, setGuardandoPermisos] = useState(false)
 
+  // Plan del negocio (para control de acceso)
+  const [negocioPlan, setNegocioPlan] = useState<'starter' | 'basico' | 'pro'>('pro')
+
   // Panel de configuración ⚙️
   const [modalSettings, setModalSettings] = useState(false)
   const [seccionSettings, setSeccionSettings] = useState<'cuenta' | 'usuarios' | 'permisos' | 'restablecer' | 'facturacion'>('cuenta')
@@ -404,6 +407,45 @@ export default function GerenciaPage() {
       if ('bloqueo_cocina_cantidad' in cfg) setBloqueoCantidad(parseInt(cfg['bloqueo_cocina_cantidad']) || 3)
     }
   }, [supabase])
+
+  // ── PLAN / ACCESO ────────────────────────────────────────────
+  const PLAN_NIVEL: Record<string, number> = { starter: 0, basico: 1, pro: 2 }
+  const PLAN_LIMITE = {
+    starter: { mesas: 4, usuarios: 4, zonas: 1 },
+    basico:  { mesas: 20, usuarios: 10, zonas: 3 },
+    pro:     { mesas: Infinity, usuarios: Infinity, zonas: Infinity },
+  }
+  function puedeAcceder(planReq: 'starter' | 'basico' | 'pro') {
+    return (PLAN_NIVEL[negocioPlan] ?? 0) >= (PLAN_NIVEL[planReq] ?? 0)
+  }
+  function abrirUpgrade() {
+    setModalSettings(true); setSeccionSettings('facturacion'); cargarFacturacion()
+  }
+  function renderPlanLock(planReq: 'basico' | 'pro') {
+    const nombre = planReq === 'pro' ? 'Pro' : 'Profesional'
+    const precio = planReq === 'pro' ? '$149.000/mes' : '$89.900/mes'
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center px-6">
+        <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-5">
+          <Lock size={32} className="text-gray-400" />
+        </div>
+        <p className="font-black text-gray-900 text-xl mb-1">Plan {nombre}</p>
+        <p className="text-gray-400 text-sm mb-2">{precio}</p>
+        <p className="text-gray-500 text-sm mb-6 max-w-xs leading-relaxed">
+          Esta función no está disponible en tu plan actual. Sube de plan para desbloquearla.
+        </p>
+        <button onClick={abrirUpgrade}
+          className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-8 py-3.5 rounded-2xl transition-colors">
+          Ver planes →
+        </button>
+      </div>
+    )
+  }
+
+  async function cargarPlan() {
+    const { data } = await supabase.from('negocios').select('plan').single()
+    if (data?.plan) setNegocioPlan(data.plan as 'starter' | 'basico' | 'pro')
+  }
 
   // ── FACTURACIÓN ──────────────────────────────────────────────
   async function cargarFacturacion() {
@@ -734,6 +776,7 @@ export default function GerenciaPage() {
     cargarResumen(hoyStr, hoyStr)
     cargarConfiguracion()
     cargarMenusTurno()
+    cargarPlan()
     const canal = supabase.channel('gerencia-rt')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => { cargarDatos(); cargarMesas() })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'mesas' }, cargarMesas)
@@ -1031,6 +1074,12 @@ export default function GerenciaPage() {
     if (!nuevoUsuario.nombre || !nuevoUsuario.email || !nuevoUsuario.password) {
       toast.error('Completa todos los campos'); return
     }
+    // Verificar límite de usuarios según plan
+    const limiteUsuarios = PLAN_LIMITE[negocioPlan]?.usuarios ?? Infinity
+    if (listaUsuarios.filter(u => u.activo).length >= limiteUsuarios) {
+      toast.error(`Tu plan permite máximo ${limiteUsuarios} usuarios activos`)
+      abrirUpgrade(); return
+    }
     setCreandoUsuario(true)
     try {
       const res = await fetch('/api/crear-usuario', {
@@ -1119,6 +1168,12 @@ export default function GerenciaPage() {
     if (!nuevaZonaNombre.trim()) { toast.error('Escribe el nombre de la zona'); return }
     const num = parseInt(nuevaMesaNumero)
     if (isNaN(num) || num <= 0) { toast.error('Número de mesa inválido'); return }
+    // Verificar límites según plan
+    const limMesas = PLAN_LIMITE[negocioPlan]?.mesas ?? Infinity
+    const limZonas = PLAN_LIMITE[negocioPlan]?.zonas ?? Infinity
+    if (mesas.length >= limMesas) { toast.error(`Tu plan permite máximo ${limMesas} mesas`); abrirUpgrade(); return }
+    const zonasActuales = [...new Set(mesas.map(m => m.zona))].filter(Boolean).length
+    if (zonasActuales >= limZonas) { toast.error(`Tu plan permite máximo ${limZonas} zona(s)`); abrirUpgrade(); return }
     setGuardandoMesa(true)
     const { error } = await supabase.from('mesas').insert({ numero: num, estado: 'libre', zona: nuevaZonaNombre.trim() })
     setGuardandoMesa(false)
@@ -1131,6 +1186,8 @@ export default function GerenciaPage() {
   async function agregarMesaEnZona(zona: string) {
     const num = parseInt(nuevaMesaNumero)
     if (isNaN(num) || num <= 0) { toast.error('Número inválido'); return }
+    const limMesas = PLAN_LIMITE[negocioPlan]?.mesas ?? Infinity
+    if (mesas.length >= limMesas) { toast.error(`Tu plan permite máximo ${limMesas} mesas`); abrirUpgrade(); return }
     setGuardandoMesa(true)
     const { error } = await supabase.from('mesas').insert({ numero: num, estado: 'libre', zona })
     setGuardandoMesa(false)
@@ -1374,12 +1431,12 @@ export default function GerenciaPage() {
   )
 
   const nav = [
-    { id: 'mesas',    label: 'Mesas',    icon: <MapPin size={16} />          },
-    { id: 'carta',    label: 'Carta',    icon: <UtensilsCrossed size={16} /> },
-    { id: 'resumen',  label: 'Informes', icon: <BarChart3 size={16} />       },
-    { id: 'tiempos',  label: 'Tiempos',  icon: <Timer size={16} />           },
-    { id: 'clientes', label: 'Clientes', icon: <UserCircle size={16} />      },
-    { id: 'caja',     label: 'Caja',     icon: <DollarSign size={16} />      },
+    { id: 'mesas',    label: 'Mesas',    icon: <MapPin size={16} />,          planReq: 'starter' as const },
+    { id: 'carta',    label: 'Carta',    icon: <UtensilsCrossed size={16} />, planReq: 'starter' as const },
+    { id: 'resumen',  label: 'Informes', icon: <BarChart3 size={16} />,       planReq: 'basico'  as const },
+    { id: 'tiempos',  label: 'Tiempos',  icon: <Timer size={16} />,           planReq: 'pro'     as const },
+    { id: 'clientes', label: 'Clientes', icon: <UserCircle size={16} />,      planReq: 'basico'  as const },
+    { id: 'caja',     label: 'Caja',     icon: <DollarSign size={16} />,      planReq: 'starter' as const },
   ]
 
   return (
@@ -1414,12 +1471,22 @@ export default function GerenciaPage() {
 
       {/* Navegación */}
       <div className="flex gap-1 px-4 py-3 bg-white border-b overflow-x-auto">
-        {nav.map(n => (
-          <button key={n.id} onClick={() => setSeccion(n.id as Seccion)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${seccion === n.id ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
-            {n.icon} {n.label}
-          </button>
-        ))}
+        {nav.map(n => {
+          const bloqueado = !puedeAcceder(n.planReq)
+          return (
+            <button key={n.id}
+              onClick={() => {
+                if (bloqueado) { abrirUpgrade(); toast(`🔒 Plan ${n.planReq === 'pro' ? 'Pro' : 'Profesional'} requerido`, { icon: '⬆️' }); return }
+                setSeccion(n.id as Seccion)
+              }}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors
+                ${seccion === n.id && !bloqueado ? 'bg-purple-600 text-white' : ''}
+                ${bloqueado ? 'text-gray-300 cursor-default' : 'text-gray-600 hover:bg-gray-100'}`}>
+              {n.icon} {n.label}
+              {bloqueado && <Lock size={12} className="text-gray-300 ml-0.5" />}
+            </button>
+          )
+        })}
       </div>
 
       <div className="p-4">
@@ -1742,7 +1809,7 @@ export default function GerenciaPage() {
         )}
 
         {/* ══ RESUMEN / INFORMES ══════════════════════════════════ */}
-        {seccion === 'resumen' && (
+        {seccion === 'resumen' && puedeAcceder('basico') && (
           <div className="space-y-4">
             {/* Selector de rango */}
             <div className="bg-white rounded-2xl border border-gray-100 p-3 space-y-2">
@@ -1983,7 +2050,7 @@ export default function GerenciaPage() {
         )}
 
         {/* ══ TIEMPOS ═════════════════════════════════════════════ */}
-        {seccion === 'tiempos' && (
+        {seccion === 'tiempos' && puedeAcceder('pro') && (
           <div className="space-y-4">
             <p className="text-xs text-gray-400">Datos de hoy — basado en pedidos completados</p>
 
@@ -2086,7 +2153,7 @@ export default function GerenciaPage() {
         )}
 
         {/* ══ CLIENTES ════════════════════════════════════════════ */}
-        {seccion === 'clientes' && (
+        {seccion === 'clientes' && (!puedeAcceder('basico') ? renderPlanLock('basico') :
           <div className="space-y-3">
 
             {/* Buscador + botón exportar */}
@@ -2313,6 +2380,12 @@ export default function GerenciaPage() {
             )}
           </div>
         )}
+
+        {/* ══ RESUMEN / INFORMES — bloqueo para starter ══════════ */}
+        {seccion === 'resumen' && !puedeAcceder('basico') && renderPlanLock('basico')}
+
+        {/* ══ TIEMPOS — bloqueo para starter y basico ═══════════ */}
+        {seccion === 'tiempos' && !puedeAcceder('pro') && renderPlanLock('pro')}
 
         {/* ══ CAJA ════════════════════════════════════════════════ */}
         {seccion === 'caja' && (() => {
@@ -2863,12 +2936,19 @@ export default function GerenciaPage() {
                 <div>
                   <h3 className="font-bold text-gray-700 text-sm mb-3">Registrar pago</h3>
                   <div className={`grid grid-cols-4 gap-2 mb-3 transition-opacity ${!pedidoListoPagar ? 'opacity-40 pointer-events-none' : ''}`}>
-                    {METODOS.map(m => (
-                      <button key={m.id} onClick={() => setMetodoPago(m.id)}
-                        className={`py-2 rounded-xl text-xs font-bold flex flex-col items-center gap-1 border-2 transition-all ${metodoPago === m.id ? `${m.color} text-white border-transparent` : 'bg-white border-gray-200 text-gray-600'}`}>
-                        <span className="text-lg">{m.emoji}</span>{m.label}
-                      </button>
-                    ))}
+                    {METODOS.map(m => {
+                      const soloEfectivo = negocioPlan === 'starter' && m.id !== 'efectivo'
+                      return (
+                        <button key={m.id}
+                          onClick={() => { if (soloEfectivo) { abrirUpgrade(); toast('Solo efectivo en Plan Básico', { icon: '🔒' }); return } setMetodoPago(m.id) }}
+                          className={`py-2 rounded-xl text-xs font-bold flex flex-col items-center gap-1 border-2 transition-all relative
+                            ${metodoPago === m.id && !soloEfectivo ? `${m.color} text-white border-transparent` : 'bg-white border-gray-200 text-gray-600'}
+                            ${soloEfectivo ? 'opacity-35' : ''}`}>
+                          <span className="text-lg">{m.emoji}</span>{m.label}
+                          {soloEfectivo && <Lock size={10} className="absolute top-1 right-1 text-gray-400" />}
+                        </button>
+                      )
+                    })}
                   </div>
                   <div className={`flex gap-2 mb-2 transition-opacity ${!pedidoListoPagar ? 'opacity-40 pointer-events-none' : ''}`}>
                     <div className="flex-1">
