@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { MessageCircle, X, Send, ArrowLeft, Plus, ChevronRight, LogOut } from 'lucide-react'
+import { MessageCircle, X, Send, ArrowLeft, Plus, ChevronRight, LogOut, Lock } from 'lucide-react'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 interface Mensaje {
@@ -28,7 +28,7 @@ interface UsuarioItem {
   rol: string
 }
 
-type Vista = 'cerrado' | 'lista' | 'mensajes' | 'nuevo'
+type Vista = 'cerrado' | 'lista' | 'mensajes' | 'nuevo' | 'bloqueado'
 
 // ─── Helpers de rol ──────────────────────────────────────────────────────────
 const ROL: Record<string, { color: string; emoji: string; etiqueta: string }> = {
@@ -53,6 +53,12 @@ export default function ChatFlotante() {
   const [mensajes, setMensajes]         = useState<Mensaje[]>([])
   const [texto, setTexto]               = useState('')
 
+  // ── Plan enforcement ──────────────────────────────────────────────────────
+  // Default 'pro' para evitar parpadeo durante la carga inicial.
+  // planCargado pasa a true en cuanto llega la respuesta real de la DB.
+  const [negocioPlan, setNegocioPlan]   = useState<string>('pro')
+  const [planCargado, setPlanCargado]   = useState(false)
+
   // Crear nuevo chat
   const [usuarios, setUsuarios]         = useState<UsuarioItem[]>([])
   const [seleccion, setSeleccion]       = useState<string[]>([])
@@ -69,6 +75,15 @@ export default function ChatFlotante() {
   // Mantener refs sincronizados (para usarlos dentro de callbacks de realtime)
   useEffect(() => { grupoRef.current = grupoActivo }, [grupoActivo])
   useEffect(() => { miIdRef.current  = miId         }, [miId])
+
+  // ── Guardia reactiva: si el plan ya cargó y NO es Pro,
+  //    forzar vista bloqueada aunque el usuario haya abierto el chat
+  //    antes de que llegara el dato (timing attack).
+  useEffect(() => {
+    if (planCargado && negocioPlan !== 'pro' && vista !== 'cerrado' && vista !== 'bloqueado') {
+      setVista('bloqueado')
+    }
+  }, [planCargado, negocioPlan, vista])
 
   // ── Cerrar sesión ─────────────────────────────────────────────────────────
   async function cerrarSesion() {
@@ -100,8 +115,10 @@ export default function ChatFlotante() {
     })
   }, [supabase])
 
-  // ── Inicializar y suscribirse a realtime ───────────────────────────────────
+  // ── Inicializar: usuario, perfil, plan y (solo si Pro) grupos + realtime ───
   useEffect(() => {
+    let canal: ReturnType<typeof supabase.channel> | null = null
+
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
@@ -112,42 +129,53 @@ export default function ChatFlotante() {
         .from('usuarios').select('nombre, rol').eq('id', user.id).single()
       if (perfil) setMiPerfil(perfil as { nombre: string; rol: string })
 
+      // ── Verificar plan del negocio ────────────────────────────────────────
+      const { data: negDB } = await supabase
+        .from('negocios').select('plan').single()
+      const plan = negDB?.plan ?? 'starter'
+      setNegocioPlan(plan)
+      setPlanCargado(true)
+
+      // A partir de aquí solo inicializamos funcionalidad de chat si es Plan Pro
+      if (plan !== 'pro') return
+
       await cargarGrupos(user.id)
+
+      // Realtime: solo para Plan Pro
+      canal = supabase.channel('chat-flotante')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensajes_internos' }, (payload) => {
+          const msg        = payload.new as Mensaje
+          const msgGrupo   = msg.grupo_id ?? 'general'
+          const grupoAbierto = grupoRef.current?.id
+
+          if (grupoAbierto === msgGrupo) {
+            setMensajes(prev => [...prev, msg])
+            setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 80)
+          } else {
+            setGrupos(prev => prev.map(g =>
+              g.id === msgGrupo ? { ...g, noLeidos: g.noLeidos + 1 } : g
+            ))
+          }
+        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_miembros' }, (payload) => {
+          const row = payload.new as { usuario_id: string }
+          if (miIdRef.current && row.usuario_id === miIdRef.current) {
+            cargarGrupos(miIdRef.current)
+          }
+        })
+        .subscribe()
     }
+
     init()
 
-    const canal = supabase.channel('chat-flotante')
-      // Mensaje nuevo
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensajes_internos' }, (payload) => {
-        const msg        = payload.new as Mensaje
-        const msgGrupo   = msg.grupo_id ?? 'general'
-        const grupoAbierto = grupoRef.current?.id
-
-        if (grupoAbierto === msgGrupo) {
-          // Chat abierto → agregar al hilo visible
-          setMensajes(prev => [...prev, msg])
-          setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 80)
-        } else {
-          // Chat cerrado o diferente → sumar no-leído
-          setGrupos(prev => prev.map(g =>
-            g.id === msgGrupo ? { ...g, noLeidos: g.noLeidos + 1 } : g
-          ))
-        }
-      })
-      // Me agregaron a un grupo nuevo
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_miembros' }, (payload) => {
-        const row = payload.new as { usuario_id: string }
-        if (miIdRef.current && row.usuario_id === miIdRef.current) {
-          cargarGrupos(miIdRef.current)
-        }
-      })
-      .subscribe()
-
-    return () => { supabase.removeChannel(canal) }
+    return () => { if (canal) supabase.removeChannel(canal) }
   }, [supabase, cargarGrupos])
 
   // ── Abrir un chat y cargar sus mensajes ────────────────────────────────────
   async function abrirGrupo(grupo: GrupoChat) {
+    // Doble chequeo: no abrir si no es Pro
+    if (negocioPlan !== 'pro') { setVista('bloqueado'); return }
+
     setGrupoActivo(grupo)
     grupoRef.current = grupo
     setMensajes([])
@@ -161,7 +189,6 @@ export default function ChatFlotante() {
 
     if (data) setMensajes(data as Mensaje[])
 
-    // Marcar como leído
     setGrupos(prev => prev.map(g => g.id === grupo.id ? { ...g, noLeidos: 0 } : g))
 
     setTimeout(() => {
@@ -172,6 +199,7 @@ export default function ChatFlotante() {
 
   // ── Enviar mensaje ─────────────────────────────────────────────────────────
   async function enviar() {
+    if (negocioPlan !== 'pro') return // doble bloqueo
     const msg = texto.trim()
     if (!msg || !miPerfil || !grupoActivo) return
     setTexto('')
@@ -184,8 +212,10 @@ export default function ChatFlotante() {
     })
   }
 
-  // ── Abrir vista de "nuevo chat" cargando usuarios activos ──────────────────
+  // ── Abrir vista de "nuevo chat" ──────────────────────────────────────────
   async function abrirNuevo() {
+    if (negocioPlan !== 'pro') { setVista('bloqueado'); return }
+
     const { data } = await supabase
       .from('usuarios')
       .select('id, nombre, rol')
@@ -200,13 +230,13 @@ export default function ChatFlotante() {
 
   // ── Crear DM o grupo ───────────────────────────────────────────────────────
   async function crearChat() {
+    if (negocioPlan !== 'pro') return // doble bloqueo
     if (!seleccion.length || !miId) return
     setCreando(true)
 
     const esDM = seleccion.length === 1
 
     if (esDM) {
-      // Verificar si ya existe un DM con esa persona
       const { data: memb } = await supabase
         .from('chat_miembros')
         .select('grupo_id, grupo:chat_grupos(tipo)')
@@ -235,7 +265,6 @@ export default function ChatFlotante() {
       }
     }
 
-    // Nombre: para DM usamos el nombre de la otra persona; para grupo lo que escribió el usuario
     const targetUser = esDM ? usuarios.find(u => u.id === seleccion[0]) : null
     const nombre     = esDM ? (targetUser?.nombre ?? 'Chat directo') : (nombreGrupo.trim() || 'Grupo nuevo')
 
@@ -262,8 +291,24 @@ export default function ChatFlotante() {
   const totalNoLeidos = grupos.reduce((a, g) => a + g.noLeidos, 0)
   const miRol = miPerfil ? rol(miPerfil.rol) : ROL_DEFAULT
 
-  // Solo botón flotante cuando está cerrado
+  // ── BOTÓN FLOTANTE (cerrado) ───────────────────────────────────────────────
   if (vista === 'cerrado') {
+    // Plan NO Pro: botón gris bloqueado
+    if (planCargado && negocioPlan !== 'pro') {
+      return (
+        <button
+          onClick={() => setVista('bloqueado')}
+          title="Chat interno — Plan Pro"
+          className="fixed bottom-4 right-4 w-14 h-14 bg-gray-200 text-gray-400 rounded-full shadow-md flex items-center justify-center z-[9998] cursor-pointer hover:bg-gray-300 transition-colors">
+          <MessageCircle size={24} className="opacity-50" />
+          <span className="absolute -top-1 -right-1 bg-gray-400 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-bold">
+            🔒
+          </span>
+        </button>
+      )
+    }
+
+    // Plan Pro (o cargando): botón funcional normal
     return (
       <button onClick={() => setVista('lista')}
         className={`fixed bottom-4 right-4 w-14 h-14 ${miRol.color} hover:opacity-90 text-white rounded-full shadow-lg shadow-black/25 flex items-center justify-center z-[9998] active:scale-95 transition-all`}>
@@ -277,6 +322,58 @@ export default function ChatFlotante() {
     )
   }
 
+  // ── PANEL BLOQUEADO ────────────────────────────────────────────────────────
+  if (vista === 'bloqueado') {
+    return (
+      <div className="fixed bottom-4 right-4 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col z-[9999] overflow-hidden">
+        {/* Header gris */}
+        <div className="bg-gray-400 text-white px-4 py-3 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2">
+            <MessageCircle size={18} />
+            <p className="font-bold text-sm">Chat del equipo</p>
+          </div>
+          <button onClick={() => setVista('cerrado')} className="hover:bg-white/20 p-1.5 rounded-lg transition-colors">
+            <X size={17} />
+          </button>
+        </div>
+
+        {/* Contenido bloqueado */}
+        <div className="flex flex-col items-center justify-center p-8 text-center gap-5">
+          <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
+            <Lock size={36} className="text-gray-400" />
+          </div>
+
+          <div>
+            <p className="font-black text-gray-800 text-xl">Chat interno</p>
+            <p className="text-sm font-bold text-orange-500 mt-1">Exclusivo Plan Pro</p>
+          </div>
+
+          <p className="text-sm text-gray-500 leading-relaxed max-w-xs">
+            Comunícate en tiempo real con todo tu equipo — meseras, cocina y gerencia — sin salir de la app.
+          </p>
+
+          <div className="w-full space-y-2">
+            <a
+              href="/gerencia"
+              className="w-full block text-center bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl text-sm transition-colors">
+              ⬆️ Actualizar a Plan Pro
+            </a>
+            <button
+              onClick={() => setVista('cerrado')}
+              className="w-full text-xs text-gray-400 hover:text-gray-600 py-2 transition-colors">
+              Cerrar
+            </button>
+          </div>
+
+          <p className="text-[11px] text-gray-400 -mt-2">
+            Ve a <span className="font-semibold">Gerencia → ⚙️ Configuración → Facturación</span>
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // ── PANELES FUNCIONALES (solo accesibles con Plan Pro) ─────────────────────
   return (
     <div className="fixed bottom-4 right-4 w-80 sm:w-96 h-[490px] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col z-[9999] overflow-hidden">
 
@@ -297,14 +394,12 @@ export default function ChatFlotante() {
             {grupos.map(g => (
               <button key={g.id} onClick={() => abrirGrupo(g)}
                 className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors text-left">
-                {/* Icono */}
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-base shrink-0 text-white ${
                   g.tipo === 'general' ? 'bg-gray-600' :
                   g.tipo === 'directo' ? 'bg-blue-500' : 'bg-teal-500'
                 }`}>
                   {g.tipo === 'general' ? '📢' : g.tipo === 'directo' ? '👤' : '👥'}
                 </div>
-                {/* Texto */}
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-900 text-sm truncate">{g.nombre}</p>
                   <p className="text-xs text-gray-400 mt-0.5">
@@ -312,7 +407,6 @@ export default function ChatFlotante() {
                      g.tipo === 'directo' ? 'Mensaje directo' : 'Grupo'}
                   </p>
                 </div>
-                {/* Badge + flecha */}
                 <div className="flex items-center gap-1.5 shrink-0">
                   {g.noLeidos > 0 && (
                     <span className="bg-red-500 text-white text-xs min-w-5 h-5 px-1 rounded-full flex items-center justify-center font-bold">
@@ -326,7 +420,6 @@ export default function ChatFlotante() {
           </div>
 
           <div className="border-t border-gray-100 shrink-0">
-            {/* Mi perfil + cerrar sesión */}
             {miPerfil && (
               <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50">
                 <div className="flex items-center gap-2 min-w-0">
@@ -375,7 +468,6 @@ export default function ChatFlotante() {
             </button>
           </div>
 
-          {/* Mensajes */}
           <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-gray-50">
             {mensajes.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-gray-400 text-center">
@@ -389,11 +481,9 @@ export default function ChatFlotante() {
               const rc    = rol(m.rol)
               return (
                 <div key={m.id} className={`flex gap-2 ${esMio ? 'flex-row-reverse' : 'flex-row'}`}>
-                  {/* Avatar */}
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 ${rc.color} text-white`}>
                     {rc.emoji}
                   </div>
-                  {/* Burbuja */}
                   <div className={`max-w-[73%] flex flex-col ${esMio ? 'items-end' : 'items-start'}`}>
                     {!esMio && (
                       <p className="text-[11px] text-gray-500 font-semibold mb-0.5 px-1">
@@ -416,7 +506,6 @@ export default function ChatFlotante() {
             <div ref={bottomRef} />
           </div>
 
-          {/* Input */}
           <div className="p-3 border-t border-gray-200 bg-white shrink-0 flex gap-2">
             <input
               ref={inputRef}
@@ -428,7 +517,7 @@ export default function ChatFlotante() {
               maxLength={300}
               className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-300"
             />
-            <button onClick={enviar} disabled={!texto.trim() || !miPerfil}
+            <button onClick={enviar} disabled={!texto.trim() || !miPerfil || negocioPlan !== 'pro'}
               className={`${miRol.color} hover:opacity-90 disabled:bg-gray-200 disabled:cursor-not-allowed text-white p-2.5 rounded-xl transition-all active:scale-95 shrink-0`}>
               <Send size={16} />
             </button>
@@ -456,7 +545,6 @@ export default function ChatFlotante() {
             </div>
           </div>
 
-          {/* Lista de usuarios activos (dinámica) */}
           <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
             {usuarios.length === 0 && (
               <p className="text-center text-gray-400 text-sm py-10">No hay otros usuarios activos</p>
@@ -472,16 +560,13 @@ export default function ChatFlotante() {
                   className={`w-full flex items-center gap-3 px-4 py-3.5 transition-colors text-left ${
                     checked ? 'bg-orange-50' : 'hover:bg-gray-50'
                   }`}>
-                  {/* Avatar */}
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm text-white shrink-0 ${rc.color}`}>
                     {rc.emoji}
                   </div>
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm text-gray-900 truncate">{u.nombre}</p>
                     <p className="text-xs text-gray-400">{rc.etiqueta}</p>
                   </div>
-                  {/* Checkbox visual */}
                   <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
                     checked ? `${miRol.color} border-transparent scale-110` : 'border-gray-300 bg-white'
                   }`}>
@@ -492,9 +577,7 @@ export default function ChatFlotante() {
             })}
           </div>
 
-          {/* Botón crear */}
           <div className="p-3 border-t border-gray-100 bg-white shrink-0 space-y-2">
-            {/* Nombre del grupo (solo si 2+ seleccionados) */}
             {seleccion.length >= 2 && (
               <input
                 type="text"
@@ -508,7 +591,7 @@ export default function ChatFlotante() {
               />
             )}
             <button onClick={crearChat}
-              disabled={seleccion.length === 0 || creando}
+              disabled={seleccion.length === 0 || creando || negocioPlan !== 'pro'}
               className={`w-full ${miRol.color} disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl text-sm transition-all active:scale-95`}>
               {creando
                 ? '⏳ Creando...'
