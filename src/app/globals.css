@@ -20,6 +20,11 @@ body {
   animation: fadeIn 0.3s ease forwards;
 }
 
+/* Evita que el teclado móvil tape elementos fixed al fondo */
+@supports (height: 100dvh) {
+  .modal-full { height: 100dvh; }
+}
+
 /* Parpadeo para alertas urgentes en cocina */
 @keyframes pulse-red {
   0%, 100% { background-color: #fef2f2; }

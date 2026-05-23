@@ -1243,10 +1243,23 @@ export default function GerenciaPage() {
     }
     setCreandoUsuario(true)
     try {
+      // Garantizar que tenemos el negocio_id aunque el estado no haya cargado aún
+      let nid = negocioId
+      if (!nid) {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: u } = await supabase.from('usuarios').select('negocio_id').eq('id', user.id).single()
+          nid = u?.negocio_id ?? null
+        }
+      }
+      if (!nid) {
+        setErrorCrearUsuario('No se pudo obtener el ID del negocio. Recarga la página e intenta de nuevo.')
+        setCreandoUsuario(false); return
+      }
       const res = await fetch('/api/crear-usuario', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...nuevoUsuario, negocio_id: negocioId }),
+        body: JSON.stringify({ ...nuevoUsuario, negocio_id: nid }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -4016,7 +4029,7 @@ export default function GerenciaPage() {
       )}
 
       {modalUsuario && (
-        <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-[60] p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm fade-in space-y-3">
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-lg text-gray-900">Nuevo usuario</h3>
