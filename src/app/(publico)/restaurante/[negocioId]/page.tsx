@@ -253,17 +253,18 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
 
     let clienteId: string | null = null
     if (cedula.trim()) {
-      const { data: cl } = await supabase.from('clientes').select('id').eq('cedula', cedula.trim()).single()
+      const { data: cl } = await supabase.from('clientes').select('id').eq('cedula', cedula.trim()).eq('negocio_id', negocioId).single()
       if (cl) { clienteId = cl.id }
       else {
         const { data: nc } = await supabase.from('clientes')
-          .insert({ cedula: cedula.trim(), nombre: nombre.trim(), telefono: telefono.trim() })
+          .insert({ negocio_id: negocioId, cedula: cedula.trim(), nombre: nombre.trim(), telefono: telefono.trim() })
           .select('id').single()
         clienteId = nc?.id ?? null
       }
     }
 
     const { data: pedido, error } = await supabase.from('pedidos').insert({
+      negocio_id: negocioId,
       mesa_id: mesaId,
       cliente_id: clienteId,
       cliente_nombre: nombre.trim(),
@@ -277,7 +278,11 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
       comprobante_url: comprobanteUrl,
     }).select().single()
 
-    if (error || !pedido) { toast.error('Error al enviar. Intenta de nuevo.'); setEnviando(false); return }
+    if (error || !pedido) {
+      console.error('Error creando pedido:', error)
+      toast.error('Error al enviar: ' + (error?.message || 'intenta de nuevo'))
+      setEnviando(false); return
+    }
 
     await supabase.from('items_pedido').insert(
       carrito.map(i => ({ pedido_id: pedido.id, plato_id: i.plato.id, cantidad: i.cantidad, precio_unitario: i.plato.precio, notas: i.notas || null }))
