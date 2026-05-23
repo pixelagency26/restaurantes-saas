@@ -473,7 +473,7 @@ export default function GerenciaPage() {
     const precio = planReq === 'pro' ? '$149.000/mes' : '$89.900/mes'
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center px-6">
-        <div className="w-20 h-20 bg-white/8 rounded-full flex items-center justify-center mb-5">
+        <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mb-5">
           <Lock size={32} className="text-gray-400" />
         </div>
         <p className="font-black text-gray-900 text-xl mb-1">Plan {nombre}</p>
@@ -1599,9 +1599,9 @@ export default function GerenciaPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-[#07070f]">
+    <div className="min-h-screen bg-gray-100">
       {/* Header */}
-      <div className="bg-[#0d0d1a]/95 backdrop-blur-xl border-b border-white/8 px-4 py-3.5 flex items-center justify-between sticky top-0 z-40">
+      <div className="bg-gray-950 border-b border-gray-800 px-4 py-3.5 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-3">
           <div className="bg-gradient-to-br from-orange-500 to-orange-700 p-2 rounded-xl shadow-lg shadow-orange-900/30">
             <BarChart3 size={20} className="text-white" />
@@ -1623,14 +1623,14 @@ export default function GerenciaPage() {
               })
               cargarFacturacion()
             }}
-            className="w-9 h-9 bg-white/6 hover:bg-white/12 border border-white/10 rounded-xl flex items-center justify-center transition-colors">
-            <Settings size={18} className="text-white/60" />
+            className="w-9 h-9 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl flex items-center justify-center transition-colors">
+            <Settings size={18} className="text-gray-300" />
           </button>
         </div>
       </div>
 
       {/* Navegación */}
-      <div className="flex gap-1 px-3 py-2.5 bg-[#0d0d1a]/80 backdrop-blur-xl border-b border-white/8 overflow-x-auto scrollbar-none">
+      <div className="flex gap-1 px-3 py-2 bg-gray-950 border-b border-gray-800 overflow-x-auto scrollbar-none">
         {nav.map(n => {
           const bloqueado = !puedeAcceder(n.planReq)
           return (
@@ -1641,12 +1641,12 @@ export default function GerenciaPage() {
               }}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all
                 ${seccion === n.id && !bloqueado
-                  ? 'bg-orange-500/90 text-white shadow-lg shadow-orange-900/40'
+                  ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/40'
                   : bloqueado
-                  ? 'text-white/20 cursor-default'
-                  : 'text-white/50 hover:bg-white/8 hover:text-white/90'}`}>
+                  ? 'text-gray-600 cursor-default'
+                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}>
               {n.icon} {n.label}
-              {bloqueado && <Lock size={12} className="text-white/20 ml-0.5" />}
+              {bloqueado && <Lock size={12} className="text-gray-600 ml-0.5" />}
             </button>
           )
         })}
@@ -1661,12 +1661,12 @@ export default function GerenciaPage() {
             <div className="flex items-center justify-between mb-4 gap-2">
               {!modoGestionMesas ? (
                 <div className="flex gap-3 text-xs flex-wrap">
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-white/20 inline-block" /><span className="text-white/40">Libre</span></span>
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-orange-400 inline-block" /><span className="text-white/60">Ocupada</span></span>
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-400 inline-block" /><span className="text-white/60">Cobrando</span></span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-gray-300 inline-block" /><span className="text-gray-500">Libre</span></span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-orange-500 inline-block" /><span className="text-gray-600">Ocupada</span></span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-400 inline-block" /><span className="text-gray-600">Cobrando</span></span>
                 </div>
               ) : (
-                <p className="text-sm font-bold text-orange-400">Modo gestión de mesas</p>
+                <p className="text-sm font-bold text-orange-500">Modo gestión de mesas</p>
               )}
               <div className="flex gap-2 shrink-0">
                 <button onClick={() => {
@@ -1684,7 +1684,7 @@ export default function GerenciaPage() {
                   🌐 Mi Página
                 </button>
                 <button onClick={() => setModoGestionMesas(g => !g)}
-                  className={`text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all ${modoGestionMesas ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-white/8 text-white/60 hover:bg-white/14 border border-white/10'}`}>
+                  className={`text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all ${modoGestionMesas ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'}`}>
                   <Settings size={13} /> {modoGestionMesas ? 'Salir' : 'Gestionar'}
                 </button>
               </div>
@@ -1698,19 +1698,19 @@ export default function GerenciaPage() {
                   <Plus size={18} /> Nueva zona
                 </button>
                 {zonasLista.length === 0 && (
-                  <p className="text-center text-white/30 text-sm py-8">No hay zonas. Crea la primera.</p>
+                  <p className="text-center text-gray-400 text-sm py-8">No hay zonas. Crea la primera.</p>
                 )}
                 {zonasLista.map(zona => (
-                  <div key={zona} className="bg-white/5 rounded-2xl border border-white/10 p-4 backdrop-blur-sm">
+                  <div key={zona} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
                     <div className="flex items-center justify-between mb-3 gap-2">
-                      <span className="font-bold text-white text-base">{zona}</span>
+                      <span className="font-bold text-gray-900 text-base">{zona}</span>
                       <div className="flex gap-2 shrink-0">
                         <button onClick={() => { setModalRenombrarZona(zona); setRenombrarZonaValor(zona) }}
-                          className="text-xs bg-white/8 hover:bg-white/14 text-white/60 hover:text-white px-2 py-1.5 rounded-lg flex items-center gap-1 font-medium border border-white/10 transition-all">
+                          className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1.5 rounded-lg flex items-center gap-1 font-medium border border-gray-200 transition-all">
                           <Pencil size={12} /> Renombrar
                         </button>
                         <button onClick={() => { setModalAgregarMesa(zona); setNuevaMesaNumero('') }}
-                          className="text-xs bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 px-2 py-1.5 rounded-lg flex items-center gap-1 font-medium border border-orange-500/30 transition-all">
+                          className="text-xs bg-orange-50 hover:bg-orange-100 text-orange-600 px-2 py-1.5 rounded-lg flex items-center gap-1 font-medium border border-orange-200 transition-all">
                           <Plus size={12} /> Mesa
                         </button>
                       </div>
@@ -1720,24 +1720,24 @@ export default function GerenciaPage() {
                         .filter(m => (m.zona || 'Sin zona') === zona)
                         .sort((a, b) => a.numero - b.numero)
                         .map(m => (
-                          <div key={m.id} className="flex items-center gap-1.5 bg-white/6 border border-white/12 rounded-xl px-3 py-2">
-                            <span className="font-bold text-white/80 text-sm">Mesa {m.numero}</span>
-                            <button onClick={() => setModalQR(m)} className="text-white/30 hover:text-orange-400 ml-0.5 transition-colors" title="Ver QR">
+                          <div key={m.id} className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                            <span className="font-bold text-gray-800 text-sm">Mesa {m.numero}</span>
+                            <button onClick={() => setModalQR(m)} className="text-gray-400 hover:text-orange-500 ml-0.5 transition-colors" title="Ver QR">
                               <span className="text-xs">QR</span>
                             </button>
                             {m.estado === 'libre' ? (
-                              <button onClick={() => eliminarMesa(m.id)} className="text-red-400/70 hover:text-red-400 ml-0.5 transition-colors" title="Eliminar">
+                              <button onClick={() => eliminarMesa(m.id)} className="text-red-400 hover:text-red-600 ml-0.5 transition-colors" title="Eliminar">
                                 <X size={14} />
                               </button>
                             ) : (
-                              <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${m.estado === 'ocupada' ? 'bg-orange-500/20 text-orange-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${m.estado === 'ocupada' ? 'bg-orange-100 text-orange-600' : 'bg-yellow-100 text-yellow-700'}`}>
                                 {m.estado === 'ocupada' ? 'ocupada' : 'cobrando'}
                               </span>
                             )}
                           </div>
                         ))}
                       {mesas.filter(m => (m.zona || 'Sin zona') === zona).length === 0 && (
-                        <p className="text-sm text-white/25 italic">Sin mesas</p>
+                        <p className="text-sm text-gray-400 italic">Sin mesas</p>
                       )}
                     </div>
                   </div>
@@ -1758,10 +1758,10 @@ export default function GerenciaPage() {
                             <button onClick={() => abrirDetalleMesa(mesa)}
                               className={`w-full rounded-2xl p-4 text-center font-bold transition-all border-2 ${
                                 mesa.estado === 'libre'
-                                  ? 'bg-white/4 border-white/10 text-white/35 hover:bg-white/8 hover:border-white/20'
+                                  ? 'bg-white border-gray-200 text-gray-400 hover:border-orange-300 hover:shadow-md shadow-sm'
                                   : mesa.estado === 'ocupada'
-                                  ? 'bg-orange-500/12 border-orange-500/50 text-orange-300 shadow-lg shadow-orange-900/20 hover:bg-orange-500/18'
-                                  : 'bg-yellow-500/12 border-yellow-500/50 text-yellow-300 shadow-lg shadow-yellow-900/20 hover:bg-yellow-500/18'
+                                  ? 'bg-orange-500 border-orange-400 text-white shadow-lg shadow-orange-200 hover:bg-orange-600'
+                                  : 'bg-yellow-400 border-yellow-300 text-yellow-900 shadow-lg shadow-yellow-100 hover:bg-yellow-500'
                               }`}>
                               <p className="text-3xl font-black">{mesa.numero}</p>
                               <p className="text-xs mt-1 capitalize opacity-80">{mesa.estado.replace('_', ' ')}</p>
@@ -1770,8 +1770,8 @@ export default function GerenciaPage() {
                             <button
                               onClick={e => { e.stopPropagation(); setModalQR(mesa) }}
                               title="Ver QR de mesa"
-                              className="absolute top-1.5 right-1.5 w-6 h-6 bg-white/8 border border-white/15 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm hover:bg-orange-500/20 hover:border-orange-500/40">
-                              <span className="text-[10px] font-black text-white/50">QR</span>
+                              className="absolute top-1.5 right-1.5 w-6 h-6 bg-white border border-gray-200 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm hover:bg-orange-50 hover:border-orange-300">
+                              <span className="text-[10px] font-black text-gray-400">QR</span>
                             </button>
                           </div>
                         ))}
@@ -1780,7 +1780,7 @@ export default function GerenciaPage() {
                 ))}
                 {mesas.length === 0 && (
                   <div className="text-center py-12">
-                    <p className="text-white/30 text-sm mb-3">No hay mesas configuradas.</p>
+                    <p className="text-gray-400 text-sm mb-3">No hay mesas configuradas.</p>
                     <button onClick={() => setModoGestionMesas(true)} className="text-orange-400 font-bold text-sm hover:text-orange-300 transition-colors">
                       Crear primera zona →
                     </button>
@@ -1824,22 +1824,22 @@ export default function GerenciaPage() {
                     const EMOJIS: Record<string, string> = { efectivo: '💵', nequi: '💜', daviplata: '❤️', bancolombia: '🟡' }
 
                     const badgeClases = pagado
-                      ? 'bg-white/20 text-white/50'
+                      ? 'bg-gray-200 text-gray-500'
                       : listo
                       ? 'bg-green-500 text-white animate-pulse'
                       : entregado
-                      ? 'bg-gray-600 text-white'
+                      ? 'bg-gray-500 text-white'
                       : enPrep
-                      ? 'bg-orange-500/80 text-white'
-                      : 'bg-gray-600 text-white'
+                      ? 'bg-orange-500 text-white'
+                      : 'bg-gray-400 text-white'
 
                     const badgeLabel = pagado ? '✓ PAGADO' : listo ? '🍽️ LISTO' : entregado ? '🛵 EN CAMINO' : enPrep ? '🔥 PREP.' : '⏳ ESPERA'
 
                     const cardClases = pagado
-                      ? 'bg-white/4 border-white/8 opacity-50 cursor-default'
+                      ? 'bg-white border-gray-200 opacity-50 cursor-default'
                       : listo
-                      ? 'bg-green-500/10 border-green-500/40 hover:bg-green-500/16 hover:border-green-500/60'
-                      : 'bg-gray-800/60 border-gray-700 hover:bg-gray-700/60 hover:border-gray-600'
+                      ? 'bg-green-50 border-green-300 hover:bg-green-100 hover:border-green-400 shadow-sm shadow-green-100'
+                      : 'bg-white border-gray-200 hover:border-orange-300 hover:shadow-md shadow-sm'
 
                     return (
                       <button key={d.id} onClick={() => !pagado && abrirDetalleDomi(d.id)}
@@ -1851,23 +1851,23 @@ export default function GerenciaPage() {
                               <span className={`text-xs font-black px-2 py-0.5 rounded-full ${badgeClases}`}>
                                 {badgeLabel}
                               </span>
-                              <span className="font-bold text-white/80 text-sm">
-                                {d.cliente_nombre || <span className="text-white/30 italic font-normal">Sin nombre</span>}
+                              <span className="font-bold text-gray-800 text-sm">
+                                {d.cliente_nombre || <span className="text-gray-400 italic font-normal">Sin nombre</span>}
                               </span>
                             </div>
                             <div className="flex items-center gap-3 mt-1 flex-wrap">
-                              {d.cliente_telefono && <span className="text-xs text-white/40">📞 {d.cliente_telefono}</span>}
-                              <span className="text-xs font-semibold text-white/70">${d.total.toLocaleString('es-CO')}</span>
+                              {d.cliente_telefono && <span className="text-xs text-gray-500">📞 {d.cliente_telefono}</span>}
+                              <span className="text-xs font-semibold text-orange-600">${d.total.toLocaleString('es-CO')}</span>
                               {d.metodos.length > 0 && (
-                                <span className="text-xs text-white/40">{d.metodos.map(m => EMOJIS[m] || m).join(' ')} {d.metodos.join(' / ')}</span>
+                                <span className="text-xs text-gray-400">{d.metodos.map(m => EMOJIS[m] || m).join(' ')} {d.metodos.join(' / ')}</span>
                               )}
                             </div>
                           </div>
-                          <span className={`text-xs font-bold px-2 py-1 rounded-full shrink-0 ${pagado ? 'bg-white/10 text-white/40' : mins >= 40 ? 'bg-red-500/20 text-red-400' : mins >= 20 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                          <span className={`text-xs font-bold px-2 py-1 rounded-full shrink-0 ${pagado ? 'bg-gray-100 text-gray-400' : mins >= 40 ? 'bg-red-50 text-red-500 border border-red-200' : mins >= 20 ? 'bg-yellow-50 text-yellow-600 border border-yellow-200' : 'bg-green-50 text-green-600 border border-green-200'}`}>
                             {pagado ? new Date(d.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : `${mins} min`}
                           </span>
                         </div>
-                        {listo && <p className="text-xs text-green-400 font-bold mt-1">✅ Listo en cocina — Toca para cobrar →</p>}
+                        {listo && <p className="text-xs text-green-600 font-bold mt-1">✅ Listo en cocina — Toca para cobrar →</p>}
                         {!pagado && !listo && <p className="text-xs text-gray-400 mt-1">Toca para cobrar →</p>}
                       </button>
                     )
@@ -1884,11 +1884,11 @@ export default function GerenciaPage() {
             {/* Tabs de subsección */}
             <div className="flex gap-2 mb-4">
               <button onClick={() => setSubSeccionCarta('carta')}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${subSeccionCarta === 'carta' ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-white/6 text-white/50 border border-white/10 hover:bg-white/10 hover:text-white/80'}`}>
+                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${subSeccionCarta === 'carta' ? 'bg-orange-500 text-white shadow-lg shadow-orange-200' : 'bg-white text-gray-500 border border-gray-200 hover:border-orange-300 hover:text-gray-700'}`}>
                 <UtensilsCrossed size={15} /> Carta general
               </button>
               <button onClick={() => setSubSeccionCarta('menus')}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${subSeccionCarta === 'menus' ? 'bg-orange-500/90 text-white shadow-lg shadow-orange-900/30' : 'bg-white/6 text-white/50 border border-white/10 hover:bg-white/10 hover:text-white/80'}`}>
+                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${subSeccionCarta === 'menus' ? 'bg-orange-500 text-white shadow-lg shadow-orange-200' : 'bg-white text-gray-500 border border-gray-200 hover:border-orange-300 hover:text-gray-700'}`}>
                 <ClipboardList size={15} /> Menús de turno
               </button>
             </div>
@@ -1897,7 +1897,7 @@ export default function GerenciaPage() {
             {subSeccionCarta === 'carta' && (
               <div>
                 <div className="flex items-center justify-between mb-4 gap-2">
-                  <h2 className="font-bold text-white">Gestión de carta</h2>
+                  <h2 className="font-bold text-gray-900">Gestión de carta</h2>
                   <button onClick={abrirNuevoPlato} className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 shadow-lg shadow-orange-900/30 transition-all">
                     <Plus size={15} /> Nuevo plato
                   </button>
@@ -1906,12 +1906,12 @@ export default function GerenciaPage() {
                 {/* Filtro por categoría */}
                 <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-none">
                   <button onClick={() => setCategoriaActivaCarta('todas')}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${categoriaActivaCarta === 'todas' ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-white/8 text-white/50 border border-white/10 hover:bg-white/14'}`}>
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${categoriaActivaCarta === 'todas' ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200'}`}>
                     Todas
                   </button>
                   {categorias.map(c => (
                     <button key={c.id} onClick={() => setCategoriaActivaCarta(c.id)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${categoriaActivaCarta === c.id ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-white/8 text-white/50 border border-white/10 hover:bg-white/14'}`}>
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${categoriaActivaCarta === c.id ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200'}`}>
                       {c.nombre}
                     </button>
                   ))}
@@ -1921,27 +1921,27 @@ export default function GerenciaPage() {
                   {platosFiltradosCarta.map(plato => {
                     const margen = utilidadPlato(plato)
                     return (
-                      <div key={plato.id} className={`bg-white/5 rounded-2xl p-4 border backdrop-blur-sm transition-all ${plato.activo ? 'border-white/10 hover:bg-white/8' : 'border-white/6 opacity-50'}`}>
+                      <div key={plato.id} className={`bg-white rounded-2xl p-4 border shadow-sm transition-all ${plato.activo ? 'border-gray-200 hover:bg-gray-50' : 'border-gray-200 opacity-50'}`}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-semibold text-white/90">{plato.nombre}</p>
-                              {!plato.activo && <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full border border-red-500/20">Inactivo</span>}
-                              {margen && <span className={`text-xs px-2 py-0.5 rounded-full font-bold border ${parseInt(margen) >= 50 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' : parseInt(margen) >= 30 ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/20' : 'bg-red-500/15 text-red-400 border-red-500/20'}`}>{margen}% margen</span>}
+                              <p className="font-semibold text-gray-900">{plato.nombre}</p>
+                              {!plato.activo && <span className="text-xs bg-red-50 text-red-500 px-2 py-0.5 rounded-full border border-red-200">Inactivo</span>}
+                              {margen && <span className={`text-xs px-2 py-0.5 rounded-full font-bold border ${parseInt(margen) >= 50 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : parseInt(margen) >= 30 ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 'bg-red-50 text-red-600 border-red-200'}`}>{margen}% margen</span>}
                             </div>
-                            {plato.descripcion && <p className="text-xs text-white/35 mt-0.5 truncate">{plato.descripcion}</p>}
+                            {plato.descripcion && <p className="text-xs text-gray-400 mt-0.5 truncate">{plato.descripcion}</p>}
                             <div className="flex gap-4 mt-1">
-                              <span className="text-sm font-bold text-white/80">${plato.precio.toLocaleString('es-CO')} <span className="font-normal text-white/35">precio</span></span>
-                              {plato.costo ? <span className="text-sm text-white/50">${plato.costo.toLocaleString('es-CO')} <span className="text-white/30">costo</span></span> : <span className="text-xs text-orange-400/70">Sin costo registrado</span>}
+                              <span className="text-sm font-bold text-gray-800">${plato.precio.toLocaleString('es-CO')} <span className="font-normal text-gray-400">precio</span></span>
+                              {plato.costo ? <span className="text-sm text-gray-500">${plato.costo.toLocaleString('es-CO')} <span className="text-gray-400">costo</span></span> : <span className="text-xs text-orange-500">Sin costo registrado</span>}
                             </div>
-                            <p className="text-xs text-white/30 mt-0.5">{categorias.find(c => c.id === plato.categoria_id)?.nombre}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">{categorias.find(c => c.id === plato.categoria_id)?.nombre}</p>
                           </div>
                           <div className="flex gap-1 shrink-0">
-                            <button onClick={() => abrirEditarPlato(plato)} className="w-8 h-8 bg-white/8 hover:bg-white/14 rounded-xl flex items-center justify-center border border-white/10 transition-all"><Pencil size={14} className="text-white/60" /></button>
-                            <button onClick={() => toggleActivoPlato(plato)} className={`w-8 h-8 rounded-xl flex items-center justify-center border transition-all ${plato.activo ? 'bg-orange-500/15 hover:bg-orange-500/25 border-orange-500/20' : 'bg-emerald-500/15 hover:bg-emerald-500/25 border-emerald-500/20'}`}>
-                              {plato.activo ? <X size={14} className="text-orange-400" /> : <CheckCircle size={14} className="text-emerald-400" />}
+                            <button onClick={() => abrirEditarPlato(plato)} className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center justify-center border border-gray-200 transition-all"><Pencil size={14} className="text-gray-500" /></button>
+                            <button onClick={() => toggleActivoPlato(plato)} className={`w-8 h-8 rounded-xl flex items-center justify-center border transition-all ${plato.activo ? 'bg-orange-50 hover:bg-orange-100 border-orange-200' : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200'}`}>
+                              {plato.activo ? <X size={14} className="text-orange-500" /> : <CheckCircle size={14} className="text-emerald-600" />}
                             </button>
-                            <button onClick={() => eliminarPlato(plato)} className="w-8 h-8 bg-red-500/12 hover:bg-red-500/22 rounded-xl flex items-center justify-center border border-red-500/15 transition-all"><Trash2 size={14} className="text-red-400" /></button>
+                            <button onClick={() => eliminarPlato(plato)} className="w-8 h-8 bg-red-50 hover:bg-red-100 rounded-xl flex items-center justify-center border border-red-200 transition-all"><Trash2 size={14} className="text-red-500" /></button>
                           </div>
                         </div>
                       </div>
@@ -1955,7 +1955,7 @@ export default function GerenciaPage() {
             {subSeccionCarta === 'menus' && (
               <div>
                 <div className="flex items-center justify-between mb-3 gap-2">
-                  <h2 className="font-bold text-white">Menús de turno</h2>
+                  <h2 className="font-bold text-gray-900">Menús de turno</h2>
                   <button
                     onClick={() => { setModalNuevoMenu('nuevo'); setEditandoMenuId(null); setMenuForm({ nombre: '', items: {} }) }}
                     className="bg-orange-500/90 hover:bg-orange-500 text-white px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 shadow-lg shadow-orange-900/30 transition-all">
@@ -1963,14 +1963,14 @@ export default function GerenciaPage() {
                   </button>
                 </div>
 
-                <div className="bg-orange-500/10 border border-orange-500/20 rounded-2xl px-4 py-3 text-xs text-orange-300/80 leading-relaxed mb-4">
+                <div className="bg-orange-50 border border-orange-200 rounded-2xl px-4 py-3 text-xs text-orange-700 leading-relaxed mb-4">
                   💡 Crea menús con nombre para tener tus plantillas de cantidad por día o temporada. Al abrir el turno puedes escoger uno de la lista o ingresar cantidades manualmente.
                 </div>
 
                 <div className="space-y-3">
                   {menusTurno.length === 0 && (
-                    <div className="text-center py-12 text-white/25">
-                      <ClipboardList size={36} className="mx-auto mb-3 opacity-30" />
+                    <div className="text-center py-12 text-gray-400">
+                      <ClipboardList size={36} className="mx-auto mb-3 opacity-40" />
                       <p className="text-sm font-medium">No hay menús creados todavía</p>
                       <p className="text-xs mt-1">Toca &quot;Nuevo menú&quot; para crear el primero</p>
                     </div>
@@ -1979,11 +1979,11 @@ export default function GerenciaPage() {
                     const itemsConCantidad = menu.items.filter(i => i.cantidad > 0)
                     const totalUnidades = menu.items.reduce((a, i) => a + i.cantidad, 0)
                     return (
-                      <div key={menu.id} className="bg-white/5 rounded-2xl border border-white/10 p-4 backdrop-blur-sm hover:bg-white/8 transition-all">
+                      <div key={menu.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 hover:bg-gray-50 transition-all">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <p className="font-black text-white/90 text-base">{menu.nombre}</p>
-                            <p className="text-xs text-white/35 mt-0.5">
+                            <p className="font-black text-gray-900 text-base">{menu.nombre}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">
                               {itemsConCantidad.length} platos · {totalUnidades} unidades totales
                             </p>
                             <div className="flex flex-wrap gap-1 mt-2">
@@ -1991,13 +1991,13 @@ export default function GerenciaPage() {
                                 const plato = platos.find(p => p.id === item.plato_id)
                                 if (!plato) return null
                                 return (
-                                  <span key={item.plato_id} className="text-xs bg-orange-500/15 text-orange-300 border border-orange-500/20 px-2 py-0.5 rounded-full">
+                                  <span key={item.plato_id} className="text-xs bg-orange-50 text-orange-600 border border-orange-200 px-2 py-0.5 rounded-full">
                                     {plato.nombre} ×{item.cantidad}
                                   </span>
                                 )
                               })}
                               {itemsConCantidad.length > 5 && (
-                                <span className="text-xs text-white/30 px-1">+{itemsConCantidad.length - 5} más</span>
+                                <span className="text-xs text-gray-400 px-1">+{itemsConCantidad.length - 5} más</span>
                               )}
                             </div>
                           </div>
@@ -2008,12 +2008,12 @@ export default function GerenciaPage() {
                               setMenuForm({ nombre: menu.nombre, items })
                               setEditandoMenuId(menu.id)
                               setModalNuevoMenu('editar')
-                            }} className="w-8 h-8 bg-white/8 hover:bg-white/14 rounded-xl flex items-center justify-center border border-white/10 transition-all">
-                              <Pencil size={14} className="text-white/60" />
+                            }} className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center justify-center border border-gray-200 transition-all">
+                              <Pencil size={14} className="text-gray-500" />
                             </button>
                             <button onClick={() => eliminarMenuTurno(menu.id, menu.nombre)}
-                              className="w-8 h-8 bg-red-500/12 hover:bg-red-500/22 rounded-xl flex items-center justify-center border border-red-500/15 transition-all">
-                              <Trash2 size={14} className="text-red-400" />
+                              className="w-8 h-8 bg-red-50 hover:bg-red-100 rounded-xl flex items-center justify-center border border-red-200 transition-all">
+                              <Trash2 size={14} className="text-red-500" />
                             </button>
                           </div>
                         </div>
@@ -2030,11 +2030,11 @@ export default function GerenciaPage() {
         {seccion === 'resumen' && puedeAcceder('basico') && (
           <div className="space-y-4">
             {/* Selector de rango */}
-            <div className="bg-white/5 rounded-2xl border border-white/10 p-3 space-y-2 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-3 space-y-2">
               <div className="flex gap-1.5">
                 {([['hoy', 'Hoy'], ['semana', 'Últimos 7 días'], ['mes', 'Este mes'], ['personalizado', '📅 Personalizado']] as [RangoResumen, string][]).map(([r, label]) => (
                   <button key={r} onClick={() => setRangoResumen(r)}
-                    className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${rangoResumen === r ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'text-white/40 hover:bg-white/8 hover:text-white/70 bg-white/4'}`}>
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${rangoResumen === r ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'text-gray-500 hover:bg-gray-100 bg-gray-50'}`}>
                     {label}
                   </button>
                 ))}
@@ -2042,14 +2042,14 @@ export default function GerenciaPage() {
               {rangoResumen === 'personalizado' && (
                 <div className="flex gap-2 items-end pt-1">
                   <div className="flex-1">
-                    <label className="text-xs text-white/40 block mb-1">Desde</label>
+                    <label className="text-xs text-gray-500 block mb-1">Desde</label>
                     <input type="date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)}
-                      className="w-full bg-white/8 border border-white/15 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/40 [color-scheme:dark]" />
+                      className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
                   </div>
                   <div className="flex-1">
-                    <label className="text-xs text-white/40 block mb-1">Hasta</label>
+                    <label className="text-xs text-gray-500 block mb-1">Hasta</label>
                     <input type="date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)}
-                      className="w-full bg-white/8 border border-white/15 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/40 [color-scheme:dark]" />
+                      className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
                   </div>
                   <button onClick={() => cargarResumen(fechaDesde, fechaHasta)}
                     className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-4 py-2 rounded-xl text-sm whitespace-nowrap shadow-lg shadow-orange-900/30 transition-all">
@@ -2060,8 +2060,8 @@ export default function GerenciaPage() {
             </div>
 
             {cargandoResumen ? (
-              <div className="flex items-center justify-center py-12 text-white/30">
-                <div className="text-center"><BarChart3 size={32} className="mx-auto mb-2 animate-pulse text-orange-400" /><p>Cargando datos...</p></div>
+              <div className="flex items-center justify-center py-12 text-gray-400">
+                <div className="text-center"><BarChart3 size={32} className="mx-auto mb-2 animate-pulse text-orange-500" /><p>Cargando datos...</p></div>
               </div>
             ) : (<>
 
@@ -2069,21 +2069,21 @@ export default function GerenciaPage() {
             <div className="grid grid-cols-2 gap-2">
               {[
                 { label: 'Ventas totales', valor: `$${resumenStats.ventas.toLocaleString('es-CO')}`, icon: <DollarSign size={18}/>, color: 'bg-emerald-500', glow: 'shadow-emerald-900/40' },
-                { label: 'Pedidos', valor: resumenStats.pedidos, icon: <ChefHat size={18}/>, color: 'bg-gray-600', glow: 'shadow-gray-900/30' },
+                { label: 'Pedidos', valor: resumenStats.pedidos, icon: <ChefHat size={18}/>, color: 'bg-gray-500', glow: 'shadow-gray-900/30' },
                 { label: 'Utilidad', valor: `$${resumenStats.utilidad.toLocaleString('es-CO')}`, icon: <TrendingUp size={18}/>, color: 'bg-orange-500', glow: 'shadow-orange-900/30' },
-                { label: 'Domicilios', valor: `$${resumenStats.domis.toLocaleString('es-CO')}`, icon: <Bike size={18}/>, color: 'bg-gray-500', glow: 'shadow-gray-900/30' },
+                { label: 'Domicilios', valor: `$${resumenStats.domis.toLocaleString('es-CO')}`, icon: <Bike size={18}/>, color: 'bg-gray-400', glow: 'shadow-gray-900/30' },
               ].map(s => (
-                <div key={s.label} className="bg-white/5 rounded-2xl p-3 border border-white/10 text-center backdrop-blur-sm hover:bg-white/8 transition-all">
+                <div key={s.label} className="bg-white rounded-2xl p-3 border border-gray-200 shadow-sm text-center hover:bg-gray-50 transition-all">
                   <div className={`${s.color} shadow-lg ${s.glow} w-9 h-9 rounded-xl flex items-center justify-center text-white mx-auto mb-2`}>{s.icon}</div>
-                  <p className="text-lg font-black text-white leading-tight">{s.valor}</p>
-                  <p className="text-xs text-white/40 mt-0.5">{s.label}</p>
+                  <p className="text-lg font-black text-gray-900 leading-tight">{s.valor}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
                 </div>
               ))}
             </div>
 
             {/* Gráfico ventas por hora o por día */}
-            <div className="bg-white/5 rounded-2xl border border-white/10 p-4 backdrop-blur-sm">
-              <h3 className="font-bold text-white/80 mb-3">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
+              <h3 className="font-bold text-gray-800 mb-3">
                 {(rangoResumen === 'hoy' || (rangoResumen === 'personalizado' && fechaDesde === fechaHasta)) ? '📈 Ventas por hora' : '📅 Ventas por día'}
               </h3>
               {(() => {
@@ -2092,29 +2092,29 @@ export default function GerenciaPage() {
                   <ResponsiveContainer width="100%" height={180}>
                     {esPorHora ? (
                       <BarChart data={ventasPorHora} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                        <XAxis dataKey="hora" tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }} />
-                        <YAxis tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
-                        <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff' }} formatter={(v) => [`$${Number(v ?? 0).toLocaleString('es-CO')}`, 'Ventas']} />
-                        <Bar dataKey="ventas" fill="#7c3aed" radius={[4,4,0,0]} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
+                        <XAxis dataKey="hora" tick={{ fontSize: 10, fill: '#6b7280' }} />
+                        <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
+                        <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, color: '#111' }} formatter={(v) => [`$${Number(v ?? 0).toLocaleString('es-CO')}`, 'Ventas']} />
+                        <Bar dataKey="ventas" fill="#f97316" radius={[4,4,0,0]} />
                       </BarChart>
                     ) : (
                       <BarChart data={ventasPorDia} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                        <XAxis dataKey="dia" tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.4)' }} />
-                        <YAxis tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
-                        <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff' }} formatter={(v, n) => [`$${Number(v ?? 0).toLocaleString('es-CO')}`, n === 'ventas' ? 'Establecimiento' : 'Domicilios']} />
-                        <Bar dataKey="ventas" stackId="a" fill="#7c3aed" radius={[0,0,0,0]} name="ventas" />
-                        <Bar dataKey="domis" stackId="a" fill="#0ea5e9" radius={[4,4,0,0]} name="domis" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
+                        <XAxis dataKey="dia" tick={{ fontSize: 9, fill: '#6b7280' }} />
+                        <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
+                        <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, color: '#111' }} formatter={(v, n) => [`$${Number(v ?? 0).toLocaleString('es-CO')}`, n === 'ventas' ? 'Establecimiento' : 'Domicilios']} />
+                        <Bar dataKey="ventas" stackId="a" fill="#f97316" radius={[0,0,0,0]} name="ventas" />
+                        <Bar dataKey="domis" stackId="a" fill="#6b7280" radius={[4,4,0,0]} name="domis" />
                       </BarChart>
                     )}
                   </ResponsiveContainer>
                 )
               })()}
               {ventasPorDia.length > 0 && (
-                <div className="flex gap-3 mt-2 justify-center text-xs text-white/40">
+                <div className="flex gap-3 mt-2 justify-center text-xs text-gray-500">
                   <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-500 inline-block"/>Establecimiento</span>
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-600 inline-block"/>Domicilios</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-500 inline-block"/>Domicilios</span>
                 </div>
               )}
             </div>
@@ -2123,25 +2123,25 @@ export default function GerenciaPage() {
             <div className="grid grid-cols-1 gap-4">
               {/* Torta */}
               {datosPagosMetodo.length > 0 && (
-                <div className="bg-white/5 rounded-2xl border border-white/10 p-4 backdrop-blur-sm">
-                  <h3 className="font-bold text-white/80 mb-2">💳 Métodos de pago</h3>
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
+                  <h3 className="font-bold text-gray-800 mb-2">💳 Métodos de pago</h3>
                   <div className="flex items-center gap-4">
                     <ResponsiveContainer width={130} height={130}>
                       <PieChart>
                         <Pie data={datosPagosMetodo} cx="50%" cy="50%" innerRadius={35} outerRadius={58} dataKey="value" paddingAngle={3}>
                           {datosPagosMetodo.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                         </Pie>
-                        <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff' }} formatter={(v) => [`$${Number(v ?? 0).toLocaleString('es-CO')}`, '']} />
+                        <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, color: '#111' }} formatter={(v) => [`$${Number(v ?? 0).toLocaleString('es-CO')}`, '']} />
                       </PieChart>
                     </ResponsiveContainer>
                     <div className="flex-1 space-y-2">
                       {datosPagosMetodo.map(m => (
                         <div key={m.name} className="flex items-center justify-between">
-                          <span className="flex items-center gap-1.5 text-sm text-white/60">
+                          <span className="flex items-center gap-1.5 text-sm text-gray-600">
                             <span className="w-3 h-3 rounded-full inline-block shrink-0" style={{ backgroundColor: m.color }} />
                             {m.name}
                           </span>
-                          <span className="font-bold text-sm text-white/90">${m.value.toLocaleString('es-CO')}</span>
+                          <span className="font-bold text-sm text-gray-900">${m.value.toLocaleString('es-CO')}</span>
                         </div>
                       ))}
                     </div>
@@ -2151,7 +2151,7 @@ export default function GerenciaPage() {
 
               {/* Top platos gráfico */}
               {platosTop.length > 0 && (
-                <div className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm p-4">
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
                   <h3 className="font-bold text-gray-900 mb-3">🏆 Platos más vendidos</h3>
                   <ResponsiveContainer width="100%" height={Math.min(platosTop.slice(0,6).length * 36, 220)}>
                     <BarChart layout="vertical" data={platosTop.slice(0,6).map(p => ({ nombre: p.nombre.length > 18 ? p.nombre.slice(0,16)+'…' : p.nombre, cant: p.cantidad, total: p.total }))}
@@ -2168,17 +2168,17 @@ export default function GerenciaPage() {
 
             {/* Desempeño meseras */}
             {meseras.length > 0 && (
-              <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
-                <div className="px-4 py-3 border-b border-white/8"><h3 className="font-bold text-white/80">👩 Desempeño meseras</h3></div>
-                <div className="divide-y divide-white/6">
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100"><h3 className="font-bold text-gray-800">👩 Desempeño meseras</h3></div>
+                <div className="divide-y divide-gray-100">
                   {meseras.map((m, i) => (
                     <div key={m.nombre} className="flex items-center gap-3 px-4 py-3">
-                      <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black text-white ${i === 0 ? 'bg-yellow-500' : i === 1 ? 'bg-white/30' : 'bg-gray-600/60'}`}>{i+1}</span>
+                      <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black text-white ${i === 0 ? 'bg-yellow-500' : i === 1 ? 'bg-gray-400' : 'bg-gray-300'}`}>{i+1}</span>
                       <div className="flex-1">
-                        <p className="font-semibold text-white/80 text-sm">{m.nombre}</p>
-                        <p className="text-xs text-white/35">{m.pedidos} pedido(s)</p>
+                        <p className="font-semibold text-gray-800 text-sm">{m.nombre}</p>
+                        <p className="text-xs text-gray-400">{m.pedidos} pedido(s)</p>
                       </div>
-                      <span className="font-bold text-white/80 text-sm">${m.total.toLocaleString('es-CO')}</span>
+                      <span className="font-bold text-gray-800 text-sm">${m.total.toLocaleString('es-CO')}</span>
                     </div>
                   ))}
                 </div>
@@ -2188,24 +2188,24 @@ export default function GerenciaPage() {
             {/* ── Tiempos del período ── */}
             {(resumenTiempoCocinero.length > 0 || resumenTiempoPlato.length > 0) && (
               <div className="space-y-3">
-                <h3 className="font-bold text-white/70 flex items-center gap-2"><Timer size={16} className="text-orange-400"/> Tiempos del período</h3>
+                <h3 className="font-bold text-gray-700 flex items-center gap-2"><Timer size={16} className="text-orange-500"/> Tiempos del período</h3>
 
                 {resumenTiempoCocinero.length > 0 && (
-                  <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
-                    <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
-                      <ChefHat size={15} className="text-orange-400"/>
-                      <p className="font-bold text-white/80 text-sm">Rendimiento cocineras</p>
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                      <ChefHat size={15} className="text-orange-500"/>
+                      <p className="font-bold text-gray-800 text-sm">Rendimiento cocineras</p>
                     </div>
-                    <div className="divide-y divide-white/6">
+                    <div className="divide-y divide-gray-100">
                       {resumenTiempoCocinero.map(c => (
                         <div key={c.nombre} className="flex items-center justify-between px-4 py-3">
                           <div>
-                            <p className="font-semibold text-white/80 text-sm">👩‍🍳 {c.nombre}</p>
-                            <p className="text-xs text-white/35">{c.platos} plato(s)</p>
+                            <p className="font-semibold text-gray-800 text-sm">👩‍🍳 {c.nombre}</p>
+                            <p className="text-xs text-gray-400">{c.platos} plato(s)</p>
                           </div>
                           <div className="text-right">
-                            <p className="font-bold text-white/80">{c.tiempoPromedio} min</p>
-                            <p className="text-xs text-white/35">prom. preparación</p>
+                            <p className="font-bold text-gray-800">{c.tiempoPromedio} min</p>
+                            <p className="text-xs text-gray-400">prom. preparación</p>
                           </div>
                         </div>
                       ))}
@@ -2214,22 +2214,22 @@ export default function GerenciaPage() {
                 )}
 
                 {resumenTiempoPlato.length > 0 && (
-                  <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
-                    <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
-                      <Clock size={15} className="text-gray-400"/>
-                      <p className="font-bold text-white/80 text-sm">Tiempos por plato</p>
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                      <Clock size={15} className="text-gray-500"/>
+                      <p className="font-bold text-gray-800 text-sm">Tiempos por plato</p>
                     </div>
-                    <div className="divide-y divide-white/6 max-h-56 overflow-y-auto">
+                    <div className="divide-y divide-gray-100 max-h-56 overflow-y-auto">
                       {resumenTiempoPlato.map(p => (
                         <div key={p.nombre} className="px-4 py-3">
                           <div className="flex justify-between items-start mb-1">
-                            <p className="font-semibold text-white/80 text-sm">{p.nombre}</p>
-                            <span className="text-xs text-white/35">{p.cantidad} veces</span>
+                            <p className="font-semibold text-gray-800 text-sm">{p.nombre}</p>
+                            <span className="text-xs text-gray-400">{p.cantidad} veces</span>
                           </div>
                           <div className="flex gap-3 text-xs">
-                            <span className="text-gray-400">⏳ Espera: <b>{p.espera} min</b></span>
-                            <span className="text-orange-400">🔥 Prep: <b>{p.preparacion} min</b></span>
-                            <span className="text-emerald-400">✅ Total: <b>{p.total} min</b></span>
+                            <span className="text-gray-500">⏳ Espera: <b>{p.espera} min</b></span>
+                            <span className="text-orange-500">🔥 Prep: <b>{p.preparacion} min</b></span>
+                            <span className="text-emerald-600">✅ Total: <b>{p.total} min</b></span>
                           </div>
                         </div>
                       ))}
@@ -2240,27 +2240,27 @@ export default function GerenciaPage() {
             )}
 
             {/* Historial pedidos */}
-            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
-              <div className="px-4 py-3 border-b border-white/8"><h3 className="font-bold text-white/80">📋 Pedidos del período</h3></div>
-              <div className="divide-y divide-white/6 max-h-64 overflow-y-auto">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100"><h3 className="font-bold text-gray-800">📋 Pedidos del período</h3></div>
+              <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
                 {pedidosHoy.slice(0, 30).map(p => (
                   <div key={p.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
                     <div className="flex items-center gap-2">
-                      {p.tipo === 'domi' ? <Bike size={14} className="text-gray-400 shrink-0"/> : <MapPin size={14} className="text-white/30 shrink-0"/>}
+                      {p.tipo === 'domi' ? <Bike size={14} className="text-gray-400 shrink-0"/> : <MapPin size={14} className="text-gray-300 shrink-0"/>}
                       <div>
-                        <span className="font-semibold text-white/80">{p.tipo === 'domi' ? 'Domi' : `Mesa ${p.mesa}`}</span>
-                        <span className="ml-1.5 text-white/30 text-xs">{new Date(p.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="font-semibold text-gray-800">{p.tipo === 'domi' ? 'Domi' : `Mesa ${p.mesa}`}</span>
+                        <span className="ml-1.5 text-gray-400 text-xs">{new Date(p.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-white/80">${p.total.toLocaleString('es-CO')}</span>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${p.estado === 'pagado' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' : p.estado === 'listo' ? 'bg-gray-500/15 text-gray-400 border-gray-500/20' : p.estado === 'en_preparacion' ? 'bg-orange-500/15 text-orange-400 border-orange-500/20' : 'bg-white/8 text-white/40 border-white/10'}`}>
+                      <span className="font-bold text-gray-800">${p.total.toLocaleString('es-CO')}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${p.estado === 'pagado' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : p.estado === 'listo' ? 'bg-gray-100 text-gray-500 border-gray-200' : p.estado === 'en_preparacion' ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-gray-50 text-gray-400 border-gray-200'}`}>
                         {p.estado.replace('_', ' ')}
                       </span>
                     </div>
                   </div>
                 ))}
-                {pedidosHoy.length === 0 && <p className="text-center text-white/25 py-6 text-sm">Sin pedidos en este período</p>}
+                {pedidosHoy.length === 0 && <p className="text-center text-gray-400 py-6 text-sm">Sin pedidos en este período</p>}
               </div>
             </div>
             </>)}
@@ -2270,52 +2270,52 @@ export default function GerenciaPage() {
         {/* ══ TIEMPOS ═════════════════════════════════════════════ */}
         {seccion === 'tiempos' && puedeAcceder('pro') && (
           <div className="space-y-4">
-            <p className="text-xs text-white/30">Datos de hoy — basado en pedidos completados</p>
+            <p className="text-xs text-gray-400">Datos de hoy — basado en pedidos completados</p>
 
             {/* Por cocinera */}
-            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
-              <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
-                <ChefHat size={16} className="text-orange-400" />
-                <h3 className="font-bold text-white/80">Rendimiento por cocinera</h3>
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                <ChefHat size={16} className="text-orange-500" />
+                <h3 className="font-bold text-gray-800">Rendimiento por cocinera</h3>
               </div>
-              <div className="divide-y divide-white/6">
+              <div className="divide-y divide-gray-100">
                 {tiemposPorCocinero.map(c => (
                   <div key={c.nombre} className="flex items-center justify-between px-4 py-3">
                     <div>
-                      <p className="font-semibold text-gray-900 text-sm">👩‍🍳 {c.nombre}</p>
-                      <p className="text-xs text-white/35">{c.platos} plato(s) preparado(s)</p>
+                      <p className="font-semibold text-gray-800 text-sm">👩‍🍳 {c.nombre}</p>
+                      <p className="text-xs text-gray-400">{c.platos} plato(s) preparado(s)</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-white/80">{c.tiempoPromedio} min</p>
-                      <p className="text-xs text-white/35">prom. preparación</p>
+                      <p className="font-bold text-gray-800">{c.tiempoPromedio} min</p>
+                      <p className="text-xs text-gray-400">prom. preparación</p>
                     </div>
                   </div>
                 ))}
-                {tiemposPorCocinero.length === 0 && <p className="text-center text-white/25 py-6 text-sm">Sin datos — los tiempos se registran cuando cocina asigna platos</p>}
+                {tiemposPorCocinero.length === 0 && <p className="text-center text-gray-400 py-6 text-sm">Sin datos — los tiempos se registran cuando cocina asigna platos</p>}
               </div>
             </div>
 
             {/* Permanencia en mesa */}
-            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
-              <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
-                <MapPin size={16} className="text-emerald-400" />
-                <h3 className="font-bold text-white/80">Tiempo de permanencia en mesa</h3>
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                <MapPin size={16} className="text-emerald-600" />
+                <h3 className="font-bold text-gray-800">Tiempo de permanencia en mesa</h3>
               </div>
-              <div className="divide-y divide-white/6">
+              <div className="divide-y divide-gray-100">
                 {(() => {
                   const pagadosHoy = pedidosHoy.filter(p => p.estado === 'pagado')
-                  if (pagadosHoy.length === 0) return <p className="text-center text-white/25 py-6 text-sm">Sin mesas cerradas hoy</p>
+                  if (pagadosHoy.length === 0) return <p className="text-center text-gray-400 py-6 text-sm">Sin mesas cerradas hoy</p>
                   return pagadosHoy.slice(0, 8).map(p => {
                     const mins = p.pagado_en ? Math.round((new Date(p.pagado_en).getTime() - new Date(p.created_at).getTime()) / 60000) : null
                     return (
                       <div key={p.id} className="flex items-center justify-between px-4 py-3">
                         <div>
-                          <p className="font-semibold text-white/80 text-sm">Mesa {p.mesa}</p>
-                          <p className="text-xs text-white/35">{new Date(p.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</p>
+                          <p className="font-semibold text-gray-800 text-sm">Mesa {p.mesa}</p>
+                          <p className="text-xs text-gray-400">{new Date(p.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</p>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold text-white/80">{mins !== null ? `${mins} min` : '—'}</p>
-                          <p className="text-xs text-white/35">en mesa</p>
+                          <p className="font-bold text-gray-800">{mins !== null ? `${mins} min` : '—'}</p>
+                          <p className="text-xs text-gray-400">en mesa</p>
                         </div>
                       </div>
                     )
@@ -2325,46 +2325,46 @@ export default function GerenciaPage() {
             </div>
 
             {/* Por mesera */}
-            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
-              <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
-                <Users size={16} className="text-orange-400" />
-                <h3 className="font-bold text-white/80">Tiempos por mesera</h3>
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                <Users size={16} className="text-orange-500" />
+                <h3 className="font-bold text-gray-800">Tiempos por mesera</h3>
               </div>
-              <div className="divide-y divide-white/6">
+              <div className="divide-y divide-gray-100">
                 {tiemposPorMesera.map(m => (
                   <div key={m.nombre} className="flex items-center justify-between px-4 py-3">
-                    <p className="font-semibold text-white/80 text-sm">{m.nombre}</p>
+                    <p className="font-semibold text-gray-800 text-sm">{m.nombre}</p>
                     <div className="text-right">
-                      <p className="font-bold text-white/80">{m.tiempoPromedio} min</p>
-                      <p className="text-xs text-white/35">tiempo total promedio</p>
+                      <p className="font-bold text-gray-800">{m.tiempoPromedio} min</p>
+                      <p className="text-xs text-gray-400">tiempo total promedio</p>
                     </div>
                   </div>
                 ))}
-                {tiemposPorMesera.length === 0 && <p className="text-center text-white/25 py-6 text-sm">Sin datos hoy</p>}
+                {tiemposPorMesera.length === 0 && <p className="text-center text-gray-400 py-6 text-sm">Sin datos hoy</p>}
               </div>
             </div>
 
             {/* Por plato */}
-            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
-              <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
-                <Clock size={16} className="text-gray-400" />
-                <h3 className="font-bold text-white/80">Tiempos por plato</h3>
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                <Clock size={16} className="text-gray-500" />
+                <h3 className="font-bold text-gray-800">Tiempos por plato</h3>
               </div>
-              <div className="divide-y divide-white/6">
+              <div className="divide-y divide-gray-100">
                 {tiemposPorPlato.map(p => (
                   <div key={p.nombre} className="px-4 py-3">
                     <div className="flex justify-between items-start mb-1">
-                      <p className="font-semibold text-white/80 text-sm">{p.nombre}</p>
-                      <span className="text-xs text-white/35">{p.cantidad} veces</span>
+                      <p className="font-semibold text-gray-800 text-sm">{p.nombre}</p>
+                      <span className="text-xs text-gray-400">{p.cantidad} veces</span>
                     </div>
                     <div className="flex gap-4 text-xs">
-                      <span className="text-gray-400">⏳ Espera: <b>{p.espera} min</b></span>
-                      <span className="text-orange-400">🔥 Prep: <b>{p.preparacion} min</b></span>
-                      <span className="text-emerald-400">✅ Total: <b>{p.total} min</b></span>
+                      <span className="text-gray-500">⏳ Espera: <b>{p.espera} min</b></span>
+                      <span className="text-orange-500">🔥 Prep: <b>{p.preparacion} min</b></span>
+                      <span className="text-emerald-600">✅ Total: <b>{p.total} min</b></span>
                     </div>
                   </div>
                 ))}
-                {tiemposPorPlato.length === 0 && <p className="text-center text-white/25 py-6 text-sm">Sin datos hoy</p>}
+                {tiemposPorPlato.length === 0 && <p className="text-center text-gray-400 py-6 text-sm">Sin datos hoy</p>}
               </div>
             </div>
           </div>
@@ -2377,10 +2377,10 @@ export default function GerenciaPage() {
             {/* Buscador + botón exportar */}
             <div className="flex gap-2">
               <div className="flex-1 relative">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input type="text" placeholder="Buscar por nombre o cédula..." value={busquedaCliente}
                   onChange={e => setBusquedaCliente(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 bg-white/6 border border-white/12 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+                  className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
               </div>
               <button onClick={exportarClientesCSV}
                 className="flex items-center gap-1.5 bg-emerald-600/80 hover:bg-emerald-600 text-white font-bold px-3 py-2.5 rounded-xl text-sm whitespace-nowrap shadow-lg shadow-emerald-900/30 transition-all">
@@ -2389,10 +2389,10 @@ export default function GerenciaPage() {
             </div>
 
             {/* Filtros */}
-            <div className="bg-white/5 rounded-2xl border border-white/10 p-3 space-y-2 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-3 space-y-2">
               {/* Ordenar por */}
               <div>
-                <p className="text-xs text-white/35 font-medium mb-1.5 flex items-center gap-1"><SlidersHorizontal size={12}/> Ordenar por</p>
+                <p className="text-xs text-gray-500 font-medium mb-1.5 flex items-center gap-1"><SlidersHorizontal size={12}/> Ordenar por</p>
                 <div className="flex gap-1.5 flex-wrap">
                   {([
                     ['mayor_consumo', '💰 Mayor consumo'],
@@ -2401,7 +2401,7 @@ export default function GerenciaPage() {
                     ['cumpleanos',    '🎂 Cumpleaños próximo'],
                   ] as ['mayor_consumo'|'menor_consumo'|'az'|'cumpleanos', string][]).map(([v, label]) => (
                     <button key={v} onClick={() => setOrdenClientes(v)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${ordenClientes === v ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-white/6 text-white/45 border border-white/10 hover:bg-white/12'}`}>
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${ordenClientes === v ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200'}`}>
                       {label}
                     </button>
                   ))}
@@ -2409,15 +2409,15 @@ export default function GerenciaPage() {
               </div>
               {/* Filtrar por mes de cumpleaños */}
               <div>
-                <p className="text-xs text-white/35 font-medium mb-1.5 flex items-center gap-1"><CalendarDays size={12}/> Filtrar por mes de cumpleaños</p>
+                <p className="text-xs text-gray-500 font-medium mb-1.5 flex items-center gap-1"><CalendarDays size={12}/> Filtrar por mes de cumpleaños</p>
                 <div className="flex gap-1.5 flex-wrap">
                   <button onClick={() => setFiltroMesCumple(0)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${filtroMesCumple === 0 ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-white/6 text-white/45 border border-white/10 hover:bg-white/12'}`}>
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${filtroMesCumple === 0 ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200'}`}>
                     Todos
                   </button>
                   {MESES_ES.map((mes, i) => (
                     <button key={mes} onClick={() => setFiltroMesCumple(i + 1)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${filtroMesCumple === i + 1 ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-white/6 text-white/45 border border-white/10 hover:bg-white/12'}`}>
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${filtroMesCumple === i + 1 ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200'}`}>
                       {mes.slice(0, 3)}
                     </button>
                   ))}
@@ -2427,15 +2427,15 @@ export default function GerenciaPage() {
 
             {/* Contador resultados */}
             {(busquedaCliente || filtroMesCumple > 0) && (
-              <p className="text-xs text-white/30 px-1">
+              <p className="text-xs text-gray-400 px-1">
                 {clientesFiltradosOrdenados.length} resultado(s)
                 {filtroMesCumple > 0 && ` · Cumpleaños en ${MESES_ES[filtroMesCumple - 1]}`}
               </p>
             )}
 
             {cargandoClientes ? (
-              <div className="flex justify-center py-12 text-white/30">
-                <div className="text-center"><UserCircle size={32} className="mx-auto mb-2 animate-pulse text-orange-400"/><p>Cargando...</p></div>
+              <div className="flex justify-center py-12 text-gray-400">
+                <div className="text-center"><UserCircle size={32} className="mx-auto mb-2 animate-pulse text-orange-500"/><p>Cargando...</p></div>
               </div>
             ) : (
               <div className="space-y-2">
@@ -2445,48 +2445,48 @@ export default function GerenciaPage() {
                   const mostrarRanking = ordenClientes === 'mayor_consumo' || ordenClientes === 'menor_consumo'
                   return (
                     <button key={c.id} onClick={() => abrirClienteDetalle(c)}
-                      className={`w-full rounded-2xl border p-4 text-left transition-all backdrop-blur-sm ${esCumpleMes ? 'bg-orange-500/10 border-orange-500/30 hover:bg-orange-500/15' : 'bg-white/5 border-white/10 hover:bg-white/8 hover:border-white/20'}`}>
+                      className={`w-full rounded-2xl border p-4 text-left shadow-sm transition-all ${esCumpleMes ? 'bg-orange-50 border-orange-200 hover:bg-orange-100' : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300'}`}>
                       <div className="flex items-center gap-3">
                         <div className="relative shrink-0">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${esCumpleMes ? 'bg-orange-500/20' : 'bg-orange-500/20'}`}>
-                            <span className={`font-black text-sm ${esCumpleMes ? 'text-orange-300' : 'text-orange-300'}`}>{c.nombre.charAt(0).toUpperCase()}</span>
+                          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-orange-100">
+                            <span className="font-black text-sm text-orange-600">{c.nombre.charAt(0).toUpperCase()}</span>
                           </div>
                           {mostrarRanking && idx < 3 && (
-                            <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full text-white text-[10px] font-black flex items-center justify-center ${idx === 0 ? 'bg-yellow-500' : idx === 1 ? 'bg-white/40' : 'bg-amber-600'}`}>{idx + 1}</span>
+                            <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full text-white text-[10px] font-black flex items-center justify-center ${idx === 0 ? 'bg-yellow-500' : idx === 1 ? 'bg-gray-400' : 'bg-amber-600'}`}>{idx + 1}</span>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-semibold text-white/85">{c.nombre}</p>
-                            {esCumpleMes && <span className="text-xs bg-orange-500/20 text-orange-300 border border-orange-500/30 px-1.5 py-0.5 rounded-full font-bold">🎂 Este mes</span>}
+                            <p className="font-semibold text-gray-800">{c.nombre}</p>
+                            {esCumpleMes && <span className="text-xs bg-orange-100 text-orange-600 border border-orange-200 px-1.5 py-0.5 rounded-full font-bold">🎂 Este mes</span>}
                           </div>
-                          <div className="flex gap-3 text-xs text-white/35 mt-0.5 flex-wrap">
+                          <div className="flex gap-3 text-xs text-gray-400 mt-0.5 flex-wrap">
                             {c.cedula && <span>🪪 {c.cedula}</span>}
                             {c.telefono && <span>📞 {c.telefono}</span>}
                             {c.fecha_cumpleanos && (
-                              <span className={esCumpleMes ? 'text-orange-400 font-semibold' : ''}>
+                              <span className={esCumpleMes ? 'text-orange-500 font-semibold' : ''}>
                                 🎂 {new Date(c.fecha_cumpleanos + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}
                               </span>
                             )}
                           </div>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="font-black text-white/85 text-sm">${c.totalGastado.toLocaleString('es-CO')}</p>
-                          <p className="text-xs text-white/35">{c.pedidos} visita(s)</p>
+                          <p className="font-black text-gray-900 text-sm">${c.totalGastado.toLocaleString('es-CO')}</p>
+                          <p className="text-xs text-gray-400">{c.pedidos} visita(s)</p>
                         </div>
                       </div>
                     </button>
                   )
                 })}
                 {clientes.length === 0 && (
-                  <div className="text-center py-12 text-white/25">
+                  <div className="text-center py-12 text-gray-400">
                     <UserCircle size={40} className="mx-auto mb-2"/>
                     <p>Sin clientes registrados aún</p>
                     <p className="text-xs mt-1">Se agregan al cobrar y capturar cédula</p>
                   </div>
                 )}
                 {clientes.length > 0 && clientesFiltradosOrdenados.length === 0 && (
-                  <div className="text-center py-8 text-white/25">
+                  <div className="text-center py-8 text-gray-400">
                     <Search size={32} className="mx-auto mb-2"/>
                     <p>Sin resultados para los filtros aplicados</p>
                   </div>
@@ -2624,101 +2624,101 @@ export default function GerenciaPage() {
           <div className="space-y-4">
 
             {/* Estado turno */}
-            <div className={`rounded-2xl p-4 border ${turnoActivo ? 'bg-emerald-500/15 border-emerald-500/30' : 'bg-white/5 border-white/10'}`}>
-              <p className={`text-sm ${turnoActivo ? 'text-emerald-400/80' : 'text-white/40'}`}>{turnoActivo ? '● Turno abierto desde' : '○ Sin turno activo'}</p>
+            <div className={`rounded-2xl p-4 border shadow-sm ${turnoActivo ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-200'}`}>
+              <p className={`text-sm ${turnoActivo ? 'text-emerald-700' : 'text-gray-400'}`}>{turnoActivo ? '● Turno abierto desde' : '○ Sin turno activo'}</p>
               {turnoActivo && <>
-                <p className="font-bold text-white">{new Date(turnoActivo.abierto_en).toLocaleString('es-CO', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}</p>
-                <p className="text-sm text-emerald-400/70">Base inicial: ${turnoActivo.monto_inicial.toLocaleString('es-CO')}</p>
+                <p className="font-bold text-gray-900">{new Date(turnoActivo.abierto_en).toLocaleString('es-CO', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}</p>
+                <p className="text-sm text-emerald-600">Base inicial: ${turnoActivo.monto_inicial.toLocaleString('es-CO')}</p>
               </>}
             </div>
 
             {turnoActivo && <>
               {/* Desglose por método de pago */}
-              <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
-                <div className="px-4 py-3 border-b border-white/8"><h3 className="font-bold text-white/80">Pagos recibidos por método</h3></div>
-                <div className="divide-y divide-white/6">
-                  {pagosPorMetodo.length === 0 && <p className="text-center text-white/25 py-4 text-sm">Sin pagos aún</p>}
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100"><h3 className="font-bold text-gray-800">Pagos recibidos por método</h3></div>
+                <div className="divide-y divide-gray-100">
+                  {pagosPorMetodo.length === 0 && <p className="text-center text-gray-400 py-4 text-sm">Sin pagos aún</p>}
                   {pagosPorMetodo.map(p => (
                     <div key={p.metodo} className="flex items-center justify-between px-4 py-3">
                       <div>
-                        <p className="font-semibold text-white/80 text-sm">{EMOJIS[p.metodo] || '💳'} {p.metodo.charAt(0).toUpperCase() + p.metodo.slice(1)}</p>
-                        {p.propina > 0 && <p className="text-xs text-white/35">Incluye ${p.propina.toLocaleString('es-CO')} en propinas</p>}
+                        <p className="font-semibold text-gray-800 text-sm">{EMOJIS[p.metodo] || '💳'} {p.metodo.charAt(0).toUpperCase() + p.metodo.slice(1)}</p>
+                        {p.propina > 0 && <p className="text-xs text-gray-400">Incluye ${p.propina.toLocaleString('es-CO')} en propinas</p>}
                       </div>
-                      <p className="font-black text-white/90">${(p.monto + p.propina).toLocaleString('es-CO')}</p>
+                      <p className="font-black text-gray-900">${(p.monto + p.propina).toLocaleString('es-CO')}</p>
                     </div>
                   ))}
-                  <div className="flex items-center justify-between px-4 py-3 bg-white/4">
-                    <p className="font-bold text-white/60 text-sm">Total cobrado</p>
-                    <p className="font-black text-emerald-400">${pagosPorMetodo.reduce((a, p) => a + p.monto + p.propina, 0).toLocaleString('es-CO')}</p>
+                  <div className="flex items-center justify-between px-4 py-3 bg-gray-50">
+                    <p className="font-bold text-gray-600 text-sm">Total cobrado</p>
+                    <p className="font-black text-emerald-600">${pagosPorMetodo.reduce((a, p) => a + p.monto + p.propina, 0).toLocaleString('es-CO')}</p>
                   </div>
                 </div>
               </div>
 
               {/* Ventas establecimiento vs domicilios */}
-              <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
-                <div className="px-4 py-3 border-b border-white/8"><h3 className="font-bold text-white/80">Ventas del turno</h3></div>
-                <div className="divide-y divide-white/6">
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100"><h3 className="font-bold text-gray-800">Ventas del turno</h3></div>
+                <div className="divide-y divide-gray-100">
                   <div className="flex items-center justify-between px-4 py-3">
-                    <div><p className="font-semibold text-white/80 text-sm">🍽️ Establecimiento</p><p className="text-xs text-white/35">{pedidosEstab} pedido(s)</p></div>
-                    <p className="font-black text-white/85">${ventasEstab.toLocaleString('es-CO')}</p>
+                    <div><p className="font-semibold text-gray-800 text-sm">🍽️ Establecimiento</p><p className="text-xs text-gray-400">{pedidosEstab} pedido(s)</p></div>
+                    <p className="font-black text-gray-900">${ventasEstab.toLocaleString('es-CO')}</p>
                   </div>
                   <div className="flex items-center justify-between px-4 py-3">
-                    <div><p className="font-semibold text-white/80 text-sm">🛵 Domicilios</p><p className="text-xs text-white/35">{pedidosDomi} pedido(s)</p></div>
-                    <p className="font-black text-white/85">${ventasDomi.toLocaleString('es-CO')}</p>
+                    <div><p className="font-semibold text-gray-800 text-sm">🛵 Domicilios</p><p className="text-xs text-gray-400">{pedidosDomi} pedido(s)</p></div>
+                    <p className="font-black text-gray-900">${ventasDomi.toLocaleString('es-CO')}</p>
                   </div>
-                  <div className="flex items-center justify-between px-4 py-3 bg-white/4">
-                    <p className="font-black text-white/70">Total</p>
-                    <p className="font-black text-orange-400 text-lg">${(ventasEstab + ventasDomi).toLocaleString('es-CO')}</p>
+                  <div className="flex items-center justify-between px-4 py-3 bg-gray-50">
+                    <p className="font-black text-gray-700">Total</p>
+                    <p className="font-black text-orange-500 text-lg">${(ventasEstab + ventasDomi).toLocaleString('es-CO')}</p>
                   </div>
                 </div>
               </div>
 
               {/* Movimientos de caja */}
-              <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
-                <div className="px-4 py-3 border-b border-white/8 flex items-center justify-between">
-                  <h3 className="font-bold text-white/80">Notas de caja</h3>
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                  <h3 className="font-bold text-gray-800">Notas de caja</h3>
                   {(totalIngresos > 0 || totalEgresos > 0) && (
-                    <span className="text-xs text-white/35">
+                    <span className="text-xs text-gray-400">
                       +${totalIngresos.toLocaleString('es-CO')} / -${totalEgresos.toLocaleString('es-CO')}
                     </span>
                   )}
                 </div>
-                <div className="divide-y divide-white/6">
-                  {movimientosCaja.length === 0 && <p className="text-center text-white/25 py-3 text-sm">Sin movimientos</p>}
+                <div className="divide-y divide-gray-100">
+                  {movimientosCaja.length === 0 && <p className="text-center text-gray-400 py-3 text-sm">Sin movimientos</p>}
                   {movimientosCaja.map(m => (
                     <div key={m.id} className="flex items-center justify-between px-4 py-3">
                       <div>
-                        <p className="text-sm font-semibold text-white/80">{m.descripcion}</p>
-                        <p className="text-xs text-white/35">{new Date(m.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</p>
+                        <p className="text-sm font-semibold text-gray-800">{m.descripcion}</p>
+                        <p className="text-xs text-gray-400">{new Date(m.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</p>
                       </div>
-                      <span className={`font-black text-sm ${m.tipo === 'ingreso' ? 'text-emerald-400' : 'text-red-400'}`}>
+                      <span className={`font-black text-sm ${m.tipo === 'ingreso' ? 'text-emerald-600' : 'text-red-500'}`}>
                         {m.tipo === 'ingreso' ? '+' : '-'}${m.monto.toLocaleString('es-CO')}
                       </span>
                     </div>
                   ))}
                 </div>
                 {/* Formulario nuevo movimiento */}
-                <div className="px-4 py-3 border-t border-white/8 bg-white/4 space-y-2">
-                  <p className="text-xs font-bold text-white/40 uppercase tracking-wider">Registrar movimiento</p>
+                <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 space-y-2">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Registrar movimiento</p>
                   <div className="grid grid-cols-2 gap-2">
                     <button onClick={() => setNuevoMov(p => ({ ...p, tipo: 'ingreso' }))}
-                      className={`py-2 rounded-xl text-sm font-bold border-2 transition-all ${nuevoMov.tipo === 'ingreso' ? 'bg-emerald-500/80 text-white border-emerald-500/60 shadow-lg shadow-emerald-900/30' : 'bg-white/5 text-white/50 border-white/15 hover:bg-white/10'}`}>
+                      className={`py-2 rounded-xl text-sm font-bold border-2 transition-all ${nuevoMov.tipo === 'ingreso' ? 'bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-900/20' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100'}`}>
                       ↑ Ingreso
                     </button>
                     <button onClick={() => setNuevoMov(p => ({ ...p, tipo: 'egreso' }))}
-                      className={`py-2 rounded-xl text-sm font-bold border-2 transition-all ${nuevoMov.tipo === 'egreso' ? 'bg-red-500/80 text-white border-red-500/60 shadow-lg shadow-red-900/30' : 'bg-white/5 text-white/50 border-white/15 hover:bg-white/10'}`}>
+                      className={`py-2 rounded-xl text-sm font-bold border-2 transition-all ${nuevoMov.tipo === 'egreso' ? 'bg-red-500 text-white border-red-500 shadow-lg shadow-red-900/20' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100'}`}>
                       ↓ Egreso
                     </button>
                   </div>
                   <input type="text" placeholder='Descripción (ej: "Se sacó para mercado")' value={nuevoMov.descripcion}
                     onChange={e => setNuevoMov(p => ({ ...p, descripcion: e.target.value }))}
-                    className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+                    className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
                   <div className="flex gap-2">
                     <input type="number" placeholder="Monto $" value={nuevoMov.monto}
                       onChange={e => setNuevoMov(p => ({ ...p, monto: e.target.value }))}
-                      className="flex-1 bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+                      className="flex-1 bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
                     <button onClick={agregarMovimiento} disabled={agregandoMov}
-                      className="bg-orange-500 hover:bg-orange-600 disabled:bg-white/10 disabled:text-white/30 text-white font-bold px-4 rounded-xl text-sm shadow-lg shadow-orange-900/30 transition-all">
+                      className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold px-4 rounded-xl text-sm shadow-lg shadow-orange-900/30 transition-all">
                       {agregandoMov ? '...' : 'Agregar'}
                     </button>
                   </div>
@@ -2736,20 +2736,20 @@ export default function GerenciaPage() {
 
               {/* Domicilios para cuadre */}
               {pedidosDomi > 0 && (
-                <div className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm overflow-hidden">
-                  <div className="px-4 py-3 border-b border-white/8"><h3 className="font-bold text-white/80 text-sm">Domicilios del turno</h3></div>
-                  <div className="divide-y divide-white/6">
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100"><h3 className="font-bold text-gray-800 text-sm">Domicilios del turno</h3></div>
+                  <div className="divide-y divide-gray-100">
                     {pedidosTurno.filter(p => p.tipo === 'domi').map(p => {
                       const domi = domiActivos.find(d => d.id === p.id)
                       return (
                         <div key={p.id} className="flex items-center justify-between px-4 py-3 text-sm">
                           <div>
-                            <p className="font-semibold text-white/80">{domi?.cliente_nombre || 'Sin nombre'}</p>
-                            {domi?.metodos.length ? <p className="text-xs text-white/40">{domi.metodos.map(m => `${EMOJIS[m] || ''} ${m}`).join(' · ')}</p> : <p className="text-xs text-orange-400">⚠️ Sin pago</p>}
+                            <p className="font-semibold text-gray-800">{domi?.cliente_nombre || 'Sin nombre'}</p>
+                            {domi?.metodos.length ? <p className="text-xs text-gray-500">{domi.metodos.map(m => `${EMOJIS[m] || ''} ${m}`).join(' · ')}</p> : <p className="text-xs text-orange-500">⚠️ Sin pago</p>}
                           </div>
                           <div className="text-right">
-                            <p className="font-bold text-white/80">${p.total.toLocaleString('es-CO')}</p>
-                            <span className={`text-xs px-2 py-0.5 rounded-full border ${p.estado === 'pagado' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' : 'bg-orange-500/15 text-orange-400 border-orange-500/20'}`}>{p.estado === 'pagado' ? 'Pagado' : 'Pendiente'}</span>
+                            <p className="font-bold text-gray-800">${p.total.toLocaleString('es-CO')}</p>
+                            <span className={`text-xs px-2 py-0.5 rounded-full border ${p.estado === 'pagado' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-orange-50 text-orange-600 border-orange-200'}`}>{p.estado === 'pagado' ? 'Pagado' : 'Pendiente'}</span>
                           </div>
                         </div>
                       )
@@ -2774,41 +2774,41 @@ export default function GerenciaPage() {
               <Plus size={20} /> Crear nuevo usuario
             </button>
             {listaUsuarios.length === 0 ? (
-              <div className="bg-white/5 rounded-2xl border border-white/10 p-6 text-center">
-                <p className="text-white/30 text-sm">No hay usuarios registrados todavía.</p>
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 text-center">
+                <p className="text-gray-400 text-sm">No hay usuarios registrados todavía.</p>
               </div>
             ) : (
-              <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                 {listaUsuarios.map((u, i) => {
                   const ROL_BADGE: Record<string, string> = {
-                    gerente: 'bg-orange-500/20 text-orange-300 border-orange-500/20',
-                    mesera:  'bg-orange-500/20 text-orange-300 border-orange-500/20',
-                    cocina:  'bg-emerald-500/20 text-emerald-300 border-emerald-500/20',
-                    domi:    'bg-gray-600/20 text-gray-300 border-gray-500/20',
+                    gerente: 'bg-orange-50 text-orange-600 border-orange-200',
+                    mesera:  'bg-orange-50 text-orange-600 border-orange-200',
+                    cocina:  'bg-emerald-50 text-emerald-700 border-emerald-200',
+                    domi:    'bg-gray-100 text-gray-600 border-gray-200',
                   }
                   const ROL_LABEL: Record<string, string> = {
                     gerente: 'Gerente', mesera: 'Mesera', cocina: 'Cocina', domi: 'Domi',
                   }
                   return (
-                    <div key={u.id} className={`flex items-center justify-between px-4 py-3.5 ${i !== 0 ? 'border-t border-white/6' : ''} ${!u.activo ? 'opacity-40' : ''}`}>
+                    <div key={u.id} className={`flex items-center justify-between px-4 py-3.5 ${i !== 0 ? 'border-t border-gray-100' : ''} ${!u.activo ? 'opacity-40' : ''}`}>
                       <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${u.activo ? 'bg-white/10 text-white/60' : 'bg-red-500/20 text-red-400'}`}>
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${u.activo ? 'bg-orange-100 text-orange-600' : 'bg-red-50 text-red-500'}`}>
                           {u.nombre.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <span className="font-medium text-white/80 text-sm">{u.nombre}</span>
-                          {!u.activo && <p className="text-xs text-red-400 font-medium">Inhabilitado</p>}
+                          <span className="font-medium text-gray-800 text-sm">{u.nombre}</span>
+                          {!u.activo && <p className="text-xs text-red-500 font-medium">Inhabilitado</p>}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full capitalize border ${ROL_BADGE[u.rol] || 'bg-white/8 text-white/40 border-white/10'}`}>
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full capitalize border ${ROL_BADGE[u.rol] || 'bg-gray-100 text-gray-500 border-gray-200'}`}>
                           {ROL_LABEL[u.rol] || u.rol}
                         </span>
                         <button
                           onClick={() => setEditandoUsuario({ id: u.id, nombre: u.nombre, rol: u.rol, activo: u.activo ?? true, nuevaPassword: '' })}
-                          className="w-7 h-7 bg-white/8 hover:bg-white/14 border border-white/10 rounded-lg flex items-center justify-center transition-all"
+                          className="w-7 h-7 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg flex items-center justify-center transition-all"
                           title="Editar usuario">
-                          <Pencil size={13} className="text-white/50" />
+                          <Pencil size={13} className="text-gray-500" />
                         </button>
                       </div>
                     </div>
@@ -2822,14 +2822,14 @@ export default function GerenciaPage() {
         {seccion === 'permisos' && (
           <div className="space-y-4">
             {/* Cocina */}
-            <div className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm p-5 space-y-5">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-orange-500/15 rounded-xl flex items-center justify-center">
-                  <Lock size={20} className="text-orange-400" />
+                <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+                  <Lock size={20} className="text-orange-500" />
                 </div>
                 <div>
-                  <h2 className="font-bold text-white/90">Control de flujo — Cocina</h2>
-                  <p className="text-xs text-white/35">Regula cuántos pedidos ve la cocina a la vez</p>
+                  <h2 className="font-bold text-gray-900">Control de flujo — Cocina</h2>
+                  <p className="text-xs text-gray-400">Regula cuántos pedidos ve la cocina a la vez</p>
                 </div>
               </div>
               <div className="flex items-center justify-between gap-4">
@@ -2849,35 +2849,35 @@ export default function GerenciaPage() {
                   <div className="flex gap-2">
                     {[2, 3, 4, 5].map(n => (
                       <button key={n} onClick={() => setBloqueoCantidad(n)}
-                        className={`flex-1 py-3 rounded-xl font-black text-lg transition-all border-2 ${bloqueoCantidad === n ? 'bg-orange-500 text-white border-orange-500' : 'bg-white/5 text-gray-300 border-white/12 hover:border-orange-500/40'}`}>
+                        className={`flex-1 py-3 rounded-xl font-black text-lg transition-all border-2 ${bloqueoCantidad === n ? 'bg-orange-500 text-white border-orange-500' : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-orange-400'}`}>
                         {n}
                       </button>
                     ))}
                   </div>
-                  <div className="mt-3 bg-gray-800/60 border border-gray-700 rounded-xl p-3">
-                    <p className="text-xs text-orange-400 leading-relaxed">
+                  <div className="mt-3 bg-orange-50 border border-orange-100 rounded-xl p-3">
+                    <p className="text-xs text-orange-700 leading-relaxed">
                       🔒 Cocina verá solo los primeros <b>{bloqueoCantidad} pedido{bloqueoCantidad !== 1 ? 's' : ''}</b> (por orden de llegada).
                     </p>
                   </div>
                 </div>
               )}
               {!bloqueoActivo && (
-                <div className="bg-white/4 border border-white/12 rounded-xl p-3">
-                  <p className="text-xs text-white/50">🟢 Sin restricción — la cocina ve todos los pedidos activos al mismo tiempo.</p>
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+                  <p className="text-xs text-gray-500">🟢 Sin restricción — la cocina ve todos los pedidos activos al mismo tiempo.</p>
                 </div>
               )}
             </div>
 
             {/* QR — solo basico/pro */}
-            <div className={`bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm p-5 space-y-5 ${!puedeAcceder('basico') ? 'opacity-60' : ''}`}>
+            <div className={`bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-5 ${!puedeAcceder('basico') ? 'opacity-60' : ''}`}>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
                     <span className="text-xl">📱</span>
                   </div>
                   <div>
-                    <h2 className="font-bold text-white/90">Pedidos por QR</h2>
-                    <p className="text-xs text-white/35">Permite que los clientes pidan desde su celular</p>
+                    <h2 className="font-bold text-gray-900">Pedidos por QR</h2>
+                    <p className="text-xs text-gray-400">Permite que los clientes pidan desde su celular</p>
                   </div>
                 </div>
                 {!puedeAcceder('basico') && (
@@ -2885,7 +2885,7 @@ export default function GerenciaPage() {
                 )}
               </div>
               {!puedeAcceder('basico') ? (
-                <p className="text-xs text-gray-400 bg-white/4 rounded-xl p-3">
+                <p className="text-xs text-gray-500 bg-gray-50 rounded-xl p-3">
                   🔒 Disponible desde el plan Profesional ($89.900/mes). Actualiza tu plan para habilitar pedidos por QR.
                 </p>
               ) : (
@@ -2937,9 +2937,9 @@ export default function GerenciaPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="font-bold text-gray-900 text-lg">Reservas</h2>
-                <p className="text-xs text-white/35">Solicitudes de reserva de tus clientes</p>
+                <p className="text-xs text-gray-400">Solicitudes de reserva de tus clientes</p>
               </div>
-              <button onClick={cargarReservas} className="p-2 rounded-xl bg-white/8 hover:bg-white/14 transition-colors">
+              <button onClick={cargarReservas} className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors">
                 <RotateCcw size={16} className="text-gray-600" />
               </button>
             </div>
@@ -2954,7 +2954,7 @@ export default function GerenciaPage() {
                         : f === 'confirmada' ? 'bg-green-500 text-white border-green-500'
                         : f === 'cancelada' ? 'bg-red-400 text-white border-red-400'
                         : 'bg-orange-500 text-white border-orange-500'
-                      : 'bg-white text-gray-500 border-white/12 hover:border-gray-300'
+                      : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
                   }`}>
                   {f === 'todos' ? 'Todas' : f.charAt(0).toUpperCase() + f.slice(1)}
                   {f !== 'todos' && (
@@ -2972,10 +2972,10 @@ export default function GerenciaPage() {
               </div>
             ) : reservas.filter(r => filtroReservaEstado === 'todos' || r.estado === filtroReservaEstado).length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="w-16 h-16 bg-white/8 rounded-2xl flex items-center justify-center mb-3">
+                <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-3">
                   <CalendarDays size={28} className="text-gray-400" />
                 </div>
-                <p className="font-bold text-white/50">Sin reservas</p>
+                <p className="font-bold text-gray-500">Sin reservas</p>
                 <p className="text-xs text-gray-400 mt-1">Las solicitudes de tus clientes aparecerán aquí</p>
               </div>
             ) : (
@@ -2983,11 +2983,11 @@ export default function GerenciaPage() {
                 {reservas
                   .filter(r => filtroReservaEstado === 'todos' || r.estado === filtroReservaEstado)
                   .map(r => (
-                    <div key={r.id} className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm overflow-hidden shadow-sm">
+                    <div key={r.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                       <div className="p-4">
                         <div className="flex items-start justify-between gap-3 mb-3">
                           <div>
-                            <p className="font-bold text-white/90">{r.nombre}</p>
+                            <p className="font-bold text-gray-900">{r.nombre}</p>
                             <p className="text-xs text-gray-500 mt-0.5">📞 {r.telefono}</p>
                           </div>
                           <span className={`text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${
@@ -2999,17 +2999,17 @@ export default function GerenciaPage() {
                           </span>
                         </div>
                         <div className="grid grid-cols-3 gap-2 text-center mb-3">
-                          <div className="bg-white/4 rounded-xl p-2">
+                          <div className="bg-gray-50 rounded-xl p-2">
                             <p className="text-[10px] text-gray-400 uppercase tracking-wide">Fecha</p>
-                            <p className="text-sm font-bold text-white/90">{new Date(r.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}</p>
+                            <p className="text-sm font-bold text-gray-900">{new Date(r.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}</p>
                           </div>
-                          <div className="bg-white/4 rounded-xl p-2">
+                          <div className="bg-gray-50 rounded-xl p-2">
                             <p className="text-[10px] text-gray-400 uppercase tracking-wide">Hora</p>
-                            <p className="text-sm font-bold text-white/90">{r.hora}</p>
+                            <p className="text-sm font-bold text-gray-900">{r.hora}</p>
                           </div>
-                          <div className="bg-white/4 rounded-xl p-2">
+                          <div className="bg-gray-50 rounded-xl p-2">
                             <p className="text-[10px] text-gray-400 uppercase tracking-wide">Personas</p>
-                            <p className="text-sm font-bold text-white/90">{r.personas}</p>
+                            <p className="text-sm font-bold text-gray-900">{r.personas}</p>
                           </div>
                         </div>
                         {r.notas && (
@@ -3024,14 +3024,14 @@ export default function GerenciaPage() {
                               <CheckCircle size={14} /> Confirmar
                             </button>
                             <button onClick={() => actualizarEstadoReserva(r.id, 'cancelada')}
-                              className="flex-1 bg-white/8 hover:bg-red-50 text-gray-600 hover:text-red-600 text-xs font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-1.5">
+                              className="flex-1 bg-gray-100 hover:bg-red-50 text-gray-600 hover:text-red-600 text-xs font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-1.5">
                               <X size={14} /> Cancelar
                             </button>
                           </div>
                         )}
                         {r.estado !== 'pendiente' && (
                           <button onClick={() => actualizarEstadoReserva(r.id, 'pendiente')}
-                            className="w-full bg-white/8 hover:bg-white/14 text-gray-500 text-xs font-medium py-2 rounded-xl transition-colors">
+                            className="w-full bg-gray-100 hover:bg-gray-200 text-gray-500 text-xs font-medium py-2 rounded-xl transition-colors">
                             Marcar como pendiente
                           </button>
                         )}
