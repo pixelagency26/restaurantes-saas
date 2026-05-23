@@ -122,14 +122,6 @@ export default function MeseraPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'turnos_inventario' }, cargarDatos)
       .subscribe()
 
-    // Escuchar llamadas de clientes vía tabla DB (confiable)
-    const canalLlamadas = supabase.channel('llamadas-tabla')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'llamadas' }, (payload) => {
-        const row = payload.new as { id: number; mesa_numero: number }
-        setLlamadasPendientes(prev => [...prev, { id: row.id, mesa_numero: row.mesa_numero }])
-      })
-      .subscribe()
-
     // Escuchar cuando ítems individuales se marcan como listos en cocina
     const canalItems = supabase.channel('items-cocina-mesera')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'items_pedido' }, (payload) => {
@@ -182,7 +174,6 @@ export default function MeseraPage() {
 
     return () => {
       supabase.removeChannel(canal)
-      supabase.removeChannel(canalLlamadas)
       supabase.removeChannel(canalItems)
     }
   }, [cargarDatos, cargarPedidosListos, supabase])
