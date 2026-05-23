@@ -382,27 +382,6 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
     )
     if (itemsError) console.error('Error insertando items:', itemsError)
 
-    // Descontar inventario de turno — solo los platos que tengan inv de turno
-    if (turnoConInventario) {
-      const platosConInv = new Set(platos.filter(p => p.inv !== undefined).map(p => p.id))
-      const itemsParaDescontar = carrito
-        .filter(i => platosConInv.has(i.plato.id))
-        .map(i => ({ plato_id: i.plato.id, cantidad: i.cantidad }))
-      if (itemsParaDescontar.length) {
-        const { data: invActual } = await supabase.from('inventario')
-          .select('plato_id, cantidad_disponible').in('plato_id', itemsParaDescontar.map(i => i.plato_id))
-        if (invActual) {
-          await Promise.all(itemsParaDescontar.map(item => {
-            const cur = (invActual as { plato_id: string; cantidad_disponible: number }[]).find(r => r.plato_id === item.plato_id)
-            if (!cur) return Promise.resolve()
-            return supabase.from('inventario')
-              .update({ cantidad_disponible: Math.max(0, cur.cantidad_disponible - item.cantidad) })
-              .eq('plato_id', item.plato_id)
-          }))
-        }
-      }
-    }
-
     if (mesaId) await supabase.from('mesas').update({ estado: 'ocupada' }).eq('id', mesaId)
 
     const { data: items } = await supabase.from('items_pedido')

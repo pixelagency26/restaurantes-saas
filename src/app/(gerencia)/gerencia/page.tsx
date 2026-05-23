@@ -1565,27 +1565,6 @@ export default function GerenciaPage() {
       )
       if (errItems) throw new Error(errItems.message)
 
-      // Descontar inventario de turno inmediatamente al enviar a cocina
-      if (turnoConInventario) {
-        const platosConInvSet = new Set(Object.keys(inventarioModalMap))
-        const itemsConInv = itemsCarrito
-          .filter(([platoId]) => platosConInvSet.has(platoId))
-          .map(([platoId, qty]) => ({ plato_id: platoId, cantidad: qty }))
-        if (itemsConInv.length > 0) {
-          const { data: invActual } = await supabase.from('inventario')
-            .select('plato_id, cantidad_disponible').in('plato_id', itemsConInv.map(i => i.plato_id))
-          if (invActual) {
-            await Promise.all(itemsConInv.map(item => {
-              const cur = (invActual as { plato_id: string; cantidad_disponible: number }[]).find(r => r.plato_id === item.plato_id)
-              if (!cur) return Promise.resolve()
-              return supabase.from('inventario')
-                .update({ cantidad_disponible: Math.max(0, cur.cantidad_disponible - item.cantidad) })
-                .eq('plato_id', item.plato_id)
-            }))
-          }
-        }
-      }
-
       toast.success('✅ Pedido enviado a cocina')
       setModalNuevoPedido(false)
       setNuevoOrdenCarrito({}); setNuevoOrdenMesaId(null); setNuevoOrdenNotas('')
