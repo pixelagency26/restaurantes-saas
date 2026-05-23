@@ -103,6 +103,7 @@ export default function GerenciaPage() {
   const [modalUsuario, setModalUsuario] = useState(false)
   const [nuevoUsuario, setNuevoUsuario] = useState({ nombre: '', email: '', password: '', rol: 'mesera' })
   const [creandoUsuario, setCreandoUsuario] = useState(false)
+  const [errorCrearUsuario, setErrorCrearUsuario] = useState<string | null>(null)
   const [listaUsuarios, setListaUsuarios] = useState<{ id: string; nombre: string; rol: string; activo: boolean }[]>([])
   const [editandoUsuario, setEditandoUsuario] = useState<{ id: string; nombre: string; rol: string; activo: boolean; nuevaPassword: string } | null>(null)
   const [guardandoUsuario, setGuardandoUsuario] = useState(false)
@@ -1229,13 +1230,15 @@ export default function GerenciaPage() {
 
   // ── USUARIOS ─────────────────────────────────────────────────
   async function crearUsuario() {
+    setErrorCrearUsuario(null)
     if (!nuevoUsuario.nombre || !nuevoUsuario.email || !nuevoUsuario.password) {
-      toast.error('Completa todos los campos'); return
+      setErrorCrearUsuario('Completa todos los campos (nombre, correo y contraseña)')
+      return
     }
     // Verificar límite de usuarios según plan
     const limiteUsuarios = PLAN_LIMITE[negocioPlan]?.usuarios ?? Infinity
     if (listaUsuarios.filter(u => u.activo).length >= limiteUsuarios) {
-      toast.error(`Tu plan permite máximo ${limiteUsuarios} usuarios activos`)
+      setErrorCrearUsuario(`Tu plan ${negocioPlan} permite máximo ${limiteUsuarios} usuarios activos. Actualiza tu plan.`)
       abrirUpgrade(); return
     }
     setCreandoUsuario(true)
@@ -1243,19 +1246,26 @@ export default function GerenciaPage() {
       const res = await fetch('/api/crear-usuario', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(nuevoUsuario),
+        body: JSON.stringify({ ...nuevoUsuario, negocio_id: negocioId }),
       })
       const data = await res.json()
-      if (!res.ok) { toast.error('Error: ' + data.error); setCreandoUsuario(false); return }
-      toast.success(`✅ Usuario ${nuevoUsuario.nombre} creado correctamente`)
+      if (!res.ok) {
+        const msg = data.error ?? 'Error desconocido'
+        setErrorCrearUsuario(msg)
+        toast.error('Error: ' + msg, { duration: 6000 })
+        setCreandoUsuario(false); return
+      }
+      toast.success(`✅ Usuario ${nuevoUsuario.nombre} creado`)
       setModalUsuario(false)
+      setErrorCrearUsuario(null)
       setNuevoUsuario({ nombre: '', email: '', password: '', rol: 'mesera' })
       // Recargar lista
       const { data: ul } = await supabase.from('usuarios').select('id, nombre, rol, activo').order('nombre')
       if (ul) setListaUsuarios(ul)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
-      toast.error('Error de conexión: ' + msg)
+      setErrorCrearUsuario('Error de conexión: ' + msg)
+      toast.error('Error de conexión: ' + msg, { duration: 6000 })
     }
     setCreandoUsuario(false)
   }
@@ -4008,15 +4018,23 @@ export default function GerenciaPage() {
       {modalUsuario && (
         <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm fade-in space-y-3">
-            <div className="flex justify-between items-center"><h3 className="font-bold text-lg">Nuevo usuario</h3><button onClick={() => setModalUsuario(false)}><X size={20} /></button></div>
+            <div className="flex justify-between items-center">
+              <h3 className="font-bold text-lg text-gray-900">Nuevo usuario</h3>
+              <button onClick={() => { setModalUsuario(false); setErrorCrearUsuario(null) }}><X size={20} className="text-gray-500" /></button>
+            </div>
             <input type="text" placeholder="Nombre completo" value={nuevoUsuario.nombre} onChange={e => setNuevoUsuario(p => ({ ...p, nombre: e.target.value }))} className="w-full border border-gray-300 rounded-xl px-4 py-3 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 bg-gray-50" />
             <input type="email" placeholder="Correo electrónico" value={nuevoUsuario.email} onChange={e => setNuevoUsuario(p => ({ ...p, email: e.target.value }))} className="w-full border border-gray-300 rounded-xl px-4 py-3 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 bg-gray-50" />
-            <input type="password" placeholder="Contraseña" value={nuevoUsuario.password} onChange={e => setNuevoUsuario(p => ({ ...p, password: e.target.value }))} className="w-full border border-gray-300 rounded-xl px-4 py-3 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 bg-gray-50" />
+            <input type="password" placeholder="Contraseña (mín. 6 caracteres)" value={nuevoUsuario.password} onChange={e => setNuevoUsuario(p => ({ ...p, password: e.target.value }))} className="w-full border border-gray-300 rounded-xl px-4 py-3 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 bg-gray-50" />
             <select value={nuevoUsuario.rol} onChange={e => setNuevoUsuario(p => ({ ...p, rol: e.target.value }))} className="w-full border border-gray-300 rounded-xl px-4 py-3 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 bg-gray-50">
               <option value="mesera">Mesera</option><option value="cocina">Cocina</option><option value="gerente">Gerente</option><option value="domi">Domi</option>
             </select>
-            <button onClick={crearUsuario} disabled={creandoUsuario} className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded-xl">
-              {creandoUsuario ? 'Creando...' : 'Crear usuario'}
+            {errorCrearUsuario && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+                ⚠️ {errorCrearUsuario}
+              </div>
+            )}
+            <button onClick={crearUsuario} disabled={creandoUsuario} className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition-all">
+              {creandoUsuario ? '⏳ Creando...' : 'Crear usuario'}
             </button>
           </div>
         </div>
