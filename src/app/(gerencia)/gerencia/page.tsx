@@ -530,7 +530,8 @@ export default function GerenciaPage() {
       await supabase.from('menus_turno').update({ nombre: menuForm.nombre.trim(), items }).eq('id', editandoMenuId)
       toast.success('✅ Menú actualizado')
     } else {
-      await supabase.from('menus_turno').insert({ nombre: menuForm.nombre.trim(), items })
+      const { error: errMenu } = await supabase.from('menus_turno').insert({ nombre: menuForm.nombre.trim(), items, ...(negocioId ? { negocio_id: negocioId } : {}) })
+      if (errMenu) { toast.error('Error al crear menú: ' + errMenu.message, { duration: 6000 }); setGuardandoMenu(false); return }
       toast.success('✅ Menú creado')
     }
     setGuardandoMenu(false)
@@ -1356,7 +1357,7 @@ export default function GerenciaPage() {
     const zonasActuales = [...new Set(mesas.map(m => m.zona))].filter(Boolean).length
     if (zonasActuales >= limZonas) { toast.error(`Tu plan permite máximo ${limZonas} zona(s)`); abrirUpgrade(); return }
     setGuardandoMesa(true)
-    const { error } = await supabase.from('mesas').insert({ numero: num, estado: 'libre', zona: nuevaZonaNombre.trim() })
+    const { error } = await supabase.from('mesas').insert({ numero: num, estado: 'libre', zona: nuevaZonaNombre.trim(), ...(negocioId ? { negocio_id: negocioId } : {}) })
     setGuardandoMesa(false)
     if (error) { toast.error('Error: ' + error.message); return }
     toast.success(`Zona "${nuevaZonaNombre.trim()}" creada con mesa ${num}`)
@@ -1370,7 +1371,7 @@ export default function GerenciaPage() {
     const limMesas = PLAN_LIMITE[negocioPlan]?.mesas ?? Infinity
     if (mesas.length >= limMesas) { toast.error(`Tu plan permite máximo ${limMesas} mesas`); abrirUpgrade(); return }
     setGuardandoMesa(true)
-    const { error } = await supabase.from('mesas').insert({ numero: num, estado: 'libre', zona })
+    const { error } = await supabase.from('mesas').insert({ numero: num, estado: 'libre', zona, ...(negocioId ? { negocio_id: negocioId } : {}) })
     setGuardandoMesa(false)
     if (error) { toast.error('Error: ' + error.message); return }
     toast.success(`Mesa ${num} agregada`)
@@ -1409,15 +1410,44 @@ export default function GerenciaPage() {
   async function guardarPlato() {
     if (!platoForm.nombre || !platoForm.precio || !platoForm.categoria_id) { toast.error('Completa nombre, precio y categoría'); return }
     setGuardandoPlato(true)
-    const datos = { nombre: platoForm.nombre, descripcion: platoForm.descripcion || null, precio: platoForm.precio, costo: platoForm.costo || null, categoria_id: platoForm.categoria_id, imagen_url: platoForm.imagen_url || null, activo: platoForm.activo }
+
+    // Garantizar negocio_id
+    let nid = negocioId
+    if (!nid) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: u } = await supabase.from('usuarios').select('negocio_id').eq('id', user.id).single()
+        nid = u?.negocio_id ?? null
+        if (nid) setNegocioId(nid)
+      }
+    }
+
+    const datos = {
+      nombre: platoForm.nombre,
+      descripcion: platoForm.descripcion || null,
+      precio: platoForm.precio,
+      costo: platoForm.costo || null,
+      categoria_id: platoForm.categoria_id,
+      imagen_url: platoForm.imagen_url || null,
+      activo: platoForm.activo,
+      ...(nid ? { negocio_id: nid } : {}),
+    }
+
     if (modalPlato === 'nuevo') {
       const { data: nuevoPl, error } = await supabase.from('platos').insert(datos).select().single()
-      if (error) { toast.error('Error al crear plato'); setGuardandoPlato(false); return }
-      await supabase.from('inventario').insert({ plato_id: nuevoPl.id, cantidad_disponible: 0, alerta_minima: 3 })
-      toast.success('Plato creado')
+      if (error) {
+        toast.error('Error al crear plato: ' + error.message, { duration: 6000 })
+        setGuardandoPlato(false); return
+      }
+      await supabase.from('inventario').insert({ plato_id: nuevoPl.id, cantidad_disponible: 0, alerta_minima: 3, ...(nid ? { negocio_id: nid } : {}) })
+      toast.success('✅ Plato creado')
     } else {
-      await supabase.from('platos').update(datos).eq('id', platoEditandoId!)
-      toast.success('Plato actualizado')
+      const { error } = await supabase.from('platos').update(datos).eq('id', platoEditandoId!)
+      if (error) {
+        toast.error('Error al actualizar plato: ' + error.message, { duration: 6000 })
+        setGuardandoPlato(false); return
+      }
+      toast.success('✅ Plato actualizado')
     }
     setModalPlato(null); setGuardandoPlato(false); cargarCarta()
   }
