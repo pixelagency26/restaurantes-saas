@@ -126,13 +126,17 @@ export default function ChatFlotante() {
       miIdRef.current = user.id
 
       const { data: perfil } = await supabase
-        .from('usuarios').select('nombre, rol').eq('id', user.id).single()
+        .from('usuarios').select('nombre, rol, negocio_id').eq('id', user.id).single()
       if (perfil) setMiPerfil(perfil as { nombre: string; rol: string })
 
       // ── Verificar plan del negocio ────────────────────────────────────────
-      const { data: negDB } = await supabase
-        .from('negocios').select('plan').single()
-      const plan = negDB?.plan ?? 'starter'
+      // Filtrar por negocio_id del usuario para evitar errores con .single() en multi-negocio
+      const negocioId = (perfil as { negocio_id?: string } | null)?.negocio_id
+      const negQuery = negocioId
+        ? supabase.from('negocios').select('plan').eq('id', negocioId).single()
+        : supabase.from('negocios').select('plan').single()
+      const { data: negDB } = await negQuery
+      const plan = negDB?.plan ?? 'pro'   // default pro para no bloquear si falla la consulta
       setNegocioPlan(plan)
       setPlanCargado(true)
 
@@ -299,7 +303,7 @@ export default function ChatFlotante() {
         <button
           onClick={() => setVista('bloqueado')}
           title="Chat interno — Plan Pro"
-          className="fixed bottom-4 right-4 w-14 h-14 bg-gray-200 text-gray-400 rounded-full shadow-md flex items-center justify-center z-[9998] cursor-pointer hover:bg-gray-300 transition-colors">
+          className="fixed bottom-6 right-4 w-14 h-14 bg-gray-200 text-gray-400 rounded-full shadow-md flex items-center justify-center z-[99999] cursor-pointer pointer-events-auto hover:bg-gray-300 transition-colors">
           <MessageCircle size={24} className="opacity-50" />
           <span className="absolute -top-1 -right-1 bg-gray-400 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-bold">
             🔒
@@ -311,7 +315,7 @@ export default function ChatFlotante() {
     // Plan Pro (o cargando): botón funcional normal
     return (
       <button onClick={() => setVista('lista')}
-        className={`fixed bottom-4 right-4 w-14 h-14 ${miRol.color} hover:opacity-90 text-white rounded-full shadow-lg shadow-black/25 flex items-center justify-center z-[9998] active:scale-95 transition-all`}>
+        className={`fixed bottom-6 right-4 w-14 h-14 ${miRol.color} hover:opacity-90 text-white rounded-full shadow-lg shadow-black/25 flex items-center justify-center z-[99999] pointer-events-auto active:scale-95 transition-all`}>
         <MessageCircle size={24} />
         {totalNoLeidos > 0 && (
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold animate-bounce">
@@ -325,7 +329,7 @@ export default function ChatFlotante() {
   // ── PANEL BLOQUEADO ────────────────────────────────────────────────────────
   if (vista === 'bloqueado') {
     return (
-      <div className="fixed bottom-4 right-4 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col z-[9999] overflow-hidden">
+      <div className="fixed bottom-6 right-4 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col z-[99999] overflow-hidden pointer-events-auto">
         {/* Header gris */}
         <div className="bg-gray-400 text-white px-4 py-3 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
@@ -375,7 +379,7 @@ export default function ChatFlotante() {
 
   // ── PANELES FUNCIONALES (solo accesibles con Plan Pro) ─────────────────────
   return (
-    <div className="fixed bottom-4 right-4 w-80 sm:w-96 h-[490px] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col z-[9999] overflow-hidden">
+    <div className="fixed bottom-6 right-4 w-80 sm:w-96 h-[490px] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col z-[99999] overflow-hidden pointer-events-auto">
 
       {/* ══ LISTA DE CHATS ═══════════════════════════════════════════ */}
       {vista === 'lista' && (

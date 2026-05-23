@@ -17,13 +17,15 @@ export default function RootLayout({
       <body className="min-h-full bg-gray-50">
         {children}
         <Toaster
-          position="top-right"
+          position="top-center"
+          containerStyle={{ zIndex: 99998 }}
           toastOptions={{
             duration: 4000,
             style: {
               background: '#1f2937',
               color: '#f9fafb',
               borderRadius: '8px',
+              fontSize: '14px',
             },
           }}
         />
