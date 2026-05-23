@@ -49,6 +49,10 @@ export default function DomiPage() {
   const [enviando, setEnviando] = useState(false)
   const [marcandoId, setMarcandoId] = useState<string | null>(null)
 
+  // Inventario de turno
+  const [negocioId, setNegocioId] = useState<string | null>(null)
+  const [turnoInventarioIds, setTurnoInventarioIds] = useState<Set<string>>(new Set())
+
   // Cobro domi
   const [modalPagoDomi, setModalPagoDomi] = useState<string | null>(null)
   const [metodoCobro, setMetodoCobro] = useState<'efectivo' | 'nequi' | 'daviplata' | 'bancolombia'>('efectivo')
@@ -99,11 +103,37 @@ export default function DomiPage() {
 
   // ── CARGAR MENÚ ───────────────────────────────────────────────
   const cargarMenu = useCallback(async () => {
-    const [{ data: cats }, { data: pls }, { data: inv }] = await Promise.all([
+    const [{ data: cats }, { data: pls }, { data: inv }, { data: turnoData }, { data: negData }] = await Promise.all([
       supabase.from('categorias').select('*').order('orden'),
       supabase.from('platos').select('*').eq('activo', true),
       supabase.from('inventario').select('*'),
+      supabase.from('turnos').select('id, abierto_en').is('cerrado_en', null)
+        .order('abierto_en', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('negocios').select('id').single(),
     ])
+
+    // Guardar negocio_id para usar en pedidos (RLS)
+    if (negData?.id) setNegocioId(negData.id)
+
+    // Cargar plato_ids con inventario configurado en el turno activo
+    let platoIdsConInv = new Set<string>()
+    if (turnoData?.id) {
+      const td = turnoData as { id: string; abierto_en: string }
+      const { data: tiData } = await supabase.from('turnos_inventario')
+        .select('plato_id').eq('turno_id', td.id)
+      if (tiData && tiData.length > 0) {
+        platoIdsConInv = new Set(tiData.map((r: { plato_id: string }) => r.plato_id))
+      } else if (td.abierto_en && inv && inv.length > 0) {
+        // Fallback: si turnos_inventario está vacío, usar updated_at del inventario
+        const abrioEn = new Date(td.abierto_en).getTime()
+        const enTurno = (inv as Inventario[]).filter(i =>
+          i.updated_at && new Date(i.updated_at).getTime() >= abrioEn - 1000
+        )
+        if (enTurno.length > 0) platoIdsConInv = new Set(enTurno.map(i => i.plato_id))
+      }
+    }
+    setTurnoInventarioIds(platoIdsConInv)
+
     if (cats) { setCategorias(cats); if (!categoriaActiva && cats[0]) setCategoriaActiva(cats[0].id) }
     if (pls) setPlatos(pls.map(p => ({ ...p, inventario: (inv || []).filter((i: Inventario) => i.plato_id === p.id) })) as unknown as (Plato & { inventario: Inventario[] })[])
   }, [supabase, categoriaActiva])
@@ -114,6 +144,8 @@ export default function DomiPage() {
 
     const canal = supabase.channel('domi-pedidos-rt')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, cargarPedidos)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventario' }, cargarMenu)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'turnos_inventario' }, cargarMenu)
       .subscribe()
 
     // Notificaciones cuando cocina termina un ítem de pedido domi
@@ -240,11 +272,12 @@ export default function DomiPage() {
   }
 
   function agregarAlCarrito(plato: Plato) {
-    const disp = stockDisponible(plato.id)
-    const enCarrito = carrito.find(i => i.plato.id === plato.id)?.cantidad ?? 0
-    if (enCarrito >= disp) {
-      toast.error(`Solo hay ${disp} unidad(es) disponible(s) de ${plato.nombre}`)
-      return
+    // Solo limitar si el plato tiene inventario de turno configurado
+    if (turnoInventarioIds.has(plato.id)) {
+      const disp = stockDisponible(plato.id)
+      if (disp === 0) { toast.error(`${plato.nombre} no está disponible`); return }
+      const enCarrito = carrito.find(i => i.plato.id === plato.id)?.cantidad ?? 0
+      if (enCarrito >= disp) { toast.error(`Solo hay ${disp} unidad(es) de ${plato.nombre}`); return }
     }
     setCarrito(prev => {
       const existe = prev.find(i => i.plato.id === plato.id)
@@ -255,13 +288,11 @@ export default function DomiPage() {
   }
 
   function cambiarCantidad(id: string, delta: number) {
-    if (delta > 0) {
+    if (delta > 0 && turnoInventarioIds.has(id)) {
       const disp = stockDisponible(id)
+      if (disp <= 0) { toast.error('No hay más unidades disponibles'); return }
       const enCarrito = carrito.find(i => i.plato.id === id)?.cantidad ?? 0
-      if (enCarrito >= disp) {
-        toast.error('No hay más unidades disponibles')
-        return
-      }
+      if (enCarrito >= disp) { toast.error('No hay más unidades disponibles'); return }
     }
     setCarrito(prev => prev.map(i => i.plato.id === id ? { ...i, cantidad: Math.max(0, i.cantidad + delta) } : i).filter(i => i.cantidad > 0))
   }
@@ -278,6 +309,14 @@ export default function DomiPage() {
       .order('abierto_en', { ascending: false }).limit(1).single()
     if (!turno) { toast.error('No hay turno abierto. El gerente debe abrir caja.'); setEnviando(false); return }
 
+    // Asegurar negocio_id para RLS
+    let myNegocioId = negocioId
+    if (!myNegocioId) {
+      const { data: neg } = await supabase.from('negocios').select('id').single()
+      myNegocioId = neg?.id ?? null
+      if (myNegocioId) setNegocioId(myNegocioId)
+    }
+
     const { data: pedido, error } = await supabase.from('pedidos').insert({
       mesera_id: user?.id,
       turno_id: turno.id,
@@ -287,6 +326,7 @@ export default function DomiPage() {
       cliente_cedula:    clienteDomi.cedula.trim() || null,
       cliente_telefono:  clienteDomi.telefono.trim(),
       cliente_direccion: clienteDomi.direccion.trim(),
+      ...(myNegocioId ? { negocio_id: myNegocioId } : {}),
     }).select().single()
 
     if (error || !pedido) { toast.error('Error al crear el pedido'); setEnviando(false); return }
@@ -358,10 +398,11 @@ export default function DomiPage() {
       <div className="flex-1 p-4 space-y-2.5">
         {platosFiltrados.map(plato => {
           const invRow = plato.inventario?.[0] as { cantidad_disponible: number; alerta_minima: number } | undefined
-          const disp = invRow?.cantidad_disponible ?? 0
+          const tieneInv = turnoInventarioIds.has(plato.id)
+          const disp = tieneInv ? (invRow?.cantidad_disponible ?? 0) : Infinity
           const alerta = invRow?.alerta_minima ?? 3
-          const sinStock = disp === 0
-          const stockBajo = !sinStock && disp <= alerta
+          const sinStock = tieneInv && disp === 0
+          const stockBajo = tieneInv && !sinStock && disp <= alerta
           const enCarrito = carrito.find(i => i.plato.id === plato.id)
           return (
             <div key={plato.id}
@@ -381,7 +422,7 @@ export default function DomiPage() {
                 <p className="text-orange-400 font-black text-sm mt-0.5">${plato.precio.toLocaleString('es-CO')}</p>
                 {sinStock  && <p className="text-red-400 text-xs font-bold mt-0.5">Sin disponibilidad</p>}
                 {stockBajo && <p className="text-amber-400 text-xs font-bold mt-0.5">⚠️ Quedan {disp}</p>}
-                {!sinStock && !stockBajo && <p className="text-gray-600 text-xs mt-0.5">{disp} disponibles</p>}
+                {tieneInv && !sinStock && !stockBajo && <p className="text-gray-600 text-xs mt-0.5">{disp} disponibles</p>}
               </div>
               {!sinStock && (enCarrito ? (
                 <div className="flex items-center gap-2 shrink-0">
