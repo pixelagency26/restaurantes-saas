@@ -6,7 +6,8 @@ import { Plato, Categoria, Inventario } from '@/types'
 import toast from 'react-hot-toast'
 import {
   Bike, X, Plus, Minus, ShoppingBag,
-  Clock, Package, Navigation, RefreshCw, Banknote, Wallet
+  Clock, Package, Navigation, RefreshCw, Banknote, Wallet,
+  ChefHat, CheckCircle,
 } from 'lucide-react'
 
 type ItemCarrito = { plato: Plato; cantidad: number; notas: string }
@@ -49,7 +50,7 @@ export default function DomiPage() {
   const [marcandoId, setMarcandoId] = useState<string | null>(null)
 
   // Cobro domi
-  const [modalPagoDomi, setModalPagoDomi] = useState<string | null>(null) // pedidoId
+  const [modalPagoDomi, setModalPagoDomi] = useState<string | null>(null)
   const [metodoCobro, setMetodoCobro] = useState<'efectivo' | 'nequi' | 'daviplata' | 'bancolombia'>('efectivo')
   const [cobrando, setCobrando] = useState(false)
 
@@ -92,7 +93,6 @@ export default function DomiPage() {
       }
     }
     const todos = data.map(mapear)
-    // "entregado" permanece en activos hasta que el domi cobre
     setPedidosActivos(todos.filter(p => ['pendiente', 'en_preparacion', 'listo', 'entregado'].includes(p.estado)))
     setPedidosEntregados(todos.filter(p => p.estado === 'pagado').slice(0, 8))
   }, [supabase])
@@ -132,7 +132,7 @@ export default function DomiPage() {
               tipo: string; cliente_nombre: string | null
               items: { id: string; estado: string; plato: { nombre: string } }[]
             }
-            if (p.tipo !== 'domi') return // solo pedidos domi
+            if (p.tipo !== 'domi') return
 
             const itemListo = p.items.find(i => i.id === item.id)
             const platoNombre = itemListo?.plato?.nombre ?? 'Plato'
@@ -228,7 +228,7 @@ export default function DomiPage() {
       domi_tomado_en: new Date().toISOString(),
       mesera_id: user?.id ?? null,
     }).eq('id', pedidoId)
-    toast.success('🛵 ¡El cliente fue notificado!')
+    toast.success('🛵 ¡En camino!')
     setMarcandoId(null)
     cargarPedidos()
   }
@@ -312,27 +312,50 @@ export default function DomiPage() {
 
   // ── VISTA: MENÚ ───────────────────────────────────────────────
   if (vista === 'menu') return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <div className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-2">
-          <button onClick={() => { setVista('pedidos'); setCarrito([]) }} className="text-gray-400 hover:text-gray-700"><X size={22} /></button>
-          <span className="bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">🛵 DOMI</span>
+    <div className="min-h-screen bg-gray-950 flex flex-col">
+      {/* Header */}
+      <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => { setVista('pedidos'); setCarrito([]) }}
+            className="w-8 h-8 bg-gray-800 hover:bg-gray-700 rounded-lg flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+            <X size={18} />
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-orange-500/20 border border-orange-500/30 rounded-lg flex items-center justify-center">
+              <Bike size={14} className="text-orange-400" />
+            </div>
+            <span className="text-white font-black text-sm">Nuevo domi</span>
+          </div>
         </div>
-        <button onClick={() => setVista('carrito')}
-          className="relative bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2">
+        <button
+          onClick={() => setVista('carrito')}
+          className="relative bg-orange-500 hover:bg-orange-400 active:bg-orange-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-orange-900/30">
           <ShoppingBag size={16} /> Ver pedido
-          {carrito.length > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">{carrito.length}</span>}
+          {carrito.length > 0 && (
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-black animate-bounce">
+              {carrito.length}
+            </span>
+          )}
         </button>
       </div>
-      <div className="flex gap-2 px-4 py-3 overflow-x-auto bg-white border-b">
+
+      {/* Categorías */}
+      <div className="flex gap-2 px-4 py-3 overflow-x-auto bg-gray-900/60 border-b border-gray-800 shrink-0">
         {categorias.map(cat => (
           <button key={cat.id} onClick={() => setCategoriaActiva(cat.id)}
-            className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${categoriaActiva === cat.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+            className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-all ${
+              categoriaActiva === cat.id
+                ? 'bg-orange-500 text-white shadow-md shadow-orange-900/30'
+                : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
+            }`}>
             {cat.nombre}
           </button>
         ))}
       </div>
-      <div className="flex-1 p-4 space-y-3">
+
+      {/* Platos */}
+      <div className="flex-1 p-4 space-y-2.5">
         {platosFiltrados.map(plato => {
           const invRow = plato.inventario?.[0] as { cantidad_disponible: number; alerta_minima: number } | undefined
           const disp = invRow?.cantidad_disponible ?? 0
@@ -341,85 +364,130 @@ export default function DomiPage() {
           const stockBajo = !sinStock && disp <= alerta
           const enCarrito = carrito.find(i => i.plato.id === plato.id)
           return (
-            <div key={plato.id} className={`bg-white rounded-2xl p-4 border flex items-center gap-3 ${sinStock ? 'opacity-50' : 'border-gray-100'}`}>
-              {plato.imagen_url && <img src={plato.imagen_url} alt={plato.nombre} className="w-14 h-14 rounded-xl object-cover" />}
+            <div key={plato.id}
+              className={`rounded-2xl border flex items-center gap-3 p-3 transition-all ${
+                sinStock
+                  ? 'opacity-40 border-gray-800 bg-gray-900/40'
+                  : enCarrito
+                  ? 'border-orange-500/40 bg-orange-500/5'
+                  : 'border-gray-800 bg-gray-900/60 hover:border-gray-700'
+              }`}>
+              {plato.imagen_url
+                ? <img src={plato.imagen_url} alt={plato.nombre} className="w-14 h-14 rounded-xl object-cover shrink-0" />
+                : <div className="w-14 h-14 rounded-xl bg-gray-800 flex items-center justify-center text-2xl shrink-0">🍽️</div>
+              }
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-900">{plato.nombre}</p>
-                <p className="text-blue-600 font-bold text-sm mt-0.5">${plato.precio.toLocaleString('es-CO')}</p>
-                {sinStock && <p className="text-red-500 text-xs font-semibold">Sin disponibilidad</p>}
-                {stockBajo && <p className="text-yellow-600 text-xs font-semibold">⚠️ Quedan {disp}</p>}
-                {!sinStock && !stockBajo && <p className="text-gray-400 text-xs">{disp} disponibles</p>}
+                <p className="font-bold text-white text-sm">{plato.nombre}</p>
+                <p className="text-orange-400 font-black text-sm mt-0.5">${plato.precio.toLocaleString('es-CO')}</p>
+                {sinStock  && <p className="text-red-400 text-xs font-bold mt-0.5">Sin disponibilidad</p>}
+                {stockBajo && <p className="text-amber-400 text-xs font-bold mt-0.5">⚠️ Quedan {disp}</p>}
+                {!sinStock && !stockBajo && <p className="text-gray-600 text-xs mt-0.5">{disp} disponibles</p>}
               </div>
               {!sinStock && (enCarrito ? (
-                <div className="flex items-center gap-2">
-                  <button onClick={() => cambiarCantidad(plato.id, -1)} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><Minus size={14} /></button>
-                  <span className="font-bold w-4 text-center">{enCarrito.cantidad}</span>
-                  <button onClick={() => cambiarCantidad(plato.id, 1)} className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center"><Plus size={14} /></button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => cambiarCantidad(plato.id, -1)}
+                    className="w-8 h-8 bg-gray-800 hover:bg-gray-700 rounded-full flex items-center justify-center text-white transition-colors">
+                    <Minus size={14} />
+                  </button>
+                  <span className="font-black text-white w-5 text-center">{enCarrito.cantidad}</span>
+                  <button onClick={() => cambiarCantidad(plato.id, 1)}
+                    className="w-8 h-8 bg-orange-500 hover:bg-orange-400 text-white rounded-full flex items-center justify-center transition-colors">
+                    <Plus size={14} />
+                  </button>
                 </div>
               ) : (
-                <button onClick={() => agregarAlCarrito(plato)} className="w-9 h-9 bg-blue-600 text-white rounded-full flex items-center justify-center"><Plus size={18} /></button>
+                <button onClick={() => agregarAlCarrito(plato)}
+                  className="w-10 h-10 bg-orange-500 hover:bg-orange-400 active:scale-90 text-white rounded-full flex items-center justify-center transition-all shadow-md shadow-orange-900/30 shrink-0">
+                  <Plus size={20} />
+                </button>
               ))}
             </div>
           )
         })}
+        {platosFiltrados.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-gray-600 text-sm">No hay platos en esta categoría</p>
+          </div>
+        )}
       </div>
     </div>
   )
 
   // ── VISTA: CARRITO ────────────────────────────────────────────
   if (vista === 'carrito') return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <div className="bg-white border-b px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
-        <button onClick={() => setVista('menu')} className="text-gray-400 hover:text-gray-700"><X size={22} /></button>
-        <h2 className="font-bold text-gray-900">Confirmar domi</h2>
+    <div className="min-h-screen bg-gray-950 flex flex-col">
+      {/* Header */}
+      <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
+        <button onClick={() => setVista('menu')}
+          className="w-8 h-8 bg-gray-800 hover:bg-gray-700 rounded-lg flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+          <X size={18} />
+        </button>
+        <h2 className="font-black text-white">Confirmar domi</h2>
       </div>
+
       <div className="flex-1 p-4 space-y-3 pb-36">
+        {/* Items carrito */}
         {carrito.map(item => {
           const dispCarrito = stockDisponible(item.plato.id)
           return (
-          <div key={item.plato.id} className="bg-white rounded-2xl p-4 border border-gray-100">
-            <div className="flex items-center justify-between mb-2">
-              <p className="font-semibold text-gray-900">{item.plato.nombre}</p>
-              <div className="flex items-center gap-2">
-                <button onClick={() => cambiarCantidad(item.plato.id, -1)} className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center"><Minus size={12} /></button>
-                <span className="font-bold">{item.cantidad}</span>
-                <button onClick={() => cambiarCantidad(item.plato.id, 1)} disabled={item.cantidad >= dispCarrito} className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center disabled:opacity-40"><Plus size={12} /></button>
+            <div key={item.plato.id} className="bg-gray-900/70 rounded-2xl p-4 border border-gray-800">
+              <div className="flex items-center justify-between mb-2">
+                <p className="font-bold text-white">{item.plato.nombre}</p>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => cambiarCantidad(item.plato.id, -1)}
+                    className="w-7 h-7 bg-gray-800 hover:bg-gray-700 rounded-full flex items-center justify-center text-gray-300 transition-colors">
+                    <Minus size={12} />
+                  </button>
+                  <span className="font-black text-white w-5 text-center">{item.cantidad}</span>
+                  <button onClick={() => cambiarCantidad(item.plato.id, 1)}
+                    disabled={item.cantidad >= dispCarrito}
+                    className="w-7 h-7 bg-orange-500 hover:bg-orange-400 text-white rounded-full flex items-center justify-center disabled:opacity-40 transition-colors">
+                    <Plus size={12} />
+                  </button>
+                </div>
               </div>
+              <p className="text-orange-400 text-sm font-bold">${(item.plato.precio * item.cantidad).toLocaleString('es-CO')}</p>
+              <input type="text" placeholder="Nota (ej: sin sal)" value={item.notas}
+                onChange={e => setCarrito(prev => prev.map(i => i.plato.id === item.plato.id ? { ...i, notas: e.target.value } : i))}
+                className="mt-2 w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
             </div>
-            <p className="text-blue-600 text-sm font-semibold">${(item.plato.precio * item.cantidad).toLocaleString('es-CO')}</p>
-            <input type="text" placeholder="Nota (ej: sin sal)" value={item.notas}
-              onChange={e => setCarrito(prev => prev.map(i => i.plato.id === item.plato.id ? { ...i, notas: e.target.value } : i))}
-              className="mt-2 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300" />
-          </div>
           )
         })}
 
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-2">
-          <p className="text-sm font-bold text-blue-800">🛵 Datos del cliente</p>
+        {/* Datos del cliente */}
+        <div className="bg-gray-900/60 border border-gray-700 rounded-2xl p-4 space-y-2.5">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-6 h-6 bg-orange-500/20 rounded-lg flex items-center justify-center">
+              <Bike size={13} className="text-orange-400" />
+            </div>
+            <p className="text-sm font-black text-white">Datos del cliente</p>
+          </div>
           <input type="text" placeholder="Nombre *" value={clienteDomi.nombre}
             onChange={e => setClienteDomi(p => ({ ...p, nombre: e.target.value }))}
-            className="w-full text-sm border border-blue-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            className="w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
           <input type="tel" placeholder="Teléfono *" value={clienteDomi.telefono}
             onChange={e => setClienteDomi(p => ({ ...p, telefono: e.target.value }))}
-            className="w-full text-sm border border-blue-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            className="w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
           <input type="text" placeholder="Dirección de entrega *" value={clienteDomi.direccion}
             onChange={e => setClienteDomi(p => ({ ...p, direccion: e.target.value }))}
-            className="w-full text-sm border border-blue-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            className="w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
           <input type="text" placeholder="Cédula (opcional)" value={clienteDomi.cedula}
             onChange={e => setClienteDomi(p => ({ ...p, cedula: e.target.value }))}
-            className="w-full text-sm border border-blue-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            className="w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
           <textarea placeholder="Nota general..." value={notaGeneral} onChange={e => setNotaGeneral(e.target.value)} rows={2}
-            className="w-full text-sm border border-blue-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            className="w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50 resize-none" />
         </div>
       </div>
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4">
+
+      {/* Footer */}
+      <div className="fixed bottom-0 left-0 right-0 bg-gray-950 border-t border-gray-800 p-4">
         <div className="flex justify-between items-center mb-3">
-          <span className="text-gray-600 font-medium">Total</span>
-          <span className="text-xl font-black">${totalCarrito.toLocaleString('es-CO')}</span>
+          <span className="text-gray-400 font-medium text-sm">Total estimado</span>
+          <span className="text-xl font-black text-white">${totalCarrito.toLocaleString('es-CO')}</span>
         </div>
         <button onClick={enviarPedido} disabled={enviando || carrito.length === 0}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 text-lg">
-          <Bike size={22} /> {enviando ? 'Enviando...' : 'Enviar domi a cocina'}
+          className="w-full bg-orange-500 hover:bg-orange-400 active:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 text-base transition-all shadow-lg shadow-orange-900/30">
+          <Bike size={20} /> {enviando ? 'Enviando...' : 'Enviar domi a cocina'}
         </button>
       </div>
     </div>
@@ -427,152 +495,190 @@ export default function DomiPage() {
 
   // ── VISTA: PEDIDOS (principal) ────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-100 p-4 pb-8">
+    <div className="min-h-screen bg-gray-950 pb-8">
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-3">
-          <div className="bg-blue-600 p-2 rounded-xl"><Bike size={24} className="text-white" /></div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Panel Domi</h1>
-            <p className="text-xs text-gray-400">{pedidosActivos.length} activo(s) hoy</p>
+      <div className="sticky top-0 z-10 bg-gray-950/95 backdrop-blur-md border-b border-gray-800 px-4 pt-4 pb-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20">
+              <Bike size={22} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-black text-white tracking-tight">Panel Domi</h1>
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                <p className="text-gray-500 text-xs">{pedidosActivos.length} activo(s) hoy</p>
+              </div>
+            </div>
           </div>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => { setVistaCuadre(true); cargarCuadre() }}
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold px-3 py-2.5 rounded-xl text-sm">
-            <Wallet size={15} /> Mi cuadre
-          </button>
-          <button onClick={() => { setCarrito([]); setClienteDomi({ nombre: '', telefono: '', direccion: '', cedula: '' }); setVista('menu') }}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2.5 rounded-xl text-sm">
-            <Plus size={16} /> Nuevo domi
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setVistaCuadre(true); cargarCuadre() }}
+              className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 font-bold px-3 py-2.5 rounded-xl text-sm transition-all">
+              <Wallet size={15} /> Cuadre
+            </button>
+            <button
+              onClick={() => { setCarrito([]); setClienteDomi({ nombre: '', telefono: '', direccion: '', cedula: '' }); setVista('menu') }}
+              className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-400 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all shadow-md shadow-orange-900/30">
+              <Plus size={16} /> Nuevo domi
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Notificaciones de cocina */}
-      {notifs.length > 0 && (
-        <div className="mb-4 space-y-2">
-          {notifs.map(n => (
-            <div key={n.id} className="bg-green-50 border-2 border-green-400 rounded-2xl px-4 py-3 flex items-start justify-between gap-3">
-              <div className="flex-1">
-                <p className="text-sm font-black text-green-900">
-                  🍽️ <span className="text-blue-700">{n.platoNombre}</span> del pedido de {n.clienteNombre} está listo
-                </p>
-                {n.pendientes.length > 0
-                  ? <p className="text-xs text-orange-600 font-semibold mt-1">⏳ Faltan: {n.pendientes.join(', ')}</p>
-                  : <p className="text-xs text-green-600 font-bold mt-1">✅ ¡Pedido completo! Ya puedes salir</p>
-                }
-              </div>
-              <button onClick={() => setNotifs(prev => prev.filter(x => x.id !== n.id))} className="text-green-300 hover:text-green-600 shrink-0"><X size={16} /></button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Pedidos activos */}
-      {pedidosActivos.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-          <Package size={48} className="mb-3" />
-          <p className="text-lg font-medium">Sin pedidos activos</p>
-          <p className="text-sm">Los pedidos aparecerán aquí en tiempo real</p>
-        </div>
-      ) : (
-        <div className="space-y-3 mb-6">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 px-1">Pedidos activos</h2>
-          {pedidosActivos.map(ped => {
-            const mins = Math.floor((Date.now() - new Date(ped.created_at).getTime()) / 60000)
-            const esListo = ped.estado === 'listo'
-            const esPendiente = ped.estado === 'pendiente'
-            const esEntregado = ped.estado === 'entregado'
-            return (
-              <div key={ped.id} className={`rounded-2xl border-2 p-4 ${
-                esListo ? 'bg-green-50 border-green-400' :
-                esEntregado ? 'bg-blue-50 border-blue-400' :
-                esPendiente ? 'bg-white border-gray-200' : 'bg-orange-50 border-orange-300'
-              }`}>
-                <div className="flex items-start justify-between mb-2 gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-black text-gray-900 text-base truncate">{ped.cliente_nombre || 'Sin nombre'}</p>
-                    {ped.cliente_telefono && <p className="text-xs text-gray-500">📞 {ped.cliente_telefono}</p>}
-                    {ped.cliente_direccion && <p className="text-xs text-gray-500 mt-0.5">📍 {ped.cliente_direccion}</p>}
-                    {ped.metodo_pago_cliente && (
-                      <p className="text-xs mt-0.5">
-                        {ped.metodo_pago_cliente === 'efectivo' ? '💵 Efectivo' : `📲 ${ped.metodo_pago_cliente}`}
-                        {ped.comprobante_url && <span className="ml-1 text-green-600 font-semibold">· Comprobante enviado ✓</span>}
-                      </p>
-                    )}
-                  </div>
-                  <div className="text-right shrink-0">
-                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                      esListo ? 'bg-green-200 text-green-800' :
-                      esEntregado ? 'bg-blue-200 text-blue-800' :
-                      esPendiente ? 'bg-gray-100 text-gray-600' : 'bg-orange-100 text-orange-700'
-                    }`}>
-                      {esListo ? '✅ LISTO' : esEntregado ? '🛵 En camino' : esPendiente ? '⏳ Espera' : '🔥 Prep.'}
-                    </span>
-                    <p className="text-xs text-gray-400 mt-1 flex items-center gap-1 justify-end"><Clock size={11} />{mins} min</p>
-                  </div>
-                </div>
-
-                <div className="text-xs text-gray-500 mb-3 flex flex-wrap gap-1">
-                  {ped.items.map((it, i) => (
-                    <span key={i} className="bg-gray-100 px-2 py-0.5 rounded-full">{it.cantidad}× {it.nombre}</span>
-                  ))}
-                </div>
-
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-black text-gray-900">${ped.total.toLocaleString('es-CO')}</span>
-                  <div className="flex gap-2">
-                    {esListo && (
-                      <button
-                        onClick={() => salioAEntregar(ped.id)}
-                        disabled={marcandoId === ped.id}
-                        className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-bold px-3 py-2.5 rounded-xl text-sm transition-colors">
-                        <Navigation size={15} />
-                        {marcandoId === ped.id ? '...' : '🛵 Salió'}
-                      </button>
-                    )}
-                    {(esListo || esEntregado) && (
-                      <button
-                        onClick={() => { setModalPagoDomi(ped.id); setMetodoCobro('efectivo') }}
-                        className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white font-bold px-3 py-2.5 rounded-xl text-sm transition-colors">
-                        <Banknote size={15} /> Cobrar
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Historial del día */}
-      {pedidosEntregados.length > 0 && (
-        <div>
-          <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 px-1 mb-2">Entregados hoy</h2>
+      <div className="p-4 space-y-4">
+        {/* Notificaciones de cocina */}
+        {notifs.length > 0 && (
           <div className="space-y-2">
-            {pedidosEntregados.map(ped => (
-              <div key={ped.id} className="bg-white rounded-xl border border-gray-100 px-4 py-3 flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-gray-700 text-sm">{ped.cliente_nombre || 'Sin nombre'}</p>
-                  <p className="text-xs text-gray-400">{ped.cliente_direccion}</p>
+            {notifs.map(n => (
+              <div key={n.id} className="bg-green-500/10 border-2 border-green-500/40 rounded-2xl px-4 py-3 flex items-start justify-between gap-3">
+                <div className="flex-1">
+                  <p className="text-sm font-black text-green-300">
+                    🍽️ <span className="text-orange-400">{n.platoNombre}</span> del pedido de {n.clienteNombre} está listo
+                  </p>
+                  {n.pendientes.length > 0
+                    ? <p className="text-xs text-amber-400 font-semibold mt-1">⏳ Faltan: {n.pendientes.join(', ')}</p>
+                    : <p className="text-xs text-green-400 font-bold mt-1">✅ ¡Pedido completo! Ya puedes salir</p>
+                  }
                 </div>
-                <div className="text-right">
-                  <p className="font-bold text-gray-900 text-sm">${ped.total.toLocaleString('es-CO')}</p>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${ped.estado === 'pagado' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
-                    {ped.estado === 'pagado' ? 'Pagado' : 'Entregado'}
-                  </span>
-                </div>
+                <button onClick={() => setNotifs(prev => prev.filter(x => x.id !== n.id))}
+                  className="text-gray-600 hover:text-gray-400 shrink-0">
+                  <X size={16} />
+                </button>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Botón refrescar manual */}
-      <button onClick={cargarPedidos} className="fixed bottom-6 right-6 w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-blue-700 transition-colors">
+        {/* Pedidos activos */}
+        {pedidosActivos.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-20 h-20 bg-gray-800/60 border border-gray-700 rounded-3xl flex items-center justify-center mb-4">
+              <Package size={36} className="text-gray-600" />
+            </div>
+            <p className="text-gray-300 font-bold text-lg mb-1">Sin pedidos activos</p>
+            <p className="text-gray-600 text-sm">Los pedidos aparecerán aquí en tiempo real</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-[11px] font-black uppercase tracking-widest text-gray-500 px-1">Pedidos activos</p>
+            {pedidosActivos.map(ped => {
+              const mins      = Math.floor((Date.now() - new Date(ped.created_at).getTime()) / 60000)
+              const esListo   = ped.estado === 'listo'
+              const esPend    = ped.estado === 'pendiente'
+              const esEnPrep  = ped.estado === 'en_preparacion'
+              const esEntrego = ped.estado === 'entregado'
+
+              const cardBg = esListo
+                ? 'bg-green-500/10 border-2 border-green-500/40'
+                : esEntrego
+                ? 'bg-sky-500/10 border-2 border-sky-500/30'
+                : esPend
+                ? 'bg-gray-900/60 border-2 border-gray-700'
+                : 'bg-orange-500/10 border-2 border-orange-500/25'
+
+              const badgeClases = esListo
+                ? 'bg-green-500/20 text-green-400 border border-green-500/30 animate-pulse'
+                : esEntrego
+                ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
+                : esPend
+                ? 'bg-gray-800 text-gray-500 border border-gray-700'
+                : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+
+              const badgeLabel = esListo ? '✅ LISTO' : esEntrego ? '🛵 En camino' : esPend ? '⏳ Espera' : '🔥 Prep.'
+
+              return (
+                <div key={ped.id} className={`rounded-2xl p-4 ${cardBg}`}>
+                  <div className="flex items-start justify-between mb-2 gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-white text-base truncate">{ped.cliente_nombre || 'Sin nombre'}</p>
+                      {ped.cliente_telefono && <p className="text-xs text-gray-400 mt-0.5">📞 {ped.cliente_telefono}</p>}
+                      {ped.cliente_direccion && <p className="text-xs text-gray-400 mt-0.5">📍 {ped.cliente_direccion}</p>}
+                      {ped.metodo_pago_cliente && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {ped.metodo_pago_cliente === 'efectivo' ? '💵 Efectivo' : `📲 ${ped.metodo_pago_cliente}`}
+                          {ped.comprobante_url && <span className="ml-1 text-green-400 font-semibold">· Comprobante ✓</span>}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${badgeClases}`}>
+                        {badgeLabel}
+                      </span>
+                      <span className={`text-xs font-bold ${mins >= 40 ? 'text-red-400' : mins >= 20 ? 'text-amber-400' : 'text-gray-500'}`}>
+                        <Clock size={10} className="inline mr-0.5" />{mins} min
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Items */}
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {ped.items.map((it, i) => (
+                      <span key={i} className="bg-gray-800 border border-gray-700 text-gray-300 text-xs px-2 py-0.5 rounded-full">
+                        {it.cantidad}× {it.nombre}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-black text-white">${ped.total.toLocaleString('es-CO')}</span>
+                    <div className="flex gap-2">
+                      {esListo && (
+                        <button
+                          onClick={() => salioAEntregar(ped.id)}
+                          disabled={marcandoId === ped.id}
+                          className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-400 active:bg-orange-600 disabled:opacity-50 text-white font-bold px-3 py-2.5 rounded-xl text-sm transition-all shadow-md shadow-orange-900/30">
+                          <Navigation size={15} />
+                          {marcandoId === ped.id ? '...' : '🛵 Salió'}
+                        </button>
+                      )}
+                      {(esListo || esEntrego) && (
+                        <button
+                          onClick={() => { setModalPagoDomi(ped.id); setMetodoCobro('efectivo') }}
+                          className="flex items-center gap-1.5 bg-green-600 hover:bg-green-500 text-white font-bold px-3 py-2.5 rounded-xl text-sm transition-all">
+                          <Banknote size={15} /> Cobrar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Historial del día */}
+        {pedidosEntregados.length > 0 && (
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-widest text-gray-500 px-1 mb-2">Entregados hoy</p>
+            <div className="space-y-2">
+              {pedidosEntregados.map(ped => (
+                <div key={ped.id} className="bg-gray-900/60 border border-gray-800 rounded-xl px-4 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-white/80 text-sm">{ped.cliente_nombre || 'Sin nombre'}</p>
+                    <p className="text-xs text-gray-500">{ped.cliente_direccion}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-black text-white text-sm">${ped.total.toLocaleString('es-CO')}</p>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      ped.estado === 'pagado'
+                        ? 'bg-green-500/20 text-green-400'
+                        : 'bg-sky-500/20 text-sky-400'
+                    }`}>
+                      {ped.estado === 'pagado' ? 'Pagado' : 'Entregado'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* FAB refrescar */}
+      <button onClick={cargarPedidos}
+        className="fixed bottom-6 right-6 w-12 h-12 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-orange-400 rounded-full flex items-center justify-center shadow-lg transition-all">
         <RefreshCw size={20} />
       </button>
 
@@ -580,37 +686,44 @@ export default function DomiPage() {
       {modalPagoDomi && (() => {
         const ped = [...pedidosActivos, ...pedidosEntregados].find(p => p.id === modalPagoDomi)
         const METODOS = [
-          { id: 'efectivo' as const,    label: 'Efectivo',    emoji: '💵', color: 'bg-green-500' },
-          { id: 'nequi' as const,       label: 'Nequi',       emoji: '💜', color: 'bg-purple-500' },
-          { id: 'daviplata' as const,   label: 'Daviplata',   emoji: '❤️', color: 'bg-red-500' },
-          { id: 'bancolombia' as const, label: 'Bancolombia', emoji: '🟡', color: 'bg-yellow-500' },
+          { id: 'efectivo' as const,    label: 'Efectivo',    emoji: '💵', color: 'bg-green-600' },
+          { id: 'nequi' as const,       label: 'Nequi',       emoji: '💜', color: 'bg-purple-600' },
+          { id: 'daviplata' as const,   label: 'Daviplata',   emoji: '❤️', color: 'bg-red-600' },
+          { id: 'bancolombia' as const, label: 'Bancolombia', emoji: '🟡', color: 'bg-yellow-600' },
         ]
         return (
-          <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center">
-            <div className="bg-white w-full max-w-lg rounded-t-3xl p-6 space-y-4">
+          <div className="fixed inset-0 bg-black/75 z-50 flex items-end justify-center" onClick={() => setModalPagoDomi(null)}>
+            <div className="bg-gray-900 w-full max-w-lg rounded-t-3xl p-6 space-y-4 border-t border-gray-700" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between">
-                <h2 className="font-black text-gray-900 text-lg">Registrar cobro</h2>
-                <button onClick={() => setModalPagoDomi(null)} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><X size={16}/></button>
+                <h2 className="font-black text-white text-lg">Registrar cobro</h2>
+                <button onClick={() => setModalPagoDomi(null)}
+                  className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-700">
+                  <X size={16} className="text-gray-400" />
+                </button>
               </div>
               {ped && (
-                <div className="bg-gray-50 rounded-2xl p-4">
-                  <p className="font-semibold text-gray-700">{ped.cliente_nombre || 'Sin nombre'}</p>
-                  <p className="text-2xl font-black text-gray-900 mt-1">${ped.total.toLocaleString('es-CO')}</p>
+                <div className="bg-gray-800 rounded-2xl p-4">
+                  <p className="font-semibold text-white/70 text-sm">{ped.cliente_nombre || 'Sin nombre'}</p>
+                  <p className="text-2xl font-black text-white mt-1">${ped.total.toLocaleString('es-CO')}</p>
                 </div>
               )}
               <div>
-                <p className="text-xs font-bold text-gray-500 uppercase mb-2">¿Cómo pagó el cliente?</p>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">¿Cómo pagó el cliente?</p>
                 <div className="grid grid-cols-2 gap-2">
                   {METODOS.map(m => (
                     <button key={m.id} onClick={() => setMetodoCobro(m.id)}
-                      className={`py-3 rounded-2xl font-bold text-sm border-2 transition-all flex items-center justify-center gap-2 ${metodoCobro === m.id ? `${m.color} text-white border-transparent` : 'bg-white text-gray-700 border-gray-200'}`}>
+                      className={`py-3 rounded-2xl font-bold text-sm border-2 transition-all flex items-center justify-center gap-2 ${
+                        metodoCobro === m.id
+                          ? `${m.color} text-white border-transparent`
+                          : 'bg-gray-800 text-gray-300 border-gray-700 hover:border-gray-600'
+                      }`}>
                       {m.emoji} {m.label}
                     </button>
                   ))}
                 </div>
               </div>
               <button onClick={registrarCobro} disabled={cobrando}
-                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-black py-4 rounded-2xl text-base transition-colors">
+                className="w-full bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-black py-4 rounded-2xl text-base transition-all">
                 {cobrando ? 'Registrando...' : `✅ Confirmar cobro — ${metodoCobro}`}
               </button>
             </div>
@@ -620,50 +733,56 @@ export default function DomiPage() {
 
       {/* ── MODAL MI CUADRE ─────────────────────────────────────── */}
       {vistaCuadre && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center">
-          <div className="bg-white w-full max-w-lg rounded-t-3xl max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
-              <h2 className="font-black text-gray-900 text-lg">Mi cuadre del día</h2>
-              <button onClick={() => setVistaCuadre(false)} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><X size={16}/></button>
+        <div className="fixed inset-0 bg-black/75 z-50 flex items-end justify-center">
+          <div className="bg-gray-900 w-full max-w-lg rounded-t-3xl max-h-[85vh] flex flex-col border-t border-gray-700">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800 shrink-0">
+              <div className="flex items-center gap-2">
+                <Wallet size={18} className="text-orange-400" />
+                <h2 className="font-black text-white text-lg">Mi cuadre del día</h2>
+              </div>
+              <button onClick={() => setVistaCuadre(false)}
+                className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-700">
+                <X size={16} className="text-gray-400" />
+              </button>
             </div>
             <div className="overflow-y-auto flex-1 p-5 space-y-4">
               {cargandoCuadre ? (
-                <div className="flex justify-center py-8 text-gray-400">
-                  <RefreshCw size={28} className="animate-spin" />
+                <div className="flex justify-center py-8">
+                  <RefreshCw size={28} className="animate-spin text-orange-400" />
                 </div>
               ) : (<>
-                {/* Totales */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-green-50 border border-green-200 rounded-2xl p-4 text-center">
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-4 text-center">
                     <p className="text-2xl">💵</p>
-                    <p className="text-xl font-black text-green-700 mt-1">${cuadre.efectivo.toLocaleString('es-CO')}</p>
-                    <p className="text-xs text-green-600 font-semibold mt-0.5">Efectivo</p>
+                    <p className="text-xl font-black text-green-400 mt-1">${cuadre.efectivo.toLocaleString('es-CO')}</p>
+                    <p className="text-xs text-green-500/70 font-semibold mt-0.5">Efectivo</p>
                   </div>
-                  <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-center">
+                  <div className="bg-orange-500/10 border border-orange-500/30 rounded-2xl p-4 text-center">
                     <p className="text-2xl">📲</p>
-                    <p className="text-xl font-black text-blue-700 mt-1">${cuadre.transfer.toLocaleString('es-CO')}</p>
-                    <p className="text-xs text-blue-600 font-semibold mt-0.5">Transferencia</p>
+                    <p className="text-xl font-black text-orange-400 mt-1">${cuadre.transfer.toLocaleString('es-CO')}</p>
+                    <p className="text-xs text-orange-500/70 font-semibold mt-0.5">Transferencia</p>
                   </div>
                 </div>
-                <div className="bg-gray-900 rounded-2xl p-4 text-center">
-                  <p className="text-xs text-gray-400 font-medium">Total recolectado</p>
+                <div className="bg-gray-800 rounded-2xl p-4 text-center border border-gray-700">
+                  <p className="text-xs text-gray-500 font-medium uppercase tracking-widest">Total recolectado</p>
                   <p className="text-2xl font-black text-white mt-1">${(cuadre.efectivo + cuadre.transfer).toLocaleString('es-CO')}</p>
                 </div>
 
-                {/* Lista de pedidos */}
                 {cuadre.lista.length > 0 && (
-                  <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                    <div className="px-4 py-3 border-b"><p className="font-bold text-gray-900 text-sm">Mis entregas hoy</p></div>
-                    <div className="divide-y">
+                  <div className="bg-gray-900/60 rounded-2xl border border-gray-800 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-800">
+                      <p className="font-bold text-white text-sm">Mis entregas hoy</p>
+                    </div>
+                    <div className="divide-y divide-gray-800">
                       {cuadre.lista.map((item, i) => {
                         const EMOJIS: Record<string, string> = { efectivo: '💵', nequi: '💜', daviplata: '❤️', bancolombia: '🟡' }
                         return (
                           <div key={i} className="flex items-center justify-between px-4 py-3">
                             <div>
-                              <p className="font-semibold text-gray-800 text-sm">{item.nombre}</p>
-                              <p className="text-xs text-gray-400">{EMOJIS[item.metodo] || '—'} {item.metodo !== '—' ? item.metodo : 'Sin cobrar'}</p>
+                              <p className="font-semibold text-white/80 text-sm">{item.nombre}</p>
+                              <p className="text-xs text-gray-500">{EMOJIS[item.metodo] || '—'} {item.metodo !== '—' ? item.metodo : 'Sin cobrar'}</p>
                             </div>
-                            <p className={`font-black text-sm ${item.pagado ? 'text-gray-900' : 'text-orange-500'}`}>
+                            <p className={`font-black text-sm ${item.pagado ? 'text-white' : 'text-orange-400'}`}>
                               ${item.total.toLocaleString('es-CO')}
                             </p>
                           </div>
@@ -673,16 +792,16 @@ export default function DomiPage() {
                   </div>
                 )}
                 {cuadre.lista.length === 0 && (
-                  <div className="text-center py-8 text-gray-400">
-                    <Wallet size={36} className="mx-auto mb-2 opacity-30"/>
-                    <p className="text-sm">Sin entregas asignadas hoy</p>
+                  <div className="text-center py-8">
+                    <Wallet size={36} className="mx-auto mb-2 text-gray-700" />
+                    <p className="text-sm text-gray-600">Sin entregas asignadas hoy</p>
                   </div>
                 )}
               </>)}
             </div>
-            <div className="px-5 py-4 border-t shrink-0">
+            <div className="px-5 py-4 border-t border-gray-800 shrink-0">
               <button onClick={cargarCuadre} disabled={cargandoCuadre}
-                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-2xl text-sm flex items-center justify-center gap-2">
+                className="w-full bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 font-bold py-3 rounded-2xl text-sm flex items-center justify-center gap-2 transition-all">
                 <RefreshCw size={15} /> Actualizar
               </button>
             </div>

@@ -372,7 +372,7 @@ export default function MeseraPage() {
             className={`flex items-center gap-2 font-bold px-4 py-2.5 rounded-xl text-sm transition-all
               ${negocioPlan === 'starter'
                 ? 'bg-gray-800 text-gray-600 cursor-default border border-gray-700'
-                : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/30'}`}>
+                : 'bg-orange-500 hover:bg-orange-400 text-white shadow-lg shadow-orange-900/30'}`}>
             <Bike size={18} /> Domi
             {negocioPlan === 'starter' && <span className="text-xs">🔒</span>}
           </button>
@@ -427,10 +427,10 @@ export default function MeseraPage() {
         {notifsCocina.length > 0 && (
           <div className="space-y-2">
             {notifsCocina.map(notif => (
-              <div key={notif.id} className="bg-blue-500/10 border-2 border-blue-500/30 rounded-2xl px-4 py-3 flex items-start justify-between gap-3 fade-in">
+              <div key={notif.id} className="bg-orange-500/10 border-2 border-orange-500/30 rounded-2xl px-4 py-3 flex items-start justify-between gap-3 fade-in">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-black text-blue-300">
-                    🍽️ <span className="text-orange-400">{notif.plato_nombre}</span> — Mesa {notif.mesa_numero} listo
+                  <p className="text-sm font-black text-orange-300">
+                    🍽️ <span className="text-white">{notif.plato_nombre}</span> — Mesa {notif.mesa_numero} listo
                   </p>
                   {notif.pendientes.length > 0 ? (
                     <p className="text-xs text-orange-400 font-semibold mt-1">⏳ Faltan: {notif.pendientes.join(', ')}</p>
@@ -567,7 +567,7 @@ export default function MeseraPage() {
           <div>
             {modoDomi ? (
               <div className="flex items-center gap-2">
-                <span className="bg-blue-600 text-white text-xs font-black px-2.5 py-1 rounded-lg">🛵 DOMI</span>
+                <span className="bg-orange-500 text-white text-xs font-black px-2.5 py-1 rounded-lg">🛵 DOMI</span>
               </div>
             ) : (
               <h2 className="font-black text-white text-base">Mesa {mesaSeleccionada?.numero}</h2>
@@ -674,7 +674,7 @@ export default function MeseraPage() {
         <div>
           {modoDomi ? (
             <div className="flex items-center gap-2">
-              <span className="bg-blue-600 text-white text-xs font-black px-2.5 py-1 rounded-lg">🛵 DOMI</span>
+              <span className="bg-orange-500 text-white text-xs font-black px-2.5 py-1 rounded-lg">🛵 DOMI</span>
               <span className="font-black text-white">Confirmar pedido</span>
             </div>
           ) : (
@@ -706,20 +706,20 @@ export default function MeseraPage() {
         })}
 
         {modoDomi && (
-          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-2">
-            <p className="text-sm font-bold text-blue-800">🛵 Datos del cliente (domicilio)</p>
+          <div className="bg-gray-900/60 border border-gray-700 rounded-2xl p-4 space-y-2.5">
+            <p className="text-sm font-black text-white">🛵 Datos del cliente (domicilio)</p>
             <input type="text" placeholder="Nombre del cliente *" value={domiCliente.nombre}
               onChange={e => setDomiCliente(p => ({ ...p, nombre: e.target.value }))}
-              className="w-full text-sm border border-blue-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
+              className="w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
             <input type="text" placeholder="Cédula (opcional)" value={domiCliente.cedula}
               onChange={e => setDomiCliente(p => ({ ...p, cedula: e.target.value }))}
-              className="w-full text-sm border border-blue-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
+              className="w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
             <input type="tel" placeholder="Teléfono / Celular" value={domiCliente.telefono}
               onChange={e => setDomiCliente(p => ({ ...p, telefono: e.target.value }))}
-              className="w-full text-sm border border-blue-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
+              className="w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
             <input type="text" placeholder="Dirección de entrega" value={domiCliente.direccion}
               onChange={e => setDomiCliente(p => ({ ...p, direccion: e.target.value }))}
-              className="w-full text-sm border border-blue-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
+              className="w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
           </div>
         )}
 
@@ -739,7 +739,7 @@ export default function MeseraPage() {
           <span className="text-xl font-black text-gray-900">${totalCarrito.toLocaleString('es-CO')}</span>
         </div>
         <button onClick={enviarPedido} disabled={enviando || carrito.length === 0}
-          className={`w-full disabled:bg-gray-300 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-colors text-lg ${modoDomi ? 'bg-blue-600 hover:bg-blue-700' : 'bg-orange-500 hover:bg-orange-600'}`}>
+          className={`w-full disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all text-lg shadow-md ${modoDomi ? 'bg-orange-500 hover:bg-orange-400 shadow-orange-900/30' : 'bg-orange-500 hover:bg-orange-600 shadow-orange-900/30'}`}>
           {modoDomi ? <Bike size={22} /> : <CheckCircle size={22} />}
           {enviando ? 'Enviando...' : modoDomi ? 'Enviar domi a cocina' : pedidoExistenteId ? 'Agregar a cocina' : 'Enviar a cocina'}
         </button>
