@@ -97,6 +97,10 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   const [comprobantePreview, setComprobantePreview] = useState<string | null>(null)
   const [subiendoComprobante, setSubiendoComprobante] = useState(false)
 
+  // Cliente lookup
+  const [clientePrevio, setClientePrevio] = useState<{ id: string; nombre: string } | null>(null)
+  const [buscandoCliente, setBuscandoCliente] = useState(false)
+
   // Reseñas
   const [resenas, setResenas]       = useState<Resena[]>([])
   const [formResena, setFormResena] = useState({ nombre: '', puntuacion: 5, comentario: '' })
@@ -183,6 +187,24 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   const puedeReservar = planGte(negocio?.plan || 'starter', 'basico')
   const promedioResenas = resenas.length > 0 ? resenas.reduce((s, r) => s + r.puntuacion, 0) / resenas.length : 0
 
+  // ── Buscar cliente por teléfono (onBlur) ────────────────────
+  async function buscarClientePorTelefono(tel: string) {
+    if (!tel || tel.replace(/\D/g, '').length < 7) return
+    setBuscandoCliente(true)
+    const { data } = await supabase.from('clientes')
+      .select('id, nombre')
+      .eq('negocio_id', negocioId)
+      .eq('telefono', tel.trim())
+      .maybeSingle()
+    if (data) {
+      setClientePrevio(data)
+      if (!nombre.trim()) setNombre(data.nombre)
+    } else {
+      setClientePrevio(null)
+    }
+    setBuscandoCliente(false)
+  }
+
   // ── Ir al checkout ───────────────────────────────────────────
   function irACheckout() {
     if (carrito.length === 0) { toast.error('Agrega algo primero'); return }
@@ -251,14 +273,29 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
       mesaId = md?.id ?? null
     }
 
-    let clienteId: string | null = null
-    if (cedula.trim()) {
-      const { data: cl } = await supabase.from('clientes').select('id').eq('cedula', cedula.trim()).eq('negocio_id', negocioId).single()
-      if (cl) { clienteId = cl.id }
-      else {
-        const { data: nc } = await supabase.from('clientes')
-          .insert({ negocio_id: negocioId, cedula: cedula.trim(), nombre: nombre.trim(), telefono: telefono.trim() })
-          .select('id').single()
+    // Siempre buscar/crear cliente (por teléfono primero, luego cédula)
+    let clienteId: string | null = clientePrevio?.id ?? null
+    if (!clienteId) {
+      // Buscar por cédula si la ingresó
+      if (cedula.trim()) {
+        const { data: cl } = await supabase.from('clientes').select('id, nombre')
+          .eq('cedula', cedula.trim()).eq('negocio_id', negocioId).maybeSingle()
+        if (cl) clienteId = cl.id
+      }
+      // Buscar por teléfono si aún no lo encontramos
+      if (!clienteId && telefono.trim()) {
+        const { data: cl } = await supabase.from('clientes').select('id, nombre')
+          .eq('telefono', telefono.trim()).eq('negocio_id', negocioId).maybeSingle()
+        if (cl) clienteId = cl.id
+      }
+      // Si no existe, crearlo
+      if (!clienteId) {
+        const { data: nc } = await supabase.from('clientes').insert({
+          negocio_id: negocioId,
+          cedula: cedula.trim() || null,
+          nombre: nombre.trim(),
+          telefono: telefono.trim(),
+        }).select('id').single()
         clienteId = nc?.id ?? null
       }
     }
@@ -353,6 +390,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
     setTipoConsumo(null)
     setMetodoPagoDomi(null)
     setComprobanteFile(null); setComprobantePreview(null)
+    setClientePrevio(null)
   }
 
   // ── ESTADOS DE CARGA ─────────────────────────────────────────
@@ -740,9 +778,29 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
           {/* Formulario */}
           <div className="bg-gray-900 rounded-2xl border border-gray-800 p-4 space-y-3">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Tus datos</p>
+            <input
+              placeholder="Teléfono *"
+              type="tel"
+              value={telefono}
+              onChange={e => { setTelefono(e.target.value); setClientePrevio(null) }}
+              onBlur={e => buscarClientePorTelefono(e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50"
+            />
+            {buscandoCliente && (
+              <p className="text-xs text-gray-500 flex items-center gap-1.5">
+                <Loader2 size={12} className="animate-spin" /> Buscando…
+              </p>
+            )}
+            {clientePrevio && !buscandoCliente && (
+              <div className="bg-orange-500/10 border border-orange-500/25 rounded-xl p-3 flex items-center gap-3">
+                <span className="text-2xl">👋</span>
+                <div>
+                  <p className="text-orange-300 font-black text-sm">¡Hola de nuevo, {clientePrevio.nombre.split(' ')[0]}!</p>
+                  <p className="text-orange-400/60 text-xs">Ya te tenemos registrado</p>
+                </div>
+              </div>
+            )}
             <input placeholder="Nombre *" value={nombre} onChange={e => setNombre(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
-            <input placeholder="Teléfono *" type="tel" value={telefono} onChange={e => setTelefono(e.target.value)}
               className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
             <input placeholder="Cédula (opcional — fidelidad)" value={cedula} onChange={e => setCedula(e.target.value)}
               className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
