@@ -19,6 +19,8 @@ interface Plato {
   id: string; nombre: string; descripcion: string | null
   precio: number; imagen_url: string | null; activo: boolean; categoria_id: number
 }
+interface InvInfo { cantidad_disponible: number; alerta_minima: number }
+type PlatoConInv = Plato & { inv?: InvInfo }
 interface ItemCarrito { plato: Plato; cantidad: number; notas: string }
 interface Resena { id: string; nombre: string; puntuacion: number; comentario: string; created_at: string }
 
@@ -79,10 +81,11 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   const [sugeridoImagenUrl, setSugeridoImagenUrl]   = useState('')
 
   // Menú
-  const [categorias, setCategorias] = useState<Categoria[]>([])
-  const [platos, setPlatos]         = useState<Plato[]>([])
-  const [catActiva, setCatActiva]   = useState<number | null>(null)
-  const [carrito, setCarrito]       = useState<ItemCarrito[]>([])
+  const [categorias, setCategorias]         = useState<Categoria[]>([])
+  const [platos, setPlatos]                 = useState<PlatoConInv[]>([])
+  const [catActiva, setCatActiva]           = useState<number | null>(null)
+  const [carrito, setCarrito]               = useState<ItemCarrito[]>([])
+  const [turnoConInventario, setTurnoConInventario] = useState(false)
   const [pasoOrden, setPasoOrden]   = useState<PasoOrden>('browse')
   const [tipoConsumo, setTipoConsumo] = useState<TipoConsumo>(null)
 
@@ -125,7 +128,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   // ── Carga ────────────────────────────────────────────────────
   const cargar = useCallback(async () => {
     setCargando(true)
-    const [{ data: neg }, { data: cats }, { data: pls }, { data: cfg }, { data: res }] = await Promise.all([
+    const [{ data: neg }, { data: cats }, { data: pls }, { data: cfg }, { data: res }, { data: turnoData }] = await Promise.all([
       supabase.from('negocios').select('id, nombre, plan').eq('id', negocioId).single(),
       supabase.from('categorias').select('*').eq('negocio_id', negocioId).order('orden'),
       supabase.from('platos').select('*').eq('negocio_id', negocioId).eq('activo', true),
@@ -135,11 +138,30 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
                       'sugerido_descripcion', 'sugerido_imagen_url']),
       supabase.from('resenas').select('*').eq('negocio_id', negocioId)
         .order('created_at', { ascending: false }),
+      supabase.from('turnos').select('id').eq('negocio_id', negocioId).is('cerrado_en', null)
+        .order('abierto_en', { ascending: false }).limit(1).maybeSingle(),
     ])
     if (!neg) { setNoEncontrado(true); setCargando(false); return }
     setNegocio(neg as Negocio)
     if (cats) { setCategorias(cats as Categoria[]); if (cats[0]) setCatActiva(cats[0].id) }
-    if (pls) setPlatos(pls as Plato[])
+
+    // Verificar si el turno activo tiene inventario configurado
+    let tieneInv = false
+    let invMap: Record<string, InvInfo> = {}
+    if (turnoData?.id) {
+      const { count } = await supabase.from('turnos_inventario')
+        .select('*', { count: 'exact', head: true }).eq('turno_id', turnoData.id)
+      tieneInv = (count ?? 0) > 0
+      if (tieneInv) {
+        const { data: invData } = await supabase.from('inventario')
+          .select('plato_id, cantidad_disponible, alerta_minima')
+        ;(invData || []).forEach((i: { plato_id: string; cantidad_disponible: number; alerta_minima: number }) => {
+          invMap[i.plato_id] = { cantidad_disponible: i.cantidad_disponible, alerta_minima: i.alerta_minima }
+        })
+      }
+    }
+    setTurnoConInventario(tieneInv)
+    if (pls) setPlatos((pls as Plato[]).map(p => ({ ...p, inv: invMap[p.id] })))
     if (cfg) {
       const m: Record<string, string> = {}
       cfg.forEach((r: { clave: string; valor: string }) => { m[r.clave] = r.valor })
@@ -160,6 +182,22 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
 
   useEffect(() => { cargar() }, [cargar])
 
+  // Suscripción realtime al inventario para actualizar disponibilidad en tiempo real
+  useEffect(() => {
+    if (!turnoConInventario) return
+    const canal = supabase.channel('pub-inventario')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'inventario' }, (payload) => {
+        const upd = payload.new as { plato_id: string; cantidad_disponible: number; alerta_minima: number }
+        setPlatos(prev => prev.map(p =>
+          p.id === upd.plato_id
+            ? { ...p, inv: { cantidad_disponible: upd.cantidad_disponible, alerta_minima: upd.alerta_minima } }
+            : p
+        ))
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(canal) }
+  }, [turnoConInventario, supabase])
+
   useEffect(() => {
     if (!pedidoId) return
     const canal = supabase.channel(`pub-seg-${pedidoId}`)
@@ -177,14 +215,29 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   const cantTotal    = carrito.reduce((s, i) => s + i.cantidad, 0)
   const cantPlato    = (id: string) => carrito.find(i => i.plato.id === id)?.cantidad ?? 0
 
-  function agregar(plato: Plato) {
+  function agregar(platoRaw: Plato) {
+    const platoConInv = platos.find(p => p.id === platoRaw.id)
+    if (turnoConInventario && platoConInv?.inv) {
+      const disp = platoConInv.inv.cantidad_disponible
+      if (disp === 0) { toast.error(`${platoRaw.nombre} no está disponible`); return }
+      const enCarrito = carrito.find(i => i.plato.id === platoRaw.id)?.cantidad ?? 0
+      if (enCarrito >= disp) { toast.error(`Solo quedan ${disp} unidad(es) de ${platoRaw.nombre}`); return }
+    }
     setCarrito(prev => {
-      const ex = prev.find(i => i.plato.id === plato.id)
-      if (ex) return prev.map(i => i.plato.id === plato.id ? { ...i, cantidad: i.cantidad + 1 } : i)
-      return [...prev, { plato, cantidad: 1, notas: '' }]
+      const ex = prev.find(i => i.plato.id === platoRaw.id)
+      if (ex) return prev.map(i => i.plato.id === platoRaw.id ? { ...i, cantidad: i.cantidad + 1 } : i)
+      return [...prev, { plato: platoRaw, cantidad: 1, notas: '' }]
     })
   }
   function cambiarCant(id: string, delta: number) {
+    if (delta > 0 && turnoConInventario) {
+      const platoConInv = platos.find(p => p.id === id)
+      if (platoConInv?.inv) {
+        const disp = platoConInv.inv.cantidad_disponible
+        const enCarrito = carrito.find(i => i.plato.id === id)?.cantidad ?? 0
+        if (disp > 0 && enCarrito >= disp) { toast.error('No hay más unidades disponibles'); return }
+      }
+    }
     setCarrito(prev =>
       prev.map(i => i.plato.id === id ? { ...i, cantidad: Math.max(0, i.cantidad + delta) } : i)
         .filter(i => i.cantidad > 0)
@@ -604,9 +657,12 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
           {/* Platos */}
           <div className="p-4 max-w-2xl mx-auto space-y-3 pb-32">
             {platos.filter(p => p.categoria_id === catActiva).map(plato => {
-              const cant = cantPlato(plato.id)
+              const cant      = cantPlato(plato.id)
+              const disp      = plato.inv?.cantidad_disponible ?? null
+              const sinStock  = turnoConInventario && disp !== null && disp === 0
+              const stockBajo = turnoConInventario && disp !== null && disp > 0 && disp <= (plato.inv?.alerta_minima ?? 3)
               return (
-                <div key={plato.id} className={`${CARD} overflow-hidden`}>
+                <div key={plato.id} className={`${CARD} overflow-hidden ${sinStock ? 'opacity-60' : ''}`}>
                   <div className="flex items-center gap-4 p-4">
                     {plato.imagen_url
                       ? <img src={plato.imagen_url} alt={plato.nombre} className="w-20 h-20 rounded-xl object-cover shrink-0" />
@@ -620,9 +676,11 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
                         <p className="text-xs text-gray-400 mt-0.5 line-clamp-2 leading-relaxed">{plato.descripcion}</p>
                       )}
                       <p className="text-orange-500 font-black text-base mt-1.5">${plato.precio.toLocaleString('es-CO')}</p>
+                      {sinStock  && <span className="inline-block mt-1 text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">No disponible</span>}
+                      {stockBajo && <span className="inline-block mt-1 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">⚠️ Pocas cantidades</span>}
                     </div>
                     <div className="shrink-0 pl-2">
-                      {puedeOrdenar ? (
+                      {puedeOrdenar && !sinStock ? (
                         cant > 0 ? (
                           <div className="flex items-center gap-1.5">
                             <button onClick={() => cambiarCant(plato.id, -1)}
@@ -641,6 +699,8 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
                             <Plus size={18} className="text-white" />
                           </button>
                         )
+                      ) : sinStock ? (
+                        <span className="text-xs text-red-400 bg-red-50 px-2.5 py-1 rounded-full font-medium">Agotado</span>
                       ) : (
                         <span className="text-xs text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full font-medium">Vista</span>
                       )}

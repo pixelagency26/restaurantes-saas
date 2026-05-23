@@ -39,16 +39,27 @@ export default function MeseraPage() {
   const [usuarioId, setUsuarioId] = useState<string | null>(null)
   // Plan del negocio
   const [negocioPlan, setNegocioPlan] = useState<'starter' | 'basico' | 'pro'>('pro')
+  // Inventario de turno activo
+  const [turnoConInventario, setTurnoConInventario] = useState(false)
 
   const supabase = createClient()
 
   const cargarDatos = useCallback(async () => {
-    const [{ data: mesasData }, { data: catData }, { data: platosData }, { data: invData }] = await Promise.all([
+    const [{ data: mesasData }, { data: catData }, { data: platosData }, { data: invData }, { data: turnoData }] = await Promise.all([
       supabase.from('mesas').select('*').order('numero'),
       supabase.from('categorias').select('*').order('orden'),
       supabase.from('platos').select('*').eq('activo', true),
       supabase.from('inventario').select('*'),
+      supabase.from('turnos').select('id').is('cerrado_en', null).order('abierto_en', { ascending: false }).limit(1).maybeSingle(),
     ])
+    // Verificar si el turno activo tiene inventario configurado
+    let tieneInv = false
+    if (turnoData?.id) {
+      const { count } = await supabase.from('turnos_inventario')
+        .select('*', { count: 'exact', head: true }).eq('turno_id', turnoData.id)
+      tieneInv = (count ?? 0) > 0
+    }
+    setTurnoConInventario(tieneInv)
     if (mesasData) setMesas(mesasData)
     if (catData) { setCategorias(catData); if (!categoriaActiva && catData[0]) setCategoriaActiva(catData[0].id) }
     if (platosData) {
@@ -206,11 +217,11 @@ export default function MeseraPage() {
   }
 
   function agregarAlCarrito(plato: Plato) {
-    const disp = stockDisponible(plato.id)
-    const enCarrito = carrito.find(i => i.plato.id === plato.id)?.cantidad ?? 0
-    if (enCarrito >= disp) {
-      toast.error(`Solo hay ${disp} unidad(es) disponible(s) de ${plato.nombre}`)
-      return
+    if (turnoConInventario) {
+      const disp = stockDisponible(plato.id)
+      if (disp === 0) { toast.error(`${plato.nombre} no está disponible`); return }
+      const enCarrito = carrito.find(i => i.plato.id === plato.id)?.cantidad ?? 0
+      if (enCarrito >= disp) { toast.error(`Solo hay ${disp} unidad(es) de ${plato.nombre}`); return }
     }
     setCarrito(prev => {
       const existe = prev.find(i => i.plato.id === plato.id)
@@ -221,12 +232,11 @@ export default function MeseraPage() {
   }
 
   function cambiarCantidad(platoId: string, delta: number) {
-    if (delta > 0) {
+    if (delta > 0 && turnoConInventario) {
       const disp = stockDisponible(platoId)
-      const enCarrito = carrito.find(i => i.plato.id === platoId)?.cantidad ?? 0
-      if (enCarrito >= disp) {
-        toast.error('No hay más unidades disponibles')
-        return
+      if (disp > 0) {
+        const enCarrito = carrito.find(i => i.plato.id === platoId)?.cantidad ?? 0
+        if (enCarrito >= disp) { toast.error('No hay más unidades disponibles'); return }
       }
     }
     setCarrito(prev => prev
@@ -608,8 +618,8 @@ export default function MeseraPage() {
       <div className="flex-1 p-4 space-y-2.5">
         {platosFiltrados.map(plato => {
           const disp      = disponibilidadPlato(plato)
-          const sinStock  = disp === 0
-          const stockBajo = disp > 0 && disp <= (plato.inventario?.[0]?.alerta_minima ?? 3)
+          const sinStock  = turnoConInventario && disp === 0
+          const stockBajo = turnoConInventario && disp > 0 && disp <= (plato.inventario?.[0]?.alerta_minima ?? 3)
           const enCarrito = carrito.find(i => i.plato.id === plato.id)
           return (
             <div key={plato.id}

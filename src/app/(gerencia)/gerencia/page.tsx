@@ -204,6 +204,9 @@ export default function GerenciaPage() {
   const [nuevoOrdenDomi, setNuevoOrdenDomi] = useState({ nombre: '', telefono: '', direccion: '' })
   const [nuevoOrdenCategoria, setNuevoOrdenCategoria] = useState<number | 'todas'>('todas')
   const [tomandoPedido, setTomandoPedido] = useState(false)
+  // Inventario activo para el modal de nuevo pedido
+  const [inventarioModalMap, setInventarioModalMap] = useState<Record<string, { cantidad: number; alerta: number }>>({})
+  const [turnoConInventario, setTurnoConInventario] = useState(false)
 
   // Gestión de zonas y mesas
   const [modoGestionMesas, setModoGestionMesas] = useState(false)
@@ -910,6 +913,25 @@ export default function GerenciaPage() {
       if (modalCaja === null) { setPasoCaja('efectivo') }
     }
   }, [modalCaja, turnoActivo, cargarResumenInventario])
+
+  // Cargar inventario cuando se abre el modal de nuevo pedido
+  useEffect(() => {
+    if (!modalNuevoPedido || !turnoActivo) { setTurnoConInventario(false); setInventarioModalMap({}); return }
+    supabase.from('turnos_inventario')
+      .select('*', { count: 'exact', head: true }).eq('turno_id', turnoActivo.id)
+      .then(({ count }) => {
+        const tieneInv = (count ?? 0) > 0
+        setTurnoConInventario(tieneInv)
+        if (!tieneInv) { setInventarioModalMap({}); return }
+        supabase.from('inventario').select('plato_id, cantidad_disponible, alerta_minima').then(({ data }) => {
+          const map: Record<string, { cantidad: number; alerta: number }> = {}
+          ;(data || []).forEach((i: { plato_id: string; cantidad_disponible: number; alerta_minima: number }) => {
+            map[i.plato_id] = { cantidad: i.cantidad_disponible, alerta: i.alerta_minima }
+          })
+          setInventarioModalMap(map)
+        })
+      })
+  }, [modalNuevoPedido, turnoActivo, supabase])
 
   useEffect(() => {
     if (seccion === 'resumen') {
@@ -4807,11 +4829,20 @@ export default function GerenciaPage() {
                   ))}
                 </div>
                 <div className="space-y-2">
-                  {platos.filter(p => p.activo && (nuevoOrdenCategoria === 'todas' || p.categoria_id === nuevoOrdenCategoria)).map(p => (
-                    <div key={p.id} className={`flex items-center justify-between bg-white/5 border rounded-2xl px-4 py-2.5 gap-3 transition-all ${(nuevoOrdenCarrito[p.id] ?? 0) > 0 ? 'border-orange-500/30 bg-orange-500/10' : 'border-white/10'}`}>
+                  {platos.filter(p => p.activo && (nuevoOrdenCategoria === 'todas' || p.categoria_id === nuevoOrdenCategoria)).map(p => {
+                    const inv = inventarioModalMap[p.id]
+                    const sinStock  = turnoConInventario && (inv?.cantidad ?? 0) === 0
+                    const stockBajo = turnoConInventario && inv && inv.cantidad > 0 && inv.cantidad <= inv.alerta
+                    return (
+                    <div key={p.id} className={`flex items-center justify-between bg-white/5 border rounded-2xl px-4 py-2.5 gap-3 transition-all ${
+                      sinStock ? 'border-red-500/20 opacity-50' :
+                      (nuevoOrdenCarrito[p.id] ?? 0) > 0 ? 'border-orange-500/30 bg-orange-500/10' : 'border-white/10'
+                    }`}>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-white/80 truncate">{p.nombre}</p>
                         <p className="text-xs font-bold text-orange-400">${p.precio.toLocaleString('es-CO')}</p>
+                        {sinStock  && <span className="text-xs text-red-400 font-bold">Sin stock</span>}
+                        {stockBajo && <span className="text-xs text-amber-400 font-bold">⚠️ {inv!.cantidad} disponibles</span>}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <button
@@ -4821,13 +4852,21 @@ export default function GerenciaPage() {
                         </button>
                         <span className="w-6 text-center font-black text-white text-sm">{nuevoOrdenCarrito[p.id] ?? 0}</span>
                         <button
-                          onClick={() => setNuevoOrdenCarrito(prev => ({ ...prev, [p.id]: (prev[p.id] ?? 0) + 1 }))}
-                          className="w-7 h-7 bg-orange-500 hover:bg-orange-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-orange-900/30">
+                          disabled={sinStock}
+                          onClick={() => {
+                            if (turnoConInventario && inv) {
+                              const enCarrito = nuevoOrdenCarrito[p.id] ?? 0
+                              if (inv.cantidad > 0 && enCarrito >= inv.cantidad) { toast.error(`Solo hay ${inv.cantidad} de ${p.nombre}`); return }
+                            }
+                            setNuevoOrdenCarrito(prev => ({ ...prev, [p.id]: (prev[p.id] ?? 0) + 1 }))
+                          }}
+                          className="w-7 h-7 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-full flex items-center justify-center shadow-lg shadow-orange-900/30">
                           <Plus size={12} />
                         </button>
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                   {platos.filter(p => p.activo).length === 0 && (
                     <p className="text-center text-white/25 text-sm py-6">Sin platos activos en la carta</p>
                   )}
