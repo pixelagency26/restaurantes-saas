@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { MessageCircle, X, Send, ArrowLeft, Plus, ChevronRight, LogOut, Lock } from 'lucide-react'
+import { MessageCircle, X, Send, ArrowLeft, Plus, ChevronRight, LogOut } from 'lucide-react'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 interface Mensaje {
@@ -16,7 +16,7 @@ interface Mensaje {
 }
 
 interface GrupoChat {
-  id: string          // 'general' o UUID
+  id: string
   nombre: string
   tipo: 'general' | 'directo' | 'grupo'
   noLeidos: number
@@ -28,16 +28,17 @@ interface UsuarioItem {
   rol: string
 }
 
-type Vista = 'cerrado' | 'lista' | 'mensajes' | 'nuevo' | 'bloqueado'
+type Vista = 'cerrado' | 'lista' | 'mensajes' | 'nuevo'
 
 // ─── Helpers de rol ──────────────────────────────────────────────────────────
 const ROL: Record<string, { color: string; emoji: string; etiqueta: string }> = {
-  gerente: { color: 'bg-purple-600', emoji: '👔', etiqueta: 'Gerencia' },
-  mesera:  { color: 'bg-orange-500', emoji: '👩',  etiqueta: 'Mesera'   },
+  gerente: { color: 'bg-orange-500', emoji: '👔', etiqueta: 'Gerencia' },
+  mesera:  { color: 'bg-blue-500',   emoji: '👩',  etiqueta: 'Mesera'   },
   cocina:  { color: 'bg-amber-600',  emoji: '👨‍🍳', etiqueta: 'Cocina'   },
+  domi:    { color: 'bg-emerald-600',emoji: '🛵',  etiqueta: 'Domi'     },
 }
 const ROL_DEFAULT = { color: 'bg-gray-500', emoji: '👤', etiqueta: 'Equipo' }
-const rol = (r: string) => ROL[r] ?? ROL_DEFAULT
+const rolInfo = (r: string) => ROL[r] ?? ROL_DEFAULT
 
 function hora(ts: string) {
   return new Date(ts).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
@@ -45,45 +46,29 @@ function hora(ts: string) {
 
 // ─── Componente ──────────────────────────────────────────────────────────────
 export default function ChatFlotante() {
-  const [vista, setVista]               = useState<Vista>('cerrado')
-  const [miId, setMiId]                 = useState<string | null>(null)
-  const [miPerfil, setMiPerfil]         = useState<{ nombre: string; rol: string } | null>(null)
-  const [grupos, setGrupos]             = useState<GrupoChat[]>([])
-  const [grupoActivo, setGrupoActivo]   = useState<GrupoChat | null>(null)
-  const [mensajes, setMensajes]         = useState<Mensaje[]>([])
-  const [texto, setTexto]               = useState('')
+  const [vista, setVista]             = useState<Vista>('cerrado')
+  const [miId, setMiId]               = useState<string | null>(null)
+  const [miPerfil, setMiPerfil]       = useState<{ nombre: string; rol: string } | null>(null)
+  const [grupos, setGrupos]           = useState<GrupoChat[]>([])
+  const [grupoActivo, setGrupoActivo] = useState<GrupoChat | null>(null)
+  const [mensajes, setMensajes]       = useState<Mensaje[]>([])
+  const [texto, setTexto]             = useState('')
 
-  // ── Plan enforcement ──────────────────────────────────────────────────────
-  // Default 'pro' para evitar parpadeo durante la carga inicial.
-  // planCargado pasa a true en cuanto llega la respuesta real de la DB.
-  const [negocioPlan, setNegocioPlan]   = useState<string>('pro')
-  const [planCargado, setPlanCargado]   = useState(false)
+  // Nuevo chat
+  const [usuarios, setUsuarios]       = useState<UsuarioItem[]>([])
+  const [seleccion, setSeleccion]     = useState<string[]>([])
+  const [nombreGrupo, setNombreGrupo] = useState('')
+  const [creando, setCreando]         = useState(false)
 
-  // Crear nuevo chat
-  const [usuarios, setUsuarios]         = useState<UsuarioItem[]>([])
-  const [seleccion, setSeleccion]       = useState<string[]>([])
-  const [nombreGrupo, setNombreGrupo]   = useState('')
-  const [creando, setCreando]           = useState(false)
-
-  const bottomRef     = useRef<HTMLDivElement>(null)
-  const inputRef      = useRef<HTMLInputElement>(null)
-  const grupoRef      = useRef<GrupoChat | null>(null)
-  const miIdRef       = useRef<string | null>(null)
+  const bottomRef  = useRef<HTMLDivElement>(null)
+  const inputRef   = useRef<HTMLInputElement>(null)
+  const grupoRef   = useRef<GrupoChat | null>(null)
+  const miIdRef    = useRef<string | null>(null)
 
   const supabase = createClient()
 
-  // Mantener refs sincronizados (para usarlos dentro de callbacks de realtime)
   useEffect(() => { grupoRef.current = grupoActivo }, [grupoActivo])
   useEffect(() => { miIdRef.current  = miId         }, [miId])
-
-  // ── Guardia reactiva: si el plan ya cargó y NO es Pro,
-  //    forzar vista bloqueada aunque el usuario haya abierto el chat
-  //    antes de que llegara el dato (timing attack).
-  useEffect(() => {
-    if (planCargado && negocioPlan !== 'pro' && vista !== 'cerrado' && vista !== 'bloqueado') {
-      setVista('bloqueado')
-    }
-  }, [planCargado, negocioPlan, vista])
 
   // ── Cerrar sesión ─────────────────────────────────────────────────────────
   async function cerrarSesion() {
@@ -91,7 +76,7 @@ export default function ChatFlotante() {
     window.location.href = '/login'
   }
 
-  // ── Cargar lista de grupos ──────────────────────────────────────────────────
+  // ── Cargar grupos ─────────────────────────────────────────────────────────
   const cargarGrupos = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from('chat_miembros')
@@ -99,7 +84,6 @@ export default function ChatFlotante() {
       .eq('usuario_id', userId)
 
     setGrupos(prev => {
-      // Preservar conteo de no-leídos al recargar
       const noLeidosMap: Record<string, number> = {}
       prev.forEach(g => { noLeidosMap[g.id] = g.noLeidos })
 
@@ -109,13 +93,13 @@ export default function ChatFlotante() {
       })
 
       return [
-        { id: 'general', nombre: 'General', tipo: 'general', noLeidos: noLeidosMap['general'] ?? 0 },
+        { id: 'general', nombre: 'General 📢', tipo: 'general', noLeidos: noLeidosMap['general'] ?? 0 },
         ...gruposDB,
       ]
     })
   }, [supabase])
 
-  // ── Inicializar: usuario, perfil, plan y (solo si Pro) grupos + realtime ───
+  // ── Inicializar ───────────────────────────────────────────────────────────
   useEffect(() => {
     let canal: ReturnType<typeof supabase.channel> | null = null
 
@@ -126,33 +110,18 @@ export default function ChatFlotante() {
       miIdRef.current = user.id
 
       const { data: perfil } = await supabase
-        .from('usuarios').select('nombre, rol, negocio_id').eq('id', user.id).single()
+        .from('usuarios').select('nombre, rol').eq('id', user.id).single()
       if (perfil) setMiPerfil(perfil as { nombre: string; rol: string })
-
-      // ── Verificar plan del negocio ────────────────────────────────────────
-      // Filtrar por negocio_id del usuario para evitar errores con .single() en multi-negocio
-      const negocioId = (perfil as { negocio_id?: string } | null)?.negocio_id
-      const negQuery = negocioId
-        ? supabase.from('negocios').select('plan').eq('id', negocioId).single()
-        : supabase.from('negocios').select('plan').single()
-      const { data: negDB } = await negQuery
-      const plan = negDB?.plan ?? 'pro'   // default pro para no bloquear si falla la consulta
-      setNegocioPlan(plan)
-      setPlanCargado(true)
-
-      // A partir de aquí solo inicializamos funcionalidad de chat si es Plan Pro
-      if (plan !== 'pro') return
 
       await cargarGrupos(user.id)
 
-      // Realtime: solo para Plan Pro
       canal = supabase.channel('chat-flotante')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensajes_internos' }, (payload) => {
-          const msg        = payload.new as Mensaje
-          const msgGrupo   = msg.grupo_id ?? 'general'
-          const grupoAbierto = grupoRef.current?.id
+          const msg      = payload.new as Mensaje
+          const msgGrupo = msg.grupo_id ?? 'general'
+          const abierto  = grupoRef.current?.id
 
-          if (grupoAbierto === msgGrupo) {
+          if (abierto === msgGrupo) {
             setMensajes(prev => [...prev, msg])
             setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 80)
           } else {
@@ -171,15 +140,11 @@ export default function ChatFlotante() {
     }
 
     init()
-
     return () => { if (canal) supabase.removeChannel(canal) }
   }, [supabase, cargarGrupos])
 
-  // ── Abrir un chat y cargar sus mensajes ────────────────────────────────────
+  // ── Abrir grupo ───────────────────────────────────────────────────────────
   async function abrirGrupo(grupo: GrupoChat) {
-    // Doble chequeo: no abrir si no es Pro
-    if (negocioPlan !== 'pro') { setVista('bloqueado'); return }
-
     setGrupoActivo(grupo)
     grupoRef.current = grupo
     setMensajes([])
@@ -192,18 +157,12 @@ export default function ChatFlotante() {
           .order('created_at', { ascending: true }).limit(80)
 
     if (data) setMensajes(data as Mensaje[])
-
     setGrupos(prev => prev.map(g => g.id === grupo.id ? { ...g, noLeidos: 0 } : g))
-
-    setTimeout(() => {
-      bottomRef.current?.scrollIntoView()
-      inputRef.current?.focus()
-    }, 100)
+    setTimeout(() => { bottomRef.current?.scrollIntoView(); inputRef.current?.focus() }, 100)
   }
 
-  // ── Enviar mensaje ─────────────────────────────────────────────────────────
+  // ── Enviar mensaje ────────────────────────────────────────────────────────
   async function enviar() {
-    if (negocioPlan !== 'pro') return // doble bloqueo
     const msg = texto.trim()
     if (!msg || !miPerfil || !grupoActivo) return
     setTexto('')
@@ -216,10 +175,8 @@ export default function ChatFlotante() {
     })
   }
 
-  // ── Abrir vista de "nuevo chat" ──────────────────────────────────────────
+  // ── Nuevo chat ────────────────────────────────────────────────────────────
   async function abrirNuevo() {
-    if (negocioPlan !== 'pro') { setVista('bloqueado'); return }
-
     const { data } = await supabase
       .from('usuarios')
       .select('id, nombre, rol')
@@ -232,9 +189,8 @@ export default function ChatFlotante() {
     setVista('nuevo')
   }
 
-  // ── Crear DM o grupo ───────────────────────────────────────────────────────
+  // ── Crear DM o grupo ──────────────────────────────────────────────────────
   async function crearChat() {
-    if (negocioPlan !== 'pro') return // doble bloqueo
     if (!seleccion.length || !miId) return
     setCreando(true)
 
@@ -283,39 +239,23 @@ export default function ChatFlotante() {
       [miId, ...seleccion].map(uid => ({ grupo_id: nuevoG.id, usuario_id: uid }))
     )
 
-    const nuevoChat: GrupoChat = {
-      id: nuevoG.id, nombre, tipo: esDM ? 'directo' : 'grupo', noLeidos: 0,
-    }
+    const nuevoChat: GrupoChat = { id: nuevoG.id, nombre, tipo: esDM ? 'directo' : 'grupo', noLeidos: 0 }
     setGrupos(prev => [...prev, nuevoChat])
     setCreando(false)
     await abrirGrupo(nuevoChat)
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
   const totalNoLeidos = grupos.reduce((a, g) => a + g.noLeidos, 0)
-  const miRol = miPerfil ? rol(miPerfil.rol) : ROL_DEFAULT
+  const miRol = miPerfil ? rolInfo(miPerfil.rol) : ROL_DEFAULT
 
-  // ── BOTÓN FLOTANTE (cerrado) ───────────────────────────────────────────────
+  // ── BOTÓN CERRADO ─────────────────────────────────────────────────────────
   if (vista === 'cerrado') {
-    // Plan NO Pro: botón gris bloqueado
-    if (planCargado && negocioPlan !== 'pro') {
-      return (
-        <button
-          onClick={() => setVista('bloqueado')}
-          title="Chat interno — Plan Pro"
-          className="fixed bottom-6 right-4 w-14 h-14 bg-gray-200 text-gray-400 rounded-full shadow-md flex items-center justify-center z-[99999] cursor-pointer pointer-events-auto hover:bg-gray-300 transition-colors">
-          <MessageCircle size={24} className="opacity-50" />
-          <span className="absolute -top-1 -right-1 bg-gray-400 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-bold">
-            🔒
-          </span>
-        </button>
-      )
-    }
-
-    // Plan Pro (o cargando): botón funcional normal
     return (
-      <button onClick={() => setVista('lista')}
-        className={`fixed bottom-6 right-4 w-14 h-14 ${miRol.color} hover:opacity-90 text-white rounded-full shadow-lg shadow-black/25 flex items-center justify-center z-[99999] pointer-events-auto active:scale-95 transition-all`}>
+      <button
+        onClick={() => setVista('lista')}
+        className={`fixed bottom-6 right-4 w-14 h-14 ${miRol.color} hover:opacity-90 text-white rounded-full shadow-lg shadow-black/25 flex items-center justify-center z-[99999] pointer-events-auto active:scale-95 transition-all`}
+      >
         <MessageCircle size={24} />
         {totalNoLeidos > 0 && (
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold animate-bounce">
@@ -326,62 +266,11 @@ export default function ChatFlotante() {
     )
   }
 
-  // ── PANEL BLOQUEADO ────────────────────────────────────────────────────────
-  if (vista === 'bloqueado') {
-    return (
-      <div className="fixed bottom-6 right-4 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col z-[99999] overflow-hidden pointer-events-auto">
-        {/* Header gris */}
-        <div className="bg-gray-400 text-white px-4 py-3 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <MessageCircle size={18} />
-            <p className="font-bold text-sm">Chat del equipo</p>
-          </div>
-          <button onClick={() => setVista('cerrado')} className="hover:bg-white/20 p-1.5 rounded-lg transition-colors">
-            <X size={17} />
-          </button>
-        </div>
-
-        {/* Contenido bloqueado */}
-        <div className="flex flex-col items-center justify-center p-8 text-center gap-5">
-          <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
-            <Lock size={36} className="text-gray-400" />
-          </div>
-
-          <div>
-            <p className="font-black text-gray-800 text-xl">Chat interno</p>
-            <p className="text-sm font-bold text-orange-500 mt-1">Exclusivo Plan Pro</p>
-          </div>
-
-          <p className="text-sm text-gray-500 leading-relaxed max-w-xs">
-            Comunícate en tiempo real con todo tu equipo — meseras, cocina y gerencia — sin salir de la app.
-          </p>
-
-          <div className="w-full space-y-2">
-            <a
-              href="/gerencia"
-              className="w-full block text-center bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl text-sm transition-colors">
-              ⬆️ Actualizar a Plan Pro
-            </a>
-            <button
-              onClick={() => setVista('cerrado')}
-              className="w-full text-xs text-gray-400 hover:text-gray-600 py-2 transition-colors">
-              Cerrar
-            </button>
-          </div>
-
-          <p className="text-[11px] text-gray-400 -mt-2">
-            Ve a <span className="font-semibold">Gerencia → ⚙️ Configuración → Facturación</span>
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  // ── PANELES FUNCIONALES (solo accesibles con Plan Pro) ─────────────────────
+  // ── PANELES ───────────────────────────────────────────────────────────────
   return (
     <div className="fixed bottom-6 right-4 w-80 sm:w-96 h-[490px] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col z-[99999] overflow-hidden pointer-events-auto">
 
-      {/* ══ LISTA DE CHATS ═══════════════════════════════════════════ */}
+      {/* ══ LISTA ══════════════════════════════════════════════════ */}
       {vista === 'lista' && (
         <>
           <div className={`${miRol.color} text-white px-4 py-3 flex items-center justify-between shrink-0`}>
@@ -435,9 +324,7 @@ export default function ChatFlotante() {
                     <p className="text-[10px] text-gray-400 mt-0.5">{miRol.etiqueta}</p>
                   </div>
                 </div>
-                <button
-                  onClick={cerrarSesion}
-                  className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-semibold shrink-0 ml-2 transition-colors">
+                <button onClick={cerrarSesion} className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-semibold shrink-0 ml-2 transition-colors">
                   <LogOut size={13} /> Salir
                 </button>
               </div>
@@ -482,7 +369,7 @@ export default function ChatFlotante() {
             )}
             {mensajes.map(m => {
               const esMio = m.usuario_id === miId
-              const rc    = rol(m.rol)
+              const rc    = rolInfo(m.rol)
               return (
                 <div key={m.id} className={`flex gap-2 ${esMio ? 'flex-row-reverse' : 'flex-row'}`}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 ${rc.color} text-white`}>
@@ -517,11 +404,11 @@ export default function ChatFlotante() {
               value={texto}
               onChange={e => setTexto(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }}
-              placeholder="Escribe un mensaje... (Enter para enviar)"
+              placeholder="Escribe un mensaje..."
               maxLength={300}
               className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-300"
             />
-            <button onClick={enviar} disabled={!texto.trim() || !miPerfil || negocioPlan !== 'pro'}
+            <button onClick={enviar} disabled={!texto.trim() || !miPerfil}
               className={`${miRol.color} hover:opacity-90 disabled:bg-gray-200 disabled:cursor-not-allowed text-white p-2.5 rounded-xl transition-all active:scale-95 shrink-0`}>
               <Send size={16} />
             </button>
@@ -540,11 +427,9 @@ export default function ChatFlotante() {
             <div className="flex-1 min-w-0">
               <p className="font-bold text-sm">Nuevo chat</p>
               <p className="text-xs opacity-70">
-                {seleccion.length === 0
-                  ? 'Selecciona una o más personas'
-                  : seleccion.length === 1
-                  ? '1 persona — será mensaje directo'
-                  : `${seleccion.length} personas — será grupo`}
+                {seleccion.length === 0 ? 'Selecciona una o más personas' :
+                 seleccion.length === 1 ? '1 persona — será mensaje directo' :
+                 `${seleccion.length} personas — será grupo`}
               </p>
             </div>
           </div>
@@ -554,16 +439,14 @@ export default function ChatFlotante() {
               <p className="text-center text-gray-400 text-sm py-10">No hay otros usuarios activos</p>
             )}
             {usuarios.map(u => {
-              const rc      = rol(u.rol)
+              const rc      = rolInfo(u.rol)
               const checked = seleccion.includes(u.id)
               return (
                 <button key={u.id}
                   onClick={() => setSeleccion(prev =>
                     prev.includes(u.id) ? prev.filter(x => x !== u.id) : [...prev, u.id]
                   )}
-                  className={`w-full flex items-center gap-3 px-4 py-3.5 transition-colors text-left ${
-                    checked ? 'bg-orange-50' : 'hover:bg-gray-50'
-                  }`}>
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 transition-colors text-left ${checked ? 'bg-orange-50' : 'hover:bg-gray-50'}`}>
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm text-white shrink-0 ${rc.color}`}>
                     {rc.emoji}
                   </div>
@@ -572,7 +455,7 @@ export default function ChatFlotante() {
                     <p className="text-xs text-gray-400">{rc.etiqueta}</p>
                   </div>
                   <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                    checked ? `${miRol.color} border-transparent scale-110` : 'border-gray-300 bg-white'
+                    checked ? 'bg-orange-500 border-transparent scale-110' : 'border-gray-300 bg-white'
                   }`}>
                     {checked && <span className="text-white text-[10px] font-black leading-none">✓</span>}
                   </div>
@@ -588,22 +471,19 @@ export default function ChatFlotante() {
                 value={nombreGrupo}
                 onChange={e => setNombreGrupo(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') crearChat() }}
-                placeholder="Nombre del grupo (ej: Equipo piso 2)"
+                placeholder="Nombre del grupo (ej: Equipo cocina)"
                 maxLength={50}
                 autoFocus
                 className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-300"
               />
             )}
             <button onClick={crearChat}
-              disabled={seleccion.length === 0 || creando || negocioPlan !== 'pro'}
-              className={`w-full ${miRol.color} disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl text-sm transition-all active:scale-95`}>
-              {creando
-                ? '⏳ Creando...'
-                : seleccion.length === 0
-                ? 'Selecciona al menos 1 persona'
-                : seleccion.length === 1
-                ? `💬 Chat directo con ${usuarios.find(u => u.id === seleccion[0])?.nombre ?? '...'}`
-                : `👥 Crear grupo (${seleccion.length + 1} personas)`}
+              disabled={seleccion.length === 0 || creando}
+              className="w-full bg-orange-500 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl text-sm transition-all active:scale-95">
+              {creando ? '⏳ Creando...' :
+               seleccion.length === 0 ? 'Selecciona al menos 1 persona' :
+               seleccion.length === 1 ? `💬 Chat con ${usuarios.find(u => u.id === seleccion[0])?.nombre ?? '...'}` :
+               `👥 Crear grupo (${seleccion.length + 1} personas)`}
             </button>
           </div>
         </>
