@@ -260,12 +260,9 @@ export default function CocinaPage() {
   const [cargando, setCargando]             = useState(true)
   const [ahora, setAhora]                   = useState(Date.now())
   const [bloqueoConfig, setBloqueoConfig]   = useState<{ activo: boolean; cantidad: number }>({ activo: false, cantidad: 3 })
-  const [miNombre, setMiNombre]             = useState<string | null>(null)
+  const [miNombre, setMiNombre]             = useState<string>('Cocina')
   const [nombresConfig, setNombresConfig]   = useState<string[]>([])
   const [nombresCargados, setNombresCargados] = useState(false)
-
-  // Modal para asignar cocinero al presionar "Preparar"
-  const [asignandoItem, setAsignandoItem]   = useState<{ itemId: string; pedidoId: string } | null>(null)
 
   const supabase = createClient()
 
@@ -287,20 +284,25 @@ export default function CocinaPage() {
     setNombresCargados(true)
   }, [supabase])
 
-  // Cargar nombre desde localStorage al montar
+  // Cargar nombre del usuario autenticado al montar
   useEffect(() => {
     const guardado = typeof window !== 'undefined' ? localStorage.getItem(LS_KEY) : null
-    if (guardado) setMiNombre(guardado)
-  }, [])
+    if (guardado) { setMiNombre(guardado); return }
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      supabase.from('usuarios').select('nombre').eq('id', user.id).single()
+        .then(({ data }) => {
+          const nombre = data?.nombre || 'Cocina'
+          setMiNombre(nombre)
+          if (typeof window !== 'undefined') localStorage.setItem(LS_KEY, nombre)
+        })
+    })
+  }, [supabase])
 
-  const seleccionarNombre = (nombre: string) => {
-    setMiNombre(nombre)
-    if (typeof window !== 'undefined') localStorage.setItem(LS_KEY, nombre)
-  }
-
-  const salirDeNombre = () => {
-    setMiNombre(null)
+  const salirDeNombre = async () => {
     if (typeof window !== 'undefined') localStorage.removeItem(LS_KEY)
+    await supabase.auth.signOut()
+    window.location.href = '/login'
   }
 
   const cargarPedidos = useCallback(async () => {
@@ -377,14 +379,9 @@ export default function CocinaPage() {
     cargarPedidos()
   }
 
-  // ── Abre el selector de cocinero ──────────────────────────────────────────
+  // ── Preparar: asignar directamente sin modal ──────────────────────────────
   function abrirSelector(itemId: string, pedidoId: string) {
-    // Si no hay lista configurada, asignar directamente a miNombre
-    if (nombresConfig.length === 0) {
-      marcarPreparando(itemId, pedidoId, miNombre || 'Cocina')
-      return
-    }
-    setAsignandoItem({ itemId, pedidoId })
+    marcarPreparando(itemId, pedidoId, miNombre)
   }
 
   // ── Loading ────────────────────────────────────────────────────────────────
@@ -397,11 +394,6 @@ export default function CocinaPage() {
         <p className="text-gray-400 text-sm">Cargando pedidos…</p>
       </div>
     </div>
-  )
-
-  // ── Selector de nombre si no hay nombre aún ───────────────────────────────
-  if (!miNombre) return (
-    <SelectorCocinero nombres={nombresConfig} onSeleccionar={seleccionarNombre} />
   )
 
   const pedidosMostrados  = bloqueoConfig.activo ? pedidos.slice(0, bloqueoConfig.cantidad) : pedidos
@@ -437,7 +429,7 @@ export default function CocinaPage() {
               <div className="flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/30 rounded-xl px-3 py-1.5">
                 <User size={12} className="text-orange-400" />
                 <span className="text-orange-300 font-bold text-xs">{miNombre}</span>
-                <button onClick={salirDeNombre} title="Cambiar cocinero" className="ml-1 text-gray-600 hover:text-gray-400 transition-colors">
+                <button onClick={salirDeNombre} title="Cerrar sesión" className="ml-1 text-gray-600 hover:text-red-400 transition-colors">
                   <LogOut size={11} />
                 </button>
               </div>
@@ -703,15 +695,6 @@ export default function CocinaPage() {
         </div>
       </div>
 
-      {/* ── MODAL ASIGNAR COCINERO ──────────────────────────────────────────────── */}
-      {asignandoItem && (
-        <ModalAsignarCocinero
-          nombres={nombresConfig}
-          miNombre={miNombre}
-          onAsignar={(nombre) => marcarPreparando(asignandoItem.itemId, asignandoItem.pedidoId, nombre)}
-          onCerrar={() => setAsignandoItem(null)}
-        />
-      )}
     </div>
   )
 }

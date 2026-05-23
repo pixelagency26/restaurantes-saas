@@ -290,6 +290,26 @@ export default function MeseraPage() {
       if (myNegocioId) setNegocioId(myNegocioId)
     }
 
+    // ── VERIFICACIÓN DE STOCK EN DB (previene sobre-pedidos por estado local desactualizado) ──
+    if (turnoInventarioIds.size > 0) {
+      const itemsConLimite = carrito.filter(item => turnoInventarioIds.has(item.plato.id))
+      if (itemsConLimite.length > 0) {
+        const { data: invActual } = await supabase
+          .from('inventario').select('plato_id, cantidad_disponible')
+          .in('plato_id', itemsConLimite.map(i => i.plato.id))
+        const invMap = Object.fromEntries(((invActual || []) as { plato_id: string; cantidad_disponible: number }[]).map(i => [i.plato_id, i.cantidad_disponible]))
+        for (const item of itemsConLimite) {
+          const disp = invMap[item.plato.id] ?? 0
+          if (disp < item.cantidad) {
+            toast.error(`Solo quedan ${disp} de "${item.plato.nombre}" — actualiza el carrito`, { duration: 5000 })
+            await cargarDatos()
+            setEnviando(false)
+            return
+          }
+        }
+      }
+    }
+
     if (pedidoExistenteId) {
       // ── AGREGAR A PEDIDO EXISTENTE ──────────────────────────
       const { error } = await supabase.from('items_pedido').insert(
@@ -299,7 +319,7 @@ export default function MeseraPage() {
           cantidad: item.cantidad,
           precio_unitario: item.plato.precio,
           notas: item.notas || null,
-          pedido_por: user?.id || null,  // registrar quién agregó estos ítems
+          pedido_por: user?.id || null,
         }))
       )
       if (error) { toast.error('Error al agregar platos'); setEnviando(false); return }
@@ -669,6 +689,9 @@ export default function MeseraPage() {
                 <p className="text-orange-400 font-black mt-1 text-sm">${plato.precio.toLocaleString('es-CO')}</p>
                 {sinStock  && <p className="text-red-400 text-xs font-bold mt-0.5">Sin disponibilidad</p>}
                 {stockBajo && <p className="text-amber-400 text-xs font-bold mt-0.5">⚠️ Quedan {disp}</p>}
+                {enTurnoInv && hasInvRec && !sinStock && !stockBajo && (
+                  <p className="text-green-400 text-xs font-semibold mt-0.5">{disp} disponibles</p>
+                )}
               </div>
               {!sinStock && (
                 enCarrito ? (

@@ -309,6 +309,26 @@ export default function DomiPage() {
       .order('abierto_en', { ascending: false }).limit(1).single()
     if (!turno) { toast.error('No hay turno abierto. El gerente debe abrir caja.'); setEnviando(false); return }
 
+    // ── VERIFICACIÓN DE STOCK EN DB ──────────────────────────────
+    if (turnoInventarioIds.size > 0) {
+      const itemsConLimite = carrito.filter(item => turnoInventarioIds.has(item.plato.id))
+      if (itemsConLimite.length > 0) {
+        const { data: invActual } = await supabase
+          .from('inventario').select('plato_id, cantidad_disponible')
+          .in('plato_id', itemsConLimite.map(i => i.plato.id))
+        const invMap = Object.fromEntries(((invActual || []) as { plato_id: string; cantidad_disponible: number }[]).map(i => [i.plato_id, i.cantidad_disponible]))
+        for (const item of itemsConLimite) {
+          const disp = invMap[item.plato.id] ?? 0
+          if (disp < item.cantidad) {
+            toast.error(`Solo quedan ${disp} de "${item.plato.nombre}"`, { duration: 5000 })
+            await cargarMenu()
+            setEnviando(false)
+            return
+          }
+        }
+      }
+    }
+
     // Asegurar negocio_id para RLS
     let myNegocioId = negocioId
     if (!myNegocioId) {
@@ -423,7 +443,7 @@ export default function DomiPage() {
                 <p className="text-orange-400 font-black text-sm mt-0.5">${plato.precio.toLocaleString('es-CO')}</p>
                 {sinStock  && <p className="text-red-400 text-xs font-bold mt-0.5">Sin disponibilidad</p>}
                 {stockBajo && <p className="text-amber-400 text-xs font-bold mt-0.5">⚠️ Quedan {disp}</p>}
-                {tieneInv && !sinStock && !stockBajo && <p className="text-gray-600 text-xs mt-0.5">{disp} disponibles</p>}
+                {tieneInv && !sinStock && !stockBajo && <p className="text-green-400 text-xs font-semibold mt-0.5">{disp} disponibles</p>}
               </div>
               {!sinStock && (enCarrito ? (
                 <div className="flex items-center gap-2 shrink-0">
