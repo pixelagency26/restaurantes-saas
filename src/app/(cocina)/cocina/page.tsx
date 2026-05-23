@@ -4,7 +4,10 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Pedido, ItemPedido } from '@/types'
 import toast from 'react-hot-toast'
-import { Clock, ChefHat, CheckCircle, AlertTriangle, UtensilsCrossed, Lock, Flame, Zap, User, LogOut } from 'lucide-react'
+import {
+  Clock, ChefHat, CheckCircle, AlertTriangle, UtensilsCrossed,
+  Lock, Flame, Zap, User, LogOut, X, Bike, Navigation,
+} from 'lucide-react'
 
 const MINUTOS_LIMITE = 20
 const LS_KEY = 'cocina_mi_nombre'
@@ -81,7 +84,7 @@ interface ItemPlatoExtended extends Omit<ItemPedido, 'plato'> {
   pedido_por_usuario?: { nombre: string } | null
 }
 
-// ── Pantalla de selección de cocinero ─────────────────────────────────────────
+// ── Pantalla de selección de cocinero (login) ──────────────────────────────────
 function SelectorCocinero({
   nombres,
   onSeleccionar,
@@ -153,14 +156,116 @@ function SelectorCocinero({
   )
 }
 
+// ── Modal selector de cocinero al preparar un ítem ────────────────────────────
+function ModalAsignarCocinero({
+  nombres,
+  miNombre,
+  onAsignar,
+  onCerrar,
+}: {
+  nombres: string[]
+  miNombre: string
+  onAsignar: (nombre: string) => void
+  onCerrar: () => void
+}) {
+  // Construir lista: miNombre primero, luego el resto sin duplicados
+  const lista = [miNombre, ...nombres.filter(n => n !== miNombre)]
+  const [nombreManual, setNombreManual] = useState('')
+  const [modoManual, setModoManual]     = useState(false)
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/75 z-50 flex items-end justify-center"
+      onClick={onCerrar}
+    >
+      <div
+        className="bg-gray-900 w-full max-w-lg rounded-t-3xl p-5 border-t border-gray-700 space-y-4"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-white font-black text-base">¿Quién prepara este plato?</h2>
+            <p className="text-gray-500 text-xs mt-0.5">Selecciona al cocinero asignado</p>
+          </div>
+          <button
+            onClick={onCerrar}
+            className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-700 transition-colors">
+            <X size={14} className="text-gray-400" />
+          </button>
+        </div>
+
+        {!modoManual ? (
+          <div className="space-y-2">
+            {lista.map((nombre, idx) => (
+              <button
+                key={nombre}
+                onClick={() => onAsignar(nombre)}
+                className={`w-full rounded-xl flex items-center gap-3 px-4 py-3.5 font-bold transition-all active:scale-95 ${
+                  idx === 0
+                    ? 'bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/40 text-orange-300'
+                    : 'bg-gray-800/60 hover:bg-gray-700/60 border border-gray-700 text-white'
+                }`}>
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                  idx === 0 ? 'bg-orange-500/20' : 'bg-gray-700/60'
+                }`}>
+                  <ChefHat size={16} className={idx === 0 ? 'text-orange-400' : 'text-gray-400'} />
+                </div>
+                <span>{nombre}</span>
+                {idx === 0 && (
+                  <span className="ml-auto text-[10px] bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-0.5 rounded-full font-bold">
+                    Tú
+                  </span>
+                )}
+              </button>
+            ))}
+            <button
+              onClick={() => setModoManual(true)}
+              className="w-full text-center text-xs text-gray-600 hover:text-gray-400 py-2 transition-colors">
+              Otro nombre...
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <input
+              type="text"
+              value={nombreManual}
+              onChange={e => setNombreManual(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && nombreManual.trim()) onAsignar(nombreManual.trim()) }}
+              placeholder="Nombre del cocinero..."
+              autoFocus
+              className="w-full bg-gray-800/60 border border-gray-700 focus:border-orange-500/50 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none text-sm"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => setModoManual(false)}
+                className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-400 font-bold py-3 rounded-xl text-sm transition-all">
+                ← Volver
+              </button>
+              <button
+                onClick={() => { if (nombreManual.trim()) onAsignar(nombreManual.trim()) }}
+                disabled={!nombreManual.trim()}
+                className="flex-1 bg-orange-600 hover:bg-orange-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl text-sm transition-all">
+                Asignar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function CocinaPage() {
-  const [pedidos, setPedidos]           = useState<Pedido[]>([])
-  const [cargando, setCargando]         = useState(true)
-  const [ahora, setAhora]               = useState(Date.now())
-  const [bloqueoConfig, setBloqueoConfig] = useState<{ activo: boolean; cantidad: number }>({ activo: false, cantidad: 3 })
-  const [miNombre, setMiNombre]         = useState<string | null>(null)
-  const [nombresConfig, setNombresConfig] = useState<string[]>([])
+  const [pedidos, setPedidos]               = useState<Pedido[]>([])
+  const [cargando, setCargando]             = useState(true)
+  const [ahora, setAhora]                   = useState(Date.now())
+  const [bloqueoConfig, setBloqueoConfig]   = useState<{ activo: boolean; cantidad: number }>({ activo: false, cantidad: 3 })
+  const [miNombre, setMiNombre]             = useState<string | null>(null)
+  const [nombresConfig, setNombresConfig]   = useState<string[]>([])
   const [nombresCargados, setNombresCargados] = useState(false)
+
+  // Modal para asignar cocinero al presionar "Preparar"
+  const [asignandoItem, setAsignandoItem]   = useState<{ itemId: string; pedidoId: string } | null>(null)
 
   const supabase = createClient()
 
@@ -220,28 +325,66 @@ export default function CocinaPage() {
     return () => { supabase.removeChannel(canal); clearInterval(intervalo); clearInterval(tick) }
   }, [cargarPedidos, cargarConfig, supabase])
 
-  async function marcarPreparando(itemId: string, pedidoId: string) {
+  // ── Preparar ítem — con cocinero seleccionado ──────────────────────────────
+  async function marcarPreparando(itemId: string, pedidoId: string, cocineroNombre: string) {
     await supabase.from('items_pedido').update({
       estado: 'en_preparacion',
       tiempo_inicio_prep: new Date().toISOString(),
-      cocinero: miNombre || 'Cocina',
+      cocinero: cocineroNombre,
     }).eq('id', itemId)
     await supabase.from('pedidos').update({ estado: 'en_preparacion' }).eq('id', pedidoId).eq('estado', 'pendiente')
-    toast.success('🔥 En preparación')
+    setAsignandoItem(null)
+    toast.success(`🔥 ${cocineroNombre} está preparando`)
     cargarPedidos()
   }
 
+  // ── Marcar listo — con routing según tipo de pedido ───────────────────────
   async function marcarListo(itemId: string, pedidoId: string) {
-    await supabase.from('items_pedido').update({ estado: 'listo', tiempo_listo: new Date().toISOString() }).eq('id', itemId)
-    const { data: items } = await supabase.from('items_pedido').select('estado').eq('pedido_id', pedidoId)
+    await supabase.from('items_pedido').update({
+      estado: 'listo',
+      tiempo_listo: new Date().toISOString(),
+    }).eq('id', itemId)
+
+    const { data: items } = await supabase
+      .from('items_pedido').select('estado').eq('pedido_id', pedidoId)
+
     const todosListos = items?.every(i => i.estado === 'listo' || i.estado === 'entregado')
+
     if (todosListos) {
+      // Obtener tipo y mesera para el mensaje de routing
+      const { data: ped } = await supabase
+        .from('pedidos')
+        .select('tipo, mesera_id, cliente_nombre, mesa:mesas(numero)')
+        .eq('id', pedidoId)
+        .maybeSingle()
+
       await supabase.from('pedidos').update({ estado: 'listo' }).eq('id', pedidoId)
-      toast.success('✅ ¡Pedido completo! La mesera fue notificada.')
+
+      if (!ped) {
+        toast.success('✅ ¡Pedido completo!')
+      } else if (ped.tipo === 'domi') {
+        toast.success('✅ ¡Listo! Domi y Gerencia fueron notificados 🛵', { duration: 4000 })
+      } else if (ped.tipo === 'cliente_qr') {
+        const mesa = (ped.mesa as unknown as { numero: number } | null)
+        toast.success(`✅ ¡Listo! La mesera recoge en mesa ${mesa?.numero ?? '?'} 📢`, { duration: 4000 })
+      } else {
+        // Pedido creado por mesera — solo ella recibe notificación
+        toast.success('✅ ¡Listo! La mesera fue notificada 📢', { duration: 4000 })
+      }
     } else {
       toast.success('✅ Plato listo')
     }
     cargarPedidos()
+  }
+
+  // ── Abre el selector de cocinero ──────────────────────────────────────────
+  function abrirSelector(itemId: string, pedidoId: string) {
+    // Si no hay lista configurada, asignar directamente a miNombre
+    if (nombresConfig.length === 0) {
+      marcarPreparando(itemId, pedidoId, miNombre || 'Cocina')
+      return
+    }
+    setAsignandoItem({ itemId, pedidoId })
   }
 
   // ── Loading ────────────────────────────────────────────────────────────────
@@ -375,7 +518,10 @@ export default function CocinaPage() {
                     ? 'border-red-500/50 bg-gradient-to-b from-red-950/80 to-gray-900'
                     : 'border-gray-700/60 bg-gradient-to-b from-gray-800/80 to-gray-900'
                 }`}
-                style={esDemorado ? { boxShadow: '0 0 20px rgba(239,68,68,0.15), inset 0 1px 0 rgba(239,68,68,0.1)' } : { boxShadow: '0 0 0 1px rgba(255,255,255,0.04), inset 0 1px 0 rgba(255,255,255,0.04)' }}>
+                style={esDemorado
+                  ? { boxShadow: '0 0 20px rgba(239,68,68,0.15), inset 0 1px 0 rgba(239,68,68,0.1)' }
+                  : { boxShadow: '0 0 0 1px rgba(255,255,255,0.04), inset 0 1px 0 rgba(255,255,255,0.04)' }
+                }>
 
                 {/* Card header */}
                 <div className={`px-4 pt-3.5 pb-3 border-b ${esDemorado ? 'border-red-500/20' : 'border-gray-700/40'}`}>
@@ -384,25 +530,61 @@ export default function CocinaPage() {
                       {pedido.tipo === 'domi' ? (
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 bg-blue-500/20 border border-blue-500/30 rounded-lg flex items-center justify-center">
-                            <span className="text-sm">🛵</span>
+                            <Bike size={16} className="text-blue-400" />
                           </div>
-                          <span className="text-blue-400 font-black text-lg">DOMI</span>
+                          <div>
+                            <span className="text-blue-400 font-black text-lg">DOMI</span>
+                            {pedido.cliente_nombre && (
+                              <p className="text-[10px] text-gray-500 leading-none truncate max-w-[120px]">
+                                {pedido.cliente_nombre}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ) : pedido.tipo === 'cliente_qr' ? (
+                        <div className="flex items-center gap-2">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${esDemorado ? 'bg-red-500/20 border border-red-500/30 text-red-400' : 'bg-orange-500/20 border border-orange-500/30 text-orange-400'}`}>
+                            {mesa?.numero ?? '?'}
+                          </div>
+                          <div>
+                            <span className={`font-black text-lg ${esDemorado ? 'text-red-400' : 'text-orange-400'}`}>
+                              Mesa {mesa?.numero}
+                            </span>
+                            <p className="text-[10px] text-gray-500 leading-none">
+                              📱 Pedido QR — entrega mesera
+                            </p>
+                          </div>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
                           <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${esDemorado ? 'bg-red-500/20 border border-red-500/30 text-red-400' : 'bg-orange-500/20 border border-orange-500/30 text-orange-400'}`}>
-                            {mesa?.numero}
+                            {mesa?.numero ?? '?'}
                           </div>
                           <div>
-                            <span className={`font-black text-lg ${esDemorado ? 'text-red-400' : 'text-orange-400'}`}>Mesa {mesa?.numero}</span>
+                            <span className={`font-black text-lg ${esDemorado ? 'text-red-400' : 'text-orange-400'}`}>
+                              Mesa {mesa?.numero}
+                            </span>
                             <p className="text-[10px] text-gray-500 leading-none">
-                              {pedido.tipo === 'cliente_qr' ? '📱 Pedido QR' : tomadoPor ? `👩 ${tomadoPor}` : '👩 Mesera'}
+                              {tomadoPor ? `👩 ${tomadoPor}` : '👩 Mesera'}
                             </p>
                           </div>
                         </div>
                       )}
                     </div>
                     <BadgeTiempo minutos={minutos} />
+                  </div>
+
+                  {/* Badge de destino */}
+                  <div className="mt-2 flex items-center gap-1.5">
+                    {pedido.tipo === 'domi' ? (
+                      <span className="flex items-center gap-1 text-[10px] bg-blue-500/10 border border-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full font-semibold">
+                        <Navigation size={9} /> Listo → Domi + Gerencia
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-[10px] bg-orange-500/10 border border-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full font-semibold">
+                        🍽️ Listo → {tomadoPor ? `Mesera (${tomadoPor})` : 'Mesera disponible'}
+                      </span>
+                    )}
                   </div>
 
                   <BarraProgreso fecha={fechaRef} ahora={ahora} />
@@ -418,9 +600,9 @@ export default function CocinaPage() {
                 {/* Items */}
                 <div className="p-3 space-y-2">
                   {itemsPedido.map(item => {
-                    const esAdicional    = (new Date(item.created_at).getTime() - new Date(pedido.created_at).getTime()) > UMBRAL_ADICIONAL_MS
+                    const esAdicional      = (new Date(item.created_at).getTime() - new Date(pedido.created_at).getTime()) > UMBRAL_ADICIONAL_MS
                     const bloqueadoPorOtro = item.cocinero && item.cocinero !== miNombre && item.estado === 'en_preparacion'
-                    const esMio          = item.cocinero === miNombre
+                    const esMio            = item.cocinero === miNombre
 
                     return (
                       <div key={item.id}
@@ -486,13 +668,15 @@ export default function CocinaPage() {
 
                           <div className="flex flex-col gap-1.5 shrink-0">
                             {item.estado === 'pendiente' && (
-                              <button onClick={() => marcarPreparando(item.id, pedido.id)}
+                              <button
+                                onClick={() => abrirSelector(item.id, pedido.id)}
                                 className="bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-xs px-3 py-2 rounded-lg font-bold transition-all shadow-md shadow-blue-900/30 flex items-center gap-1.5">
                                 <Flame size={12} /> Preparar
                               </button>
                             )}
                             {item.estado === 'en_preparacion' && !bloqueadoPorOtro && (
-                              <button onClick={() => marcarListo(item.id, pedido.id)}
+                              <button
+                                onClick={() => marcarListo(item.id, pedido.id)}
                                 className="bg-green-600 hover:bg-green-500 active:scale-95 text-white text-xs px-3 py-2 rounded-lg font-bold transition-all shadow-md shadow-green-900/30 flex items-center gap-1.5">
                                 <Zap size={12} /> Listo
                               </button>
@@ -518,6 +702,16 @@ export default function CocinaPage() {
           })}
         </div>
       </div>
+
+      {/* ── MODAL ASIGNAR COCINERO ──────────────────────────────────────────────── */}
+      {asignandoItem && (
+        <ModalAsignarCocinero
+          nombres={nombresConfig}
+          miNombre={miNombre}
+          onAsignar={(nombre) => marcarPreparando(asignandoItem.itemId, asignandoItem.pedidoId, nombre)}
+          onCerrar={() => setAsignandoItem(null)}
+        />
+      )}
     </div>
   )
 }

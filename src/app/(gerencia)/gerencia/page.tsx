@@ -71,6 +71,7 @@ export default function GerenciaPage() {
   // Mesas y cobro
   const [mesas, setMesas] = useState<{ id: number; numero: number; estado: string; zona: string | null }[]>([])
   const [domiActivos, setDomiActivos] = useState<{ id: string; created_at: string; total: number; cliente_nombre: string | null; cliente_telefono: string | null; estado: string; metodos: string[] }[]>([])
+  const [notifsListoDomi, setNotifsListoDomi] = useState<{ id: number; clienteNombre: string }[]>([])
   const [mesaDetalle, setMesaDetalle] = useState<{ mesa: typeof mesas[0] | null; pedido: PedidoDetalle; pagos: PagoRegistrado[]; isDomi?: boolean } | null>(null)
   const [montoPago, setMontoPago] = useState(''); const [propinaPago, setPropinaPago] = useState(''); const [pagaCon, setPagaCon] = useState('')
   const [metodoPago, setMetodoPago] = useState<MetodoPago>('efectivo'); const [agregandoPago, setAgregandoPago] = useState(false)
@@ -883,7 +884,20 @@ export default function GerenciaPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'configuracion' }, cargarConfiguracion)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reservas' }, cargarReservas)
       .subscribe()
-    return () => { supabase.removeChannel(canal) }
+
+    // Notificación cuando un pedido domi llega a "listo" (cocina terminó)
+    const canalDomiListo = supabase.channel('gerencia-domi-listo')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pedidos' }, (payload) => {
+        const p = payload.new as { tipo: string; estado: string; cliente_nombre: string | null }
+        if (p.tipo === 'domi' && p.estado === 'listo') {
+          const notifId = Date.now()
+          setNotifsListoDomi(prev => [...prev, { id: notifId, clienteNombre: p.cliente_nombre || 'Cliente' }])
+          setTimeout(() => setNotifsListoDomi(prev => prev.filter(n => n.id !== notifId)), 30000)
+        }
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(canal); supabase.removeChannel(canalDomiListo) }
   }, [cargarDatos, cargarMesas, cargarCarta, cargarResumen, cargarConfiguracion, cargarMenusTurno, cargarReservas, supabase, hoyStr])
 
   // Cargar resumen de inventario al abrir modal cerrar turno
@@ -1753,6 +1767,27 @@ export default function GerenciaPage() {
               </div>
             )}
 
+            {/* Notificaciones domi listo */}
+            {notifsListoDomi.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {notifsListoDomi.map(n => (
+                  <div key={n.id} className="bg-green-500/15 border-2 border-green-500/50 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">🛵</span>
+                      <div>
+                        <p className="text-green-300 font-black text-sm">¡Domi listo! — {n.clienteNombre}</p>
+                        <p className="text-green-400/70 text-xs">Cocina terminó. El domiciliario puede recoger.</p>
+                      </div>
+                    </div>
+                    <button onClick={() => setNotifsListoDomi(prev => prev.filter(x => x.id !== n.id))}
+                      className="text-green-400/50 hover:text-green-300 shrink-0">
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Panel domicilios del día */}
             {domiActivos.length > 0 && (
               <div className="mt-5">
@@ -1760,17 +1795,39 @@ export default function GerenciaPage() {
                 <div className="space-y-2">
                   {domiActivos.map(d => {
                     const mins = Math.floor((Date.now() - new Date(d.created_at).getTime()) / 60000)
-                    const pagado = d.estado === 'pagado'
+                    const pagado    = d.estado === 'pagado'
+                    const listo     = d.estado === 'listo'
+                    const entregado = d.estado === 'entregado'
+                    const enPrep    = d.estado === 'en_preparacion'
                     const EMOJIS: Record<string, string> = { efectivo: '💵', nequi: '💜', daviplata: '❤️', bancolombia: '🟡' }
+
+                    const badgeClases = pagado
+                      ? 'bg-white/20 text-white/50'
+                      : listo
+                      ? 'bg-green-500 text-white animate-pulse'
+                      : entregado
+                      ? 'bg-sky-500 text-white'
+                      : enPrep
+                      ? 'bg-orange-500/80 text-white'
+                      : 'bg-blue-500 text-white'
+
+                    const badgeLabel = pagado ? '✓ PAGADO' : listo ? '🍽️ LISTO' : entregado ? '🛵 EN CAMINO' : enPrep ? '🔥 PREP.' : '⏳ ESPERA'
+
+                    const cardClases = pagado
+                      ? 'bg-white/4 border-white/8 opacity-50 cursor-default'
+                      : listo
+                      ? 'bg-green-500/10 border-green-500/40 hover:bg-green-500/16 hover:border-green-500/60'
+                      : 'bg-blue-500/10 border-blue-500/30 hover:bg-blue-500/16 hover:border-blue-500/50'
+
                     return (
                       <button key={d.id} onClick={() => !pagado && abrirDetalleDomi(d.id)}
                         disabled={pagado}
-                        className={`w-full rounded-2xl px-4 py-3 text-left transition-all border ${pagado ? 'bg-white/4 border-white/8 opacity-50 cursor-default' : 'bg-blue-500/10 border-blue-500/30 hover:bg-blue-500/16 hover:border-blue-500/50'}`}>
+                        className={`w-full rounded-2xl px-4 py-3 text-left transition-all border ${cardClases}`}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`text-xs font-black px-2 py-0.5 rounded-full ${pagado ? 'bg-white/20 text-white/50' : 'bg-blue-500 text-white'}`}>
-                                {pagado ? '✓ PAGADO' : 'DOMI'}
+                              <span className={`text-xs font-black px-2 py-0.5 rounded-full ${badgeClases}`}>
+                                {badgeLabel}
                               </span>
                               <span className="font-bold text-white/80 text-sm">
                                 {d.cliente_nombre || <span className="text-white/30 italic font-normal">Sin nombre</span>}
@@ -1788,7 +1845,8 @@ export default function GerenciaPage() {
                             {pagado ? new Date(d.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : `${mins} min`}
                           </span>
                         </div>
-                        {!pagado && <p className="text-xs text-blue-400/70 mt-1">Toca para cobrar →</p>}
+                        {listo && <p className="text-xs text-green-400 font-bold mt-1">✅ Listo en cocina — Toca para cobrar →</p>}
+                        {!pagado && !listo && <p className="text-xs text-blue-400/70 mt-1">Toca para cobrar →</p>}
                       </button>
                     )
                   })}
