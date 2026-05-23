@@ -53,7 +53,7 @@ type RangoResumen = 'hoy' | 'semana' | 'mes' | 'personalizado'
 
 const METODOS: { id: MetodoPago; label: string; color: string; emoji: string }[] = [
   { id: 'efectivo',    label: 'Efectivo',    color: 'bg-green-500',  emoji: '💵' },
-  { id: 'nequi',       label: 'Nequi',       color: 'bg-purple-500', emoji: '💜' },
+  { id: 'nequi',       label: 'Nequi',       color: 'bg-gray-600', emoji: '💜' },
   { id: 'daviplata',   label: 'Daviplata',   color: 'bg-red-500',    emoji: '❤️' },
   { id: 'bancolombia', label: 'Bancolombia', color: 'bg-yellow-500', emoji: '🟡' },
 ]
@@ -1581,12 +1581,12 @@ export default function GerenciaPage() {
       {/* Header */}
       <div className="bg-[#0d0d1a]/95 backdrop-blur-xl border-b border-white/8 px-4 py-3.5 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-3">
-          <div className="bg-gradient-to-br from-violet-500 to-purple-700 p-2 rounded-xl shadow-lg shadow-violet-900/40">
+          <div className="bg-gradient-to-br from-orange-500 to-orange-700 p-2 rounded-xl shadow-lg shadow-orange-900/30">
             <BarChart3 size={20} className="text-white" />
           </div>
           <div>
             <h1 className="font-bold text-white tracking-tight">Panel Gerencia</h1>
-            <p className="text-[11px] text-purple-400/70 capitalize">{new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+            <p className="text-[11px] text-gray-500 capitalize">{new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -1619,7 +1619,7 @@ export default function GerenciaPage() {
               }}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all
                 ${seccion === n.id && !bloqueado
-                  ? 'bg-violet-600/90 text-white shadow-lg shadow-violet-900/50'
+                  ? 'bg-orange-500/90 text-white shadow-lg shadow-orange-900/40'
                   : bloqueado
                   ? 'text-white/20 cursor-default'
                   : 'text-white/50 hover:bg-white/8 hover:text-white/90'}`}>
@@ -1644,7 +1644,7 @@ export default function GerenciaPage() {
                   <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-400 inline-block" /><span className="text-white/60">Cobrando</span></span>
                 </div>
               ) : (
-                <p className="text-sm font-bold text-violet-400">Modo gestión de mesas</p>
+                <p className="text-sm font-bold text-orange-400">Modo gestión de mesas</p>
               )}
               <div className="flex gap-2 shrink-0">
                 <button onClick={() => {
@@ -1654,7 +1654,7 @@ export default function GerenciaPage() {
                   setNuevoOrdenCategoria('todas')
                   setNuevoOrdenDomi({ nombre: '', telefono: '', direccion: '' })
                 }}
-                  className="text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 bg-violet-600 text-white hover:bg-violet-700 shadow-lg shadow-violet-900/40 transition-all">
+                  className="text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 bg-orange-500 text-white hover:bg-orange-600 shadow-lg shadow-orange-900/30 transition-all">
                   <Plus size={13} /> Pedido
                 </button>
                 <button onClick={() => setModalQRDomi(true)}
@@ -1662,7 +1662,7 @@ export default function GerenciaPage() {
                   🌐 Mi Página
                 </button>
                 <button onClick={() => setModoGestionMesas(g => !g)}
-                  className={`text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all ${modoGestionMesas ? 'bg-violet-600 text-white shadow-lg shadow-violet-900/40' : 'bg-white/8 text-white/60 hover:bg-white/14 border border-white/10'}`}>
+                  className={`text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all ${modoGestionMesas ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-white/8 text-white/60 hover:bg-white/14 border border-white/10'}`}>
                   <Settings size={13} /> {modoGestionMesas ? 'Salir' : 'Gestionar'}
                 </button>
               </div>
@@ -1672,7 +1672,7 @@ export default function GerenciaPage() {
               /* ── MODO GESTIÓN ── */
               <div className="space-y-4">
                 <button onClick={() => { setModalNuevaZona(true); setNuevaZonaNombre(''); setNuevaMesaNumero('') }}
-                  className="w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-violet-900/40 transition-all">
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-orange-900/30 transition-all">
                   <Plus size={18} /> Nueva zona
                 </button>
                 {zonasLista.length === 0 && (
@@ -1688,7 +1688,7 @@ export default function GerenciaPage() {
                           <Pencil size={12} /> Renombrar
                         </button>
                         <button onClick={() => { setModalAgregarMesa(zona); setNuevaMesaNumero('') }}
-                          className="text-xs bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 px-2 py-1.5 rounded-lg flex items-center gap-1 font-medium border border-violet-500/30 transition-all">
+                          className="text-xs bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 px-2 py-1.5 rounded-lg flex items-center gap-1 font-medium border border-orange-500/30 transition-all">
                           <Plus size={12} /> Mesa
                         </button>
                       </div>
@@ -1700,7 +1700,7 @@ export default function GerenciaPage() {
                         .map(m => (
                           <div key={m.id} className="flex items-center gap-1.5 bg-white/6 border border-white/12 rounded-xl px-3 py-2">
                             <span className="font-bold text-white/80 text-sm">Mesa {m.numero}</span>
-                            <button onClick={() => setModalQR(m)} className="text-white/30 hover:text-violet-400 ml-0.5 transition-colors" title="Ver QR">
+                            <button onClick={() => setModalQR(m)} className="text-white/30 hover:text-orange-400 ml-0.5 transition-colors" title="Ver QR">
                               <span className="text-xs">QR</span>
                             </button>
                             {m.estado === 'libre' ? (
@@ -1726,7 +1726,7 @@ export default function GerenciaPage() {
               <div className="space-y-5">
                 {zonasLista.map(zona => (
                   <div key={zona}>
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-400/60 mb-2.5">{zona}</h3>
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500 mb-2.5">{zona}</h3>
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                       {mesas
                         .filter(m => (m.zona || 'Sin zona') === zona)
@@ -1748,7 +1748,7 @@ export default function GerenciaPage() {
                             <button
                               onClick={e => { e.stopPropagation(); setModalQR(mesa) }}
                               title="Ver QR de mesa"
-                              className="absolute top-1.5 right-1.5 w-6 h-6 bg-white/8 border border-white/15 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm hover:bg-violet-500/20 hover:border-violet-500/40">
+                              className="absolute top-1.5 right-1.5 w-6 h-6 bg-white/8 border border-white/15 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm hover:bg-orange-500/20 hover:border-orange-500/40">
                               <span className="text-[10px] font-black text-white/50">QR</span>
                             </button>
                           </div>
@@ -1759,7 +1759,7 @@ export default function GerenciaPage() {
                 {mesas.length === 0 && (
                   <div className="text-center py-12">
                     <p className="text-white/30 text-sm mb-3">No hay mesas configuradas.</p>
-                    <button onClick={() => setModoGestionMesas(true)} className="text-violet-400 font-bold text-sm hover:text-violet-300 transition-colors">
+                    <button onClick={() => setModoGestionMesas(true)} className="text-orange-400 font-bold text-sm hover:text-orange-300 transition-colors">
                       Crear primera zona →
                     </button>
                   </div>
@@ -1791,7 +1791,7 @@ export default function GerenciaPage() {
             {/* Panel domicilios del día */}
             {domiActivos.length > 0 && (
               <div className="mt-5">
-                <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-400/60 mb-2.5">🛵 Domicilios de hoy</h3>
+                <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500 mb-2.5">🛵 Domicilios de hoy</h3>
                 <div className="space-y-2">
                   {domiActivos.map(d => {
                     const mins = Math.floor((Date.now() - new Date(d.created_at).getTime()) / 60000)
@@ -1806,10 +1806,10 @@ export default function GerenciaPage() {
                       : listo
                       ? 'bg-green-500 text-white animate-pulse'
                       : entregado
-                      ? 'bg-sky-500 text-white'
+                      ? 'bg-gray-600 text-white'
                       : enPrep
                       ? 'bg-orange-500/80 text-white'
-                      : 'bg-blue-500 text-white'
+                      : 'bg-gray-600 text-white'
 
                     const badgeLabel = pagado ? '✓ PAGADO' : listo ? '🍽️ LISTO' : entregado ? '🛵 EN CAMINO' : enPrep ? '🔥 PREP.' : '⏳ ESPERA'
 
@@ -1817,7 +1817,7 @@ export default function GerenciaPage() {
                       ? 'bg-white/4 border-white/8 opacity-50 cursor-default'
                       : listo
                       ? 'bg-green-500/10 border-green-500/40 hover:bg-green-500/16 hover:border-green-500/60'
-                      : 'bg-blue-500/10 border-blue-500/30 hover:bg-blue-500/16 hover:border-blue-500/50'
+                      : 'bg-gray-800/60 border-gray-700 hover:bg-gray-700/60 hover:border-gray-600'
 
                     return (
                       <button key={d.id} onClick={() => !pagado && abrirDetalleDomi(d.id)}
@@ -1846,7 +1846,7 @@ export default function GerenciaPage() {
                           </span>
                         </div>
                         {listo && <p className="text-xs text-green-400 font-bold mt-1">✅ Listo en cocina — Toca para cobrar →</p>}
-                        {!pagado && !listo && <p className="text-xs text-blue-400/70 mt-1">Toca para cobrar →</p>}
+                        {!pagado && !listo && <p className="text-xs text-gray-400 mt-1">Toca para cobrar →</p>}
                       </button>
                     )
                   })}
@@ -1862,7 +1862,7 @@ export default function GerenciaPage() {
             {/* Tabs de subsección */}
             <div className="flex gap-2 mb-4">
               <button onClick={() => setSubSeccionCarta('carta')}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${subSeccionCarta === 'carta' ? 'bg-violet-600 text-white shadow-lg shadow-violet-900/40' : 'bg-white/6 text-white/50 border border-white/10 hover:bg-white/10 hover:text-white/80'}`}>
+                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${subSeccionCarta === 'carta' ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-white/6 text-white/50 border border-white/10 hover:bg-white/10 hover:text-white/80'}`}>
                 <UtensilsCrossed size={15} /> Carta general
               </button>
               <button onClick={() => setSubSeccionCarta('menus')}
@@ -1876,7 +1876,7 @@ export default function GerenciaPage() {
               <div>
                 <div className="flex items-center justify-between mb-4 gap-2">
                   <h2 className="font-bold text-white">Gestión de carta</h2>
-                  <button onClick={abrirNuevoPlato} className="bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 shadow-lg shadow-violet-900/40 transition-all">
+                  <button onClick={abrirNuevoPlato} className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 shadow-lg shadow-orange-900/30 transition-all">
                     <Plus size={15} /> Nuevo plato
                   </button>
                 </div>
@@ -1884,12 +1884,12 @@ export default function GerenciaPage() {
                 {/* Filtro por categoría */}
                 <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-none">
                   <button onClick={() => setCategoriaActivaCarta('todas')}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${categoriaActivaCarta === 'todas' ? 'bg-violet-600 text-white shadow-lg shadow-violet-900/40' : 'bg-white/8 text-white/50 border border-white/10 hover:bg-white/14'}`}>
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${categoriaActivaCarta === 'todas' ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-white/8 text-white/50 border border-white/10 hover:bg-white/14'}`}>
                     Todas
                   </button>
                   {categorias.map(c => (
                     <button key={c.id} onClick={() => setCategoriaActivaCarta(c.id)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${categoriaActivaCarta === c.id ? 'bg-violet-600 text-white shadow-lg shadow-violet-900/40' : 'bg-white/8 text-white/50 border border-white/10 hover:bg-white/14'}`}>
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${categoriaActivaCarta === c.id ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-white/8 text-white/50 border border-white/10 hover:bg-white/14'}`}>
                       {c.nombre}
                     </button>
                   ))}
@@ -2012,7 +2012,7 @@ export default function GerenciaPage() {
               <div className="flex gap-1.5">
                 {([['hoy', 'Hoy'], ['semana', 'Últimos 7 días'], ['mes', 'Este mes'], ['personalizado', '📅 Personalizado']] as [RangoResumen, string][]).map(([r, label]) => (
                   <button key={r} onClick={() => setRangoResumen(r)}
-                    className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${rangoResumen === r ? 'bg-violet-600 text-white shadow-lg shadow-violet-900/40' : 'text-white/40 hover:bg-white/8 hover:text-white/70 bg-white/4'}`}>
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${rangoResumen === r ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'text-white/40 hover:bg-white/8 hover:text-white/70 bg-white/4'}`}>
                     {label}
                   </button>
                 ))}
@@ -2022,15 +2022,15 @@ export default function GerenciaPage() {
                   <div className="flex-1">
                     <label className="text-xs text-white/40 block mb-1">Desde</label>
                     <input type="date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)}
-                      className="w-full bg-white/8 border border-white/15 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 [color-scheme:dark]" />
+                      className="w-full bg-white/8 border border-white/15 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/40 [color-scheme:dark]" />
                   </div>
                   <div className="flex-1">
                     <label className="text-xs text-white/40 block mb-1">Hasta</label>
                     <input type="date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)}
-                      className="w-full bg-white/8 border border-white/15 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 [color-scheme:dark]" />
+                      className="w-full bg-white/8 border border-white/15 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/40 [color-scheme:dark]" />
                   </div>
                   <button onClick={() => cargarResumen(fechaDesde, fechaHasta)}
-                    className="bg-violet-600 hover:bg-violet-700 text-white font-bold px-4 py-2 rounded-xl text-sm whitespace-nowrap shadow-lg shadow-violet-900/40 transition-all">
+                    className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-4 py-2 rounded-xl text-sm whitespace-nowrap shadow-lg shadow-orange-900/30 transition-all">
                     Ver
                   </button>
                 </div>
@@ -2039,7 +2039,7 @@ export default function GerenciaPage() {
 
             {cargandoResumen ? (
               <div className="flex items-center justify-center py-12 text-white/30">
-                <div className="text-center"><BarChart3 size={32} className="mx-auto mb-2 animate-pulse text-violet-400" /><p>Cargando datos...</p></div>
+                <div className="text-center"><BarChart3 size={32} className="mx-auto mb-2 animate-pulse text-orange-400" /><p>Cargando datos...</p></div>
               </div>
             ) : (<>
 
@@ -2047,9 +2047,9 @@ export default function GerenciaPage() {
             <div className="grid grid-cols-2 gap-2">
               {[
                 { label: 'Ventas totales', valor: `$${resumenStats.ventas.toLocaleString('es-CO')}`, icon: <DollarSign size={18}/>, color: 'bg-emerald-500', glow: 'shadow-emerald-900/40' },
-                { label: 'Pedidos', valor: resumenStats.pedidos, icon: <ChefHat size={18}/>, color: 'bg-blue-500', glow: 'shadow-blue-900/40' },
-                { label: 'Utilidad', valor: `$${resumenStats.utilidad.toLocaleString('es-CO')}`, icon: <TrendingUp size={18}/>, color: 'bg-violet-500', glow: 'shadow-violet-900/40' },
-                { label: 'Domicilios', valor: `$${resumenStats.domis.toLocaleString('es-CO')}`, icon: <Bike size={18}/>, color: 'bg-cyan-500', glow: 'shadow-cyan-900/40' },
+                { label: 'Pedidos', valor: resumenStats.pedidos, icon: <ChefHat size={18}/>, color: 'bg-gray-600', glow: 'shadow-gray-900/30' },
+                { label: 'Utilidad', valor: `$${resumenStats.utilidad.toLocaleString('es-CO')}`, icon: <TrendingUp size={18}/>, color: 'bg-orange-500', glow: 'shadow-orange-900/30' },
+                { label: 'Domicilios', valor: `$${resumenStats.domis.toLocaleString('es-CO')}`, icon: <Bike size={18}/>, color: 'bg-gray-500', glow: 'shadow-gray-900/30' },
               ].map(s => (
                 <div key={s.label} className="bg-white/5 rounded-2xl p-3 border border-white/10 text-center backdrop-blur-sm hover:bg-white/8 transition-all">
                   <div className={`${s.color} shadow-lg ${s.glow} w-9 h-9 rounded-xl flex items-center justify-center text-white mx-auto mb-2`}>{s.icon}</div>
@@ -2091,8 +2091,8 @@ export default function GerenciaPage() {
               })()}
               {ventasPorDia.length > 0 && (
                 <div className="flex gap-3 mt-2 justify-center text-xs text-white/40">
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-violet-600 inline-block"/>Establecimiento</span>
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-sky-500 inline-block"/>Domicilios</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-500 inline-block"/>Establecimiento</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-600 inline-block"/>Domicilios</span>
                 </div>
               )}
             </div>
@@ -2151,7 +2151,7 @@ export default function GerenciaPage() {
                 <div className="divide-y divide-white/6">
                   {meseras.map((m, i) => (
                     <div key={m.nombre} className="flex items-center gap-3 px-4 py-3">
-                      <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black text-white ${i === 0 ? 'bg-yellow-500' : i === 1 ? 'bg-white/30' : 'bg-violet-500/60'}`}>{i+1}</span>
+                      <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black text-white ${i === 0 ? 'bg-yellow-500' : i === 1 ? 'bg-white/30' : 'bg-gray-600/60'}`}>{i+1}</span>
                       <div className="flex-1">
                         <p className="font-semibold text-white/80 text-sm">{m.nombre}</p>
                         <p className="text-xs text-white/35">{m.pedidos} pedido(s)</p>
@@ -2194,7 +2194,7 @@ export default function GerenciaPage() {
                 {resumenTiempoPlato.length > 0 && (
                   <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
                     <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
-                      <Clock size={15} className="text-sky-400"/>
+                      <Clock size={15} className="text-gray-400"/>
                       <p className="font-bold text-white/80 text-sm">Tiempos por plato</p>
                     </div>
                     <div className="divide-y divide-white/6 max-h-56 overflow-y-auto">
@@ -2205,7 +2205,7 @@ export default function GerenciaPage() {
                             <span className="text-xs text-white/35">{p.cantidad} veces</span>
                           </div>
                           <div className="flex gap-3 text-xs">
-                            <span className="text-sky-400">⏳ Espera: <b>{p.espera} min</b></span>
+                            <span className="text-gray-400">⏳ Espera: <b>{p.espera} min</b></span>
                             <span className="text-orange-400">🔥 Prep: <b>{p.preparacion} min</b></span>
                             <span className="text-emerald-400">✅ Total: <b>{p.total} min</b></span>
                           </div>
@@ -2224,7 +2224,7 @@ export default function GerenciaPage() {
                 {pedidosHoy.slice(0, 30).map(p => (
                   <div key={p.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
                     <div className="flex items-center gap-2">
-                      {p.tipo === 'domi' ? <Bike size={14} className="text-sky-400 shrink-0"/> : <MapPin size={14} className="text-white/30 shrink-0"/>}
+                      {p.tipo === 'domi' ? <Bike size={14} className="text-gray-400 shrink-0"/> : <MapPin size={14} className="text-white/30 shrink-0"/>}
                       <div>
                         <span className="font-semibold text-white/80">{p.tipo === 'domi' ? 'Domi' : `Mesa ${p.mesa}`}</span>
                         <span className="ml-1.5 text-white/30 text-xs">{new Date(p.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</span>
@@ -2232,7 +2232,7 @@ export default function GerenciaPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-white/80">${p.total.toLocaleString('es-CO')}</span>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${p.estado === 'pagado' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' : p.estado === 'listo' ? 'bg-sky-500/15 text-sky-400 border-sky-500/20' : p.estado === 'en_preparacion' ? 'bg-orange-500/15 text-orange-400 border-orange-500/20' : 'bg-white/8 text-white/40 border-white/10'}`}>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${p.estado === 'pagado' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' : p.estado === 'listo' ? 'bg-gray-500/15 text-gray-400 border-gray-500/20' : p.estado === 'en_preparacion' ? 'bg-orange-500/15 text-orange-400 border-orange-500/20' : 'bg-white/8 text-white/40 border-white/10'}`}>
                         {p.estado.replace('_', ' ')}
                       </span>
                     </div>
@@ -2305,7 +2305,7 @@ export default function GerenciaPage() {
             {/* Por mesera */}
             <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
               <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
-                <Users size={16} className="text-violet-400" />
+                <Users size={16} className="text-orange-400" />
                 <h3 className="font-bold text-white/80">Tiempos por mesera</h3>
               </div>
               <div className="divide-y divide-white/6">
@@ -2325,7 +2325,7 @@ export default function GerenciaPage() {
             {/* Por plato */}
             <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
               <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
-                <Clock size={16} className="text-sky-400" />
+                <Clock size={16} className="text-gray-400" />
                 <h3 className="font-bold text-white/80">Tiempos por plato</h3>
               </div>
               <div className="divide-y divide-white/6">
@@ -2336,7 +2336,7 @@ export default function GerenciaPage() {
                       <span className="text-xs text-white/35">{p.cantidad} veces</span>
                     </div>
                     <div className="flex gap-4 text-xs">
-                      <span className="text-sky-400">⏳ Espera: <b>{p.espera} min</b></span>
+                      <span className="text-gray-400">⏳ Espera: <b>{p.espera} min</b></span>
                       <span className="text-orange-400">🔥 Prep: <b>{p.preparacion} min</b></span>
                       <span className="text-emerald-400">✅ Total: <b>{p.total} min</b></span>
                     </div>
@@ -2358,7 +2358,7 @@ export default function GerenciaPage() {
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
                 <input type="text" placeholder="Buscar por nombre o cédula..." value={busquedaCliente}
                   onChange={e => setBusquedaCliente(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 bg-white/6 border border-white/12 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+                  className="w-full pl-9 pr-3 py-2.5 bg-white/6 border border-white/12 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
               </div>
               <button onClick={exportarClientesCSV}
                 className="flex items-center gap-1.5 bg-emerald-600/80 hover:bg-emerald-600 text-white font-bold px-3 py-2.5 rounded-xl text-sm whitespace-nowrap shadow-lg shadow-emerald-900/30 transition-all">
@@ -2379,7 +2379,7 @@ export default function GerenciaPage() {
                     ['cumpleanos',    '🎂 Cumpleaños próximo'],
                   ] as ['mayor_consumo'|'menor_consumo'|'az'|'cumpleanos', string][]).map(([v, label]) => (
                     <button key={v} onClick={() => setOrdenClientes(v)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${ordenClientes === v ? 'bg-violet-600 text-white shadow-lg shadow-violet-900/40' : 'bg-white/6 text-white/45 border border-white/10 hover:bg-white/12'}`}>
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${ordenClientes === v ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-white/6 text-white/45 border border-white/10 hover:bg-white/12'}`}>
                       {label}
                     </button>
                   ))}
@@ -2390,12 +2390,12 @@ export default function GerenciaPage() {
                 <p className="text-xs text-white/35 font-medium mb-1.5 flex items-center gap-1"><CalendarDays size={12}/> Filtrar por mes de cumpleaños</p>
                 <div className="flex gap-1.5 flex-wrap">
                   <button onClick={() => setFiltroMesCumple(0)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${filtroMesCumple === 0 ? 'bg-violet-600 text-white shadow-lg shadow-violet-900/40' : 'bg-white/6 text-white/45 border border-white/10 hover:bg-white/12'}`}>
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${filtroMesCumple === 0 ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-white/6 text-white/45 border border-white/10 hover:bg-white/12'}`}>
                     Todos
                   </button>
                   {MESES_ES.map((mes, i) => (
                     <button key={mes} onClick={() => setFiltroMesCumple(i + 1)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${filtroMesCumple === i + 1 ? 'bg-pink-500/80 text-white shadow-lg shadow-pink-900/30' : 'bg-white/6 text-white/45 border border-white/10 hover:bg-white/12'}`}>
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${filtroMesCumple === i + 1 ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-white/6 text-white/45 border border-white/10 hover:bg-white/12'}`}>
                       {mes.slice(0, 3)}
                     </button>
                   ))}
@@ -2413,7 +2413,7 @@ export default function GerenciaPage() {
 
             {cargandoClientes ? (
               <div className="flex justify-center py-12 text-white/30">
-                <div className="text-center"><UserCircle size={32} className="mx-auto mb-2 animate-pulse text-violet-400"/><p>Cargando...</p></div>
+                <div className="text-center"><UserCircle size={32} className="mx-auto mb-2 animate-pulse text-orange-400"/><p>Cargando...</p></div>
               </div>
             ) : (
               <div className="space-y-2">
@@ -2423,11 +2423,11 @@ export default function GerenciaPage() {
                   const mostrarRanking = ordenClientes === 'mayor_consumo' || ordenClientes === 'menor_consumo'
                   return (
                     <button key={c.id} onClick={() => abrirClienteDetalle(c)}
-                      className={`w-full rounded-2xl border p-4 text-left transition-all backdrop-blur-sm ${esCumpleMes ? 'bg-pink-500/12 border-pink-500/30 hover:bg-pink-500/18' : 'bg-white/5 border-white/10 hover:bg-white/8 hover:border-white/20'}`}>
+                      className={`w-full rounded-2xl border p-4 text-left transition-all backdrop-blur-sm ${esCumpleMes ? 'bg-orange-500/10 border-orange-500/30 hover:bg-orange-500/15' : 'bg-white/5 border-white/10 hover:bg-white/8 hover:border-white/20'}`}>
                       <div className="flex items-center gap-3">
                         <div className="relative shrink-0">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${esCumpleMes ? 'bg-pink-500/30' : 'bg-violet-500/20'}`}>
-                            <span className={`font-black text-sm ${esCumpleMes ? 'text-pink-300' : 'text-violet-300'}`}>{c.nombre.charAt(0).toUpperCase()}</span>
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${esCumpleMes ? 'bg-orange-500/20' : 'bg-orange-500/20'}`}>
+                            <span className={`font-black text-sm ${esCumpleMes ? 'text-orange-300' : 'text-orange-300'}`}>{c.nombre.charAt(0).toUpperCase()}</span>
                           </div>
                           {mostrarRanking && idx < 3 && (
                             <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full text-white text-[10px] font-black flex items-center justify-center ${idx === 0 ? 'bg-yellow-500' : idx === 1 ? 'bg-white/40' : 'bg-amber-600'}`}>{idx + 1}</span>
@@ -2436,13 +2436,13 @@ export default function GerenciaPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="font-semibold text-white/85">{c.nombre}</p>
-                            {esCumpleMes && <span className="text-xs bg-pink-500/25 text-pink-300 border border-pink-500/30 px-1.5 py-0.5 rounded-full font-bold">🎂 Este mes</span>}
+                            {esCumpleMes && <span className="text-xs bg-orange-500/20 text-orange-300 border border-orange-500/30 px-1.5 py-0.5 rounded-full font-bold">🎂 Este mes</span>}
                           </div>
                           <div className="flex gap-3 text-xs text-white/35 mt-0.5 flex-wrap">
                             {c.cedula && <span>🪪 {c.cedula}</span>}
                             {c.telefono && <span>📞 {c.telefono}</span>}
                             {c.fecha_cumpleanos && (
-                              <span className={esCumpleMes ? 'text-pink-400 font-semibold' : ''}>
+                              <span className={esCumpleMes ? 'text-orange-400 font-semibold' : ''}>
                                 🎂 {new Date(c.fecha_cumpleanos + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}
                               </span>
                             )}
@@ -2478,8 +2478,8 @@ export default function GerenciaPage() {
                 <div className="bg-[#0f0f1e] border border-white/10 w-full md:max-w-lg md:rounded-3xl rounded-t-3xl max-h-[90vh] flex flex-col overflow-hidden fade-in">
                   <div className="flex items-center justify-between px-5 py-4 border-b border-white/8">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-violet-500/20 rounded-full flex items-center justify-center border border-violet-500/30">
-                        <span className="text-violet-300 font-black text-lg">{clienteDetalle.cliente.nombre.charAt(0)}</span>
+                      <div className="w-12 h-12 bg-orange-500/20 rounded-full flex items-center justify-center border border-orange-500/30">
+                        <span className="text-orange-300 font-black text-lg">{clienteDetalle.cliente.nombre.charAt(0)}</span>
                       </div>
                       <div>
                         <h2 className="text-lg font-black text-white">{clienteDetalle.cliente.nombre}</h2>
@@ -2516,12 +2516,12 @@ export default function GerenciaPage() {
                       )
                       const top = Object.entries(conteo).sort((a, b) => b[1] - a[1])
                       return (
-                        <div className="bg-violet-500/10 border border-violet-500/20 rounded-2xl p-4">
-                          <p className="text-xs font-bold text-violet-400 uppercase tracking-wider mb-2">🏆 Platos más pedidos</p>
+                        <div className="bg-orange-500/10 border border-orange-500/20 rounded-2xl p-4">
+                          <p className="text-xs font-bold text-orange-400 uppercase tracking-wider mb-2">🏆 Platos más pedidos</p>
                           <div className="flex flex-wrap gap-1.5">
                             {top.map(([nombre, cant]) => (
                               <span key={nombre}
-                                className={`text-xs px-2.5 py-1 rounded-full font-semibold border ${cant >= 3 ? 'bg-violet-600 text-white border-violet-500/50' : cant >= 2 ? 'bg-violet-500/20 text-violet-300 border-violet-500/20' : 'bg-white/6 text-violet-300 border-white/10'}`}>
+                                className={`text-xs px-2.5 py-1 rounded-full font-semibold border ${cant >= 3 ? 'bg-orange-500 text-white border-orange-500/30' : cant >= 2 ? 'bg-orange-500/20 text-orange-300 border-orange-500/20' : 'bg-white/6 text-orange-300 border-white/10'}`}>
                                 {nombre} <span className="opacity-75">×{cant}</span>
                               </span>
                             ))}
@@ -2646,7 +2646,7 @@ export default function GerenciaPage() {
                   </div>
                   <div className="flex items-center justify-between px-4 py-3 bg-white/4">
                     <p className="font-black text-white/70">Total</p>
-                    <p className="font-black text-violet-400 text-lg">${(ventasEstab + ventasDomi).toLocaleString('es-CO')}</p>
+                    <p className="font-black text-orange-400 text-lg">${(ventasEstab + ventasDomi).toLocaleString('es-CO')}</p>
                   </div>
                 </div>
               </div>
@@ -2690,13 +2690,13 @@ export default function GerenciaPage() {
                   </div>
                   <input type="text" placeholder='Descripción (ej: "Se sacó para mercado")' value={nuevoMov.descripcion}
                     onChange={e => setNuevoMov(p => ({ ...p, descripcion: e.target.value }))}
-                    className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+                    className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
                   <div className="flex gap-2">
                     <input type="number" placeholder="Monto $" value={nuevoMov.monto}
                       onChange={e => setNuevoMov(p => ({ ...p, monto: e.target.value }))}
-                      className="flex-1 bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+                      className="flex-1 bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
                     <button onClick={agregarMovimiento} disabled={agregandoMov}
-                      className="bg-violet-600 hover:bg-violet-700 disabled:bg-white/10 disabled:text-white/30 text-white font-bold px-4 rounded-xl text-sm shadow-lg shadow-violet-900/40 transition-all">
+                      className="bg-orange-500 hover:bg-orange-600 disabled:bg-white/10 disabled:text-white/30 text-white font-bold px-4 rounded-xl text-sm shadow-lg shadow-orange-900/30 transition-all">
                       {agregandoMov ? '...' : 'Agregar'}
                     </button>
                   </div>
@@ -2748,7 +2748,7 @@ export default function GerenciaPage() {
         {/* ══ USUARIOS ════════════════════════════════════════════ */}
         {seccion === 'usuarios' && (
           <div className="space-y-4">
-            <button onClick={() => setModalUsuario(true)} className="w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-violet-900/40 transition-all">
+            <button onClick={() => setModalUsuario(true)} className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-orange-900/30 transition-all">
               <Plus size={20} /> Crear nuevo usuario
             </button>
             {listaUsuarios.length === 0 ? (
@@ -2759,10 +2759,10 @@ export default function GerenciaPage() {
               <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
                 {listaUsuarios.map((u, i) => {
                   const ROL_BADGE: Record<string, string> = {
-                    gerente: 'bg-violet-500/20 text-violet-300 border-violet-500/20',
+                    gerente: 'bg-orange-500/20 text-orange-300 border-orange-500/20',
                     mesera:  'bg-orange-500/20 text-orange-300 border-orange-500/20',
                     cocina:  'bg-emerald-500/20 text-emerald-300 border-emerald-500/20',
-                    domi:    'bg-sky-500/20 text-sky-300 border-sky-500/20',
+                    domi:    'bg-gray-600/20 text-gray-300 border-gray-500/20',
                   }
                   const ROL_LABEL: Record<string, string> = {
                     gerente: 'Gerente', mesera: 'Mesera', cocina: 'Cocina', domi: 'Domi',
@@ -2802,8 +2802,8 @@ export default function GerenciaPage() {
             {/* Cocina */}
             <div className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm p-5 space-y-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-                  <Lock size={20} className="text-violet-400" />
+                <div className="w-10 h-10 bg-orange-500/15 rounded-xl flex items-center justify-center">
+                  <Lock size={20} className="text-orange-400" />
                 </div>
                 <div>
                   <h2 className="font-bold text-white/90">Control de flujo — Cocina</h2>
@@ -2816,7 +2816,7 @@ export default function GerenciaPage() {
                   <p className="text-xs text-gray-400 mt-0.5">La cocina solo verá un lote de pedidos a la vez, en estricto orden de llegada</p>
                 </div>
                 <button onClick={() => setBloqueoActivo(v => !v)}
-                  className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${bloqueoActivo ? 'bg-purple-600' : 'bg-gray-300'}`}>
+                  className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${bloqueoActivo ? 'bg-orange-500' : 'bg-gray-700'}`}>
                   <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${bloqueoActivo ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
               </div>
@@ -2827,13 +2827,13 @@ export default function GerenciaPage() {
                   <div className="flex gap-2">
                     {[2, 3, 4, 5].map(n => (
                       <button key={n} onClick={() => setBloqueoCantidad(n)}
-                        className={`flex-1 py-3 rounded-xl font-black text-lg transition-all border-2 ${bloqueoCantidad === n ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-700 border-white/12 hover:border-purple-400'}`}>
+                        className={`flex-1 py-3 rounded-xl font-black text-lg transition-all border-2 ${bloqueoCantidad === n ? 'bg-orange-500 text-white border-orange-500' : 'bg-white/5 text-gray-300 border-white/12 hover:border-orange-500/40'}`}>
                         {n}
                       </button>
                     ))}
                   </div>
-                  <div className="mt-3 bg-purple-50 border border-purple-100 rounded-xl p-3">
-                    <p className="text-xs text-violet-400 leading-relaxed">
+                  <div className="mt-3 bg-gray-800/60 border border-gray-700 rounded-xl p-3">
+                    <p className="text-xs text-orange-400 leading-relaxed">
                       🔒 Cocina verá solo los primeros <b>{bloqueoCantidad} pedido{bloqueoCantidad !== 1 ? 's' : ''}</b> (por orden de llegada).
                     </p>
                   </div>
@@ -2859,7 +2859,7 @@ export default function GerenciaPage() {
                   </div>
                 </div>
                 {!puedeAcceder('basico') && (
-                  <span className="text-[10px] bg-orange-100 text-orange-700 font-bold px-2 py-1 rounded-full">Plan Profesional</span>
+                  <span className="text-[10px] bg-orange-500/20 text-orange-300 font-bold px-2 py-1 rounded-full">Plan Profesional</span>
                 )}
               </div>
               {!puedeAcceder('basico') ? (
@@ -2902,7 +2902,7 @@ export default function GerenciaPage() {
             <button
               onClick={guardarConfiguracion}
               disabled={guardandoPermisos}
-              className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl transition-colors">
+              className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded-xl transition-colors">
               {guardandoPermisos ? 'Guardando...' : '💾 Guardar configuración'}
             </button>
           </div>
@@ -2931,7 +2931,7 @@ export default function GerenciaPage() {
                       ? f === 'pendiente' ? 'bg-amber-500 text-white border-amber-500'
                         : f === 'confirmada' ? 'bg-green-500 text-white border-green-500'
                         : f === 'cancelada' ? 'bg-red-400 text-white border-red-400'
-                        : 'bg-purple-600 text-white border-purple-600'
+                        : 'bg-orange-500 text-white border-orange-500'
                       : 'bg-white text-gray-500 border-white/12 hover:border-gray-300'
                   }`}>
                   {f === 'todos' ? 'Todas' : f.charAt(0).toUpperCase() + f.slice(1)}
@@ -2946,7 +2946,7 @@ export default function GerenciaPage() {
 
             {cargandoReservas ? (
               <div className="flex justify-center py-12">
-                <div className="w-8 h-8 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : reservas.filter(r => filtroReservaEstado === 'todos' || r.estado === filtroReservaEstado).length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -3045,9 +3045,9 @@ export default function GerenciaPage() {
                     <input type="text" value={cedulaCliente} onChange={e => setCedulaCliente(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && buscarCliente()}
                       placeholder="Cédula del cliente"
-                      className="flex-1 bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+                      className="flex-1 bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
                     <button onClick={buscarCliente} disabled={buscandoCl || !cedulaCliente.trim()}
-                      className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white px-4 py-2.5 rounded-xl text-sm font-bold">
+                      className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-white px-4 py-2.5 rounded-xl text-sm font-bold">
                       {buscandoCl ? '...' : 'Buscar'}
                     </button>
                   </div>
@@ -3063,10 +3063,10 @@ export default function GerenciaPage() {
                     <div className="space-y-2">
                       <input type="text" placeholder="Nombre completo *" value={clienteForm.nombre}
                         onChange={e => setClienteForm(p => ({ ...p, nombre: e.target.value }))}
-                        className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+                        className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
                       <input type="tel" placeholder="Teléfono" value={clienteForm.telefono}
                         onChange={e => setClienteForm(p => ({ ...p, telefono: e.target.value }))}
-                        className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+                        className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
                       <div>
                         <label className="text-xs text-gray-400 block mb-1">🎂 Cumpleaños (opcional)</label>
                         <div className="grid grid-cols-3 gap-2">
@@ -3075,7 +3075,7 @@ export default function GerenciaPage() {
                               const parts = clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-') : ['2000', '01', '01']
                               setClienteForm(p => ({ ...p, fecha_cumpleanos: `${parts[0]}-${parts[1]}-${e.target.value.padStart(2,'0')}` }))
                             }}
-                            className="border border-white/12 rounded-xl px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50">
+                            className="border border-white/12 rounded-xl px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40">
                             <option value="">Día</option>
                             {Array.from({length:31},(_,i)=>i+1).map(d=><option key={d} value={String(d).padStart(2,'0')}>{d}</option>)}
                           </select>
@@ -3084,7 +3084,7 @@ export default function GerenciaPage() {
                               const parts = clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-') : ['2000', '01', '01']
                               setClienteForm(p => ({ ...p, fecha_cumpleanos: `${parts[0]}-${e.target.value}-${parts[2]}` }))
                             }}
-                            className="border border-white/12 rounded-xl px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50">
+                            className="border border-white/12 rounded-xl px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40">
                             <option value="">Mes</option>
                             {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((m,i)=><option key={m} value={String(i+1).padStart(2,'0')}>{m}</option>)}
                           </select>
@@ -3093,7 +3093,7 @@ export default function GerenciaPage() {
                               const parts = clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-') : ['2000', '01', '01']
                               setClienteForm(p => ({ ...p, fecha_cumpleanos: `${e.target.value}-${parts[1]}-${parts[2]}` }))
                             }}
-                            className="border border-white/12 rounded-xl px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50">
+                            className="border border-white/12 rounded-xl px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40">
                             <option value="">Año</option>
                             {Array.from({length:80},(_,i)=>new Date().getFullYear()-i).map(y=><option key={y} value={y}>{y}</option>)}
                           </select>
@@ -3105,7 +3105,7 @@ export default function GerenciaPage() {
                 <div className="px-5 py-4 border-t space-y-2">
                   {cedulaCliente && (clienteEncontrado || clienteForm.nombre) && (
                     <button onClick={guardarCliente} disabled={guardandoCl}
-                      className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl">
+                      className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded-xl">
                       {guardandoCl ? 'Guardando...' : clienteEncontrado ? 'Registrar en este pedido' : 'Guardar cliente'}
                     </button>
                   )}
@@ -3123,7 +3123,7 @@ export default function GerenciaPage() {
                 {mesaDetalle.isDomi ? (
                   <div>
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="bg-blue-600 text-white text-xs font-black px-2 py-0.5 rounded-full">🛵 DOMI</span>
+                      <span className="bg-orange-500 text-white text-xs font-black px-2 py-0.5 rounded-full">🛵 DOMI</span>
                       <span className="text-lg font-black text-white/90">{mesaDetalle.pedido.cliente_nombre || 'Sin nombre'}</span>
                     </div>
                     {mesaDetalle.pedido.cliente_cedula && <p className="text-xs text-white/35">🪪 C.C. {mesaDetalle.pedido.cliente_cedula}</p>}
@@ -3131,7 +3131,7 @@ export default function GerenciaPage() {
                     {mesaDetalle.pedido.cliente_direccion && <p className="text-xs text-white/35">📍 {mesaDetalle.pedido.cliente_direccion}</p>}
                     {mesaDetalle.pedido.metodo_pago_cliente && (
                       <p className="text-xs font-bold mt-1">
-                        💳 Pago: <span className="capitalize text-blue-700">{mesaDetalle.pedido.metodo_pago_cliente}</span>
+                        💳 Pago: <span className="capitalize text-orange-400">{mesaDetalle.pedido.metodo_pago_cliente}</span>
                       </p>
                     )}
                   </div>
@@ -3140,7 +3140,7 @@ export default function GerenciaPage() {
                     <h2 className="text-xl font-black text-white/90">Mesa {mesaDetalle.mesa?.numero}</h2>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       {mesaDetalle.pedido.mesera ? (
-                        <span className="inline-flex items-center gap-1 bg-orange-100 text-orange-700 text-xs font-bold px-2.5 py-1 rounded-full">
+                        <span className="inline-flex items-center gap-1 bg-orange-500/20 text-orange-300 text-xs font-bold px-2.5 py-1 rounded-full">
                           👩‍🍳 {mesaDetalle.pedido.mesera.nombre}
                         </span>
                       ) : (
@@ -3158,7 +3158,7 @@ export default function GerenciaPage() {
                 {!mesaDetalle.isDomi && (
                   <button
                     onClick={() => { setModoEdicionPedido(v => !v); setItemReemplazando(null) }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${modoEdicionPedido ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'}`}>
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${modoEdicionPedido ? 'bg-orange-500 text-white' : 'bg-orange-500/20 text-orange-300 hover:bg-orange-200'}`}>
                     {modoEdicionPedido ? '✓ Listo' : '✏️ Editar'}
                   </button>
                 )}
@@ -3169,16 +3169,16 @@ export default function GerenciaPage() {
 
               {/* ── Comprobante de transferencia (solo domi) ── */}
               {mesaDetalle.isDomi && mesaDetalle.pedido.comprobante_url && mesaDetalle.pagos.length === 0 && (
-                <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4 space-y-3">
-                  <p className="text-sm font-black text-blue-800">📎 Comprobante de pago del cliente</p>
+                <div className="bg-gray-800/60 border-2 border-orange-500/30 rounded-2xl p-4 space-y-3">
+                  <p className="text-sm font-black text-white">📎 Comprobante de pago del cliente</p>
                   <a href={mesaDetalle.pedido.comprobante_url} target="_blank" rel="noopener noreferrer">
                     <img
                       src={mesaDetalle.pedido.comprobante_url}
                       alt="Comprobante"
-                      className="w-full rounded-xl object-cover max-h-64 border border-blue-200 hover:opacity-90 transition-opacity"
+                      className="w-full rounded-xl object-cover max-h-64 border border-gray-700 hover:opacity-90 transition-opacity"
                     />
                   </a>
-                  <p className="text-xs text-blue-600">Toca la imagen para verla en tamaño completo</p>
+                  <p className="text-xs text-gray-400">Toca la imagen para verla en tamaño completo</p>
                   <button
                     onClick={confirmarPagoTransferencia}
                     disabled={agregandoPago}
@@ -3212,7 +3212,7 @@ export default function GerenciaPage() {
                           <button
                             onClick={() => { setItemReemplazando({ id: item.id!, nombre: item.nombre }); setCategoriaReemplazo('todas') }}
                             disabled={guardandoEdicion}
-                            className="flex items-center gap-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 font-bold px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50">
+                            className="flex items-center gap-1 text-xs bg-gray-700 hover:bg-gray-600 text-white font-bold px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50">
                             🔄 Reemplazar
                           </button>
                         </div>
@@ -3225,7 +3225,7 @@ export default function GerenciaPage() {
                             {item.notas && <span className="text-yellow-600 text-xs">({item.notas})</span>}
                           </div>
                           {item.pedido_por_nombre && (
-                            <span className="ml-4 inline-flex items-center gap-1 text-xs text-blue-600 font-semibold mt-0.5">
+                            <span className="ml-4 inline-flex items-center gap-1 text-xs text-orange-400 font-semibold mt-0.5">
                               ↳ agregado por {item.pedido_por_nombre}
                             </span>
                           )}
@@ -3303,11 +3303,11 @@ export default function GerenciaPage() {
                   <div className={`flex gap-2 mb-2 transition-opacity ${!pedidoListoPagar ? 'opacity-40 pointer-events-none' : ''}`}>
                     <div className="flex-1">
                       <label className="text-xs text-gray-500 block mb-1">Monto</label>
-                      <input type="number" value={montoPago} onChange={e => setMontoPago(e.target.value)} placeholder={`$${saldoPendiente.toLocaleString('es-CO')}`} className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+                      <input type="number" value={montoPago} onChange={e => setMontoPago(e.target.value)} placeholder={`$${saldoPendiente.toLocaleString('es-CO')}`} className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
                     </div>
                     <div className="w-28">
                       <label className="text-xs text-gray-500 block mb-1">Propina</label>
-                      <input type="number" value={propinaPago} onChange={e => setPropinaPago(e.target.value)} placeholder="$0" className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+                      <input type="number" value={propinaPago} onChange={e => setPropinaPago(e.target.value)} placeholder="$0" className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
                     </div>
                   </div>
                   {/* ── Paga con / Cambio (solo efectivo) ── */}
@@ -3321,7 +3321,7 @@ export default function GerenciaPage() {
                             value={pagaCon}
                             onChange={e => setPagaCon(e.target.value)}
                             placeholder={`$${saldoPendiente.toLocaleString('es-CO')}`}
-                            className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                            className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-500/40"
                           />
                         </div>
                         {pagaCon && parseFloat(pagaCon) >= saldoPendiente && (
@@ -3348,7 +3348,7 @@ export default function GerenciaPage() {
                     </div>
                   )}
                   {pedidoListoPagar && (
-                    <button onClick={() => setMontoPago(String(saldoPendiente))} className="text-xs text-violet-400 font-medium mb-3 hover:underline">→ Usar saldo exacto (${saldoPendiente.toLocaleString('es-CO')})</button>
+                    <button onClick={() => setMontoPago(String(saldoPendiente))} className="text-xs text-orange-400 font-medium mb-3 hover:underline">→ Usar saldo exacto (${saldoPendiente.toLocaleString('es-CO')})</button>
                   )}
                   <button
                     onClick={agregarPago}
@@ -3357,7 +3357,7 @@ export default function GerenciaPage() {
                     className={`w-full font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
                       !pedidoListoPagar
                         ? 'bg-white/14 text-gray-400 cursor-not-allowed'
-                        : 'bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white'
+                        : 'bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-white'
                     }`}>
                     <Banknote size={18} />
                     {!pedidoListoPagar ? '🔒 Pago bloqueado — pedido en curso' : agregandoPago ? 'Registrando...' : 'Agregar pago'}
@@ -3479,20 +3479,20 @@ export default function GerenciaPage() {
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">Nombre del plato *</label>
-              <input type="text" value={platoForm.nombre} onChange={e => setPlatoForm(p => ({ ...p, nombre: e.target.value }))} className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+              <input type="text" value={platoForm.nombre} onChange={e => setPlatoForm(p => ({ ...p, nombre: e.target.value }))} className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">Descripción (visible para meseras y clientes)</label>
-              <textarea value={platoForm.descripcion || ''} onChange={e => setPlatoForm(p => ({ ...p, descripcion: e.target.value }))} rows={2} placeholder="Describe el plato para que las meseras puedan explicárselo al cliente..." className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+              <textarea value={platoForm.descripcion || ''} onChange={e => setPlatoForm(p => ({ ...p, descripcion: e.target.value }))} rows={2} placeholder="Describe el plato para que las meseras puedan explicárselo al cliente..." className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Precio público *</label>
-                <input type="number" value={platoForm.precio || ''} onChange={e => setPlatoForm(p => ({ ...p, precio: parseFloat(e.target.value) || 0 }))} className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+                <input type="number" value={platoForm.precio || ''} onChange={e => setPlatoForm(p => ({ ...p, precio: parseFloat(e.target.value) || 0 }))} className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
               </div>
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Costo (para utilidad)</label>
-                <input type="number" value={platoForm.costo || ''} onChange={e => setPlatoForm(p => ({ ...p, costo: parseFloat(e.target.value) || 0 }))} className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+                <input type="number" value={platoForm.costo || ''} onChange={e => setPlatoForm(p => ({ ...p, costo: parseFloat(e.target.value) || 0 }))} className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
               </div>
             </div>
             {platoForm.precio && platoForm.costo ? (
@@ -3502,13 +3502,13 @@ export default function GerenciaPage() {
             ) : null}
             <div>
               <label className="text-xs text-gray-500 block mb-1">Categoría *</label>
-              <select value={platoForm.categoria_id} onChange={e => setPlatoForm(p => ({ ...p, categoria_id: parseInt(e.target.value) }))} className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50">
+              <select value={platoForm.categoria_id} onChange={e => setPlatoForm(p => ({ ...p, categoria_id: parseInt(e.target.value) }))} className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40">
                 {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">URL de imagen (opcional)</label>
-              <input type="url" value={platoForm.imagen_url || ''} onChange={e => setPlatoForm(p => ({ ...p, imagen_url: e.target.value }))} placeholder="https://..." className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+              <input type="url" value={platoForm.imagen_url || ''} onChange={e => setPlatoForm(p => ({ ...p, imagen_url: e.target.value }))} placeholder="https://..." className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
             </div>
             <div className="flex items-center gap-3">
               <label className="text-sm text-gray-700 font-medium">Disponible en el menú</label>
@@ -3517,7 +3517,7 @@ export default function GerenciaPage() {
                 <span className={`block w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${platoForm.activo ? 'translate-x-6' : 'translate-x-0'}`} />
               </button>
             </div>
-            <button onClick={guardarPlato} disabled={guardandoPlato} className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl">
+            <button onClick={guardarPlato} disabled={guardandoPlato} className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded-xl">
               {guardandoPlato ? 'Guardando...' : modalPlato === 'nuevo' ? 'Crear plato' : 'Guardar cambios'}
             </button>
           </div>
@@ -3723,10 +3723,10 @@ export default function GerenciaPage() {
 
                   return (
                     <div key={m.id} className={`rounded-2xl border-2 p-4 space-y-3 transition-all ${
-                      diff === null ? 'bg-white border-white/12' :
-                      diff === 0   ? 'bg-green-50 border-green-400' :
-                      diff > 0     ? 'bg-blue-50 border-blue-300' :
-                                     'bg-red-50 border-red-400'
+                      diff === null ? 'bg-white/5 border-white/12' :
+                      diff === 0   ? 'bg-green-500/10 border-green-500/40' :
+                      diff > 0     ? 'bg-orange-500/10 border-orange-500/30' :
+                                     'bg-red-500/10 border-red-500/40'
                     }`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -3759,19 +3759,19 @@ export default function GerenciaPage() {
                           onChange={e => setConteoFinal(p => ({ ...p, [m.id]: e.target.value }))}
                           placeholder={`$${m.esperado.toLocaleString('es-CO')}`}
                           className={`w-full border-2 rounded-xl px-3 py-2.5 text-base font-bold focus:outline-none transition-all ${
-                            diff === null   ? 'border-white/12 focus:border-purple-400' :
-                            diff === 0      ? 'border-green-400 bg-green-50' :
-                            diff > 0        ? 'border-blue-300 bg-blue-50' :
-                                              'border-red-400 bg-red-50'
+                            diff === null   ? 'border-white/12 focus:border-orange-400 bg-white/5 text-white' :
+                            diff === 0      ? 'border-green-500/50 bg-green-500/10 text-white' :
+                            diff > 0        ? 'border-orange-500/50 bg-orange-500/10 text-white' :
+                                              'border-red-500/50 bg-red-500/10 text-white'
                           }`}
                         />
                       </div>
 
                       {diff !== null && (
                         <div className={`rounded-xl px-3 py-2 text-sm font-bold flex items-center justify-between ${
-                          diff === 0 ? 'bg-green-200 text-green-800' :
-                          diff > 0   ? 'bg-blue-200 text-blue-800' :
-                                       'bg-red-200 text-red-900'
+                          diff === 0 ? 'bg-green-500/20 text-green-400' :
+                          diff > 0   ? 'bg-orange-500/20 text-orange-400' :
+                                       'bg-red-500/20 text-red-400'
                         }`}>
                           <span>
                             {diff === 0 ? '✅ Cuadrado perfecto' :
@@ -3790,14 +3790,14 @@ export default function GerenciaPage() {
                 {/* Resumen total descuadre */}
                 {hayAlgunConteo && (
                   <div className={`rounded-2xl p-4 border-2 ${
-                    descuadreTotal === 0 ? 'bg-green-100 border-green-500' :
-                    descuadreTotal > 0   ? 'bg-blue-100 border-blue-400' :
-                                           'bg-red-100 border-red-500'
+                    descuadreTotal === 0 ? 'bg-green-500/10 border-green-500/40' :
+                    descuadreTotal > 0   ? 'bg-orange-500/10 border-orange-500/30' :
+                                           'bg-red-500/10 border-red-500/40'
                   }`}>
                     <p className="text-xs font-bold uppercase text-gray-500 mb-1">Descuadre total</p>
                     <p className={`text-2xl font-black ${
-                      descuadreTotal === 0 ? 'text-green-700' :
-                      descuadreTotal > 0   ? 'text-blue-700' : 'text-red-700'
+                      descuadreTotal === 0 ? 'text-green-400' :
+                      descuadreTotal > 0   ? 'text-orange-400' : 'text-red-400'
                     }`}>
                       {descuadreTotal === 0 ? '✅ Todo cuadrado' :
                        descuadreTotal > 0   ? `+$${descuadreTotal.toLocaleString('es-CO')} sobrante` :
@@ -3845,9 +3845,9 @@ export default function GerenciaPage() {
                       const totalVendidos = resumenInventario.reduce((a, i) => a + (i.cantidad_inicial - i.cantidad_restante), 0)
                       const totalValor    = resumenInventario.reduce((a, i) => a + (i.cantidad_inicial - i.cantidad_restante) * i.precio, 0)
                       return (
-                        <div className="px-4 py-3 bg-purple-50 flex justify-between items-center">
-                          <span className="text-sm font-bold text-violet-400">{totalVendidos} unidades vendidas</span>
-                          <span className="font-black text-purple-900">${totalValor.toLocaleString('es-CO')}</span>
+                        <div className="px-4 py-3 bg-gray-800/60 flex justify-between items-center">
+                          <span className="text-sm font-bold text-orange-400">{totalVendidos} unidades vendidas</span>
+                          <span className="font-black text-orange-300">${totalValor.toLocaleString('es-CO')}</span>
                         </div>
                       )
                     })()}
@@ -3898,7 +3898,7 @@ export default function GerenciaPage() {
                     a.download = `QR-Mesa-${modalQR.numero}.png`
                     a.click()
                   }}
-                  className="flex-1 bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 rounded-xl text-sm transition-colors"
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl text-sm transition-colors"
                 >
                   ⬇️ Descargar
                 </button>
@@ -3923,16 +3923,16 @@ export default function GerenciaPage() {
               <label className="text-xs font-medium text-gray-500 block mb-1">Nombre de la zona</label>
               <input type="text" placeholder="Ej: Terraza, Salón VIP, Zona A..."
                 value={nuevaZonaNombre} onChange={e => setNuevaZonaNombre(e.target.value)}
-                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Número de la primera mesa</label>
               <input type="number" min="1" placeholder="Ej: 1"
                 value={nuevaMesaNumero} onChange={e => setNuevaMesaNumero(e.target.value)}
-                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
             </div>
             <button onClick={crearZonaConMesa} disabled={guardandoMesa}
-              className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl">
+              className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded-xl">
               {guardandoMesa ? 'Creando...' : 'Crear zona'}
             </button>
           </div>
@@ -3951,10 +3951,10 @@ export default function GerenciaPage() {
               <label className="text-xs font-medium text-gray-500 block mb-1">Nuevo nombre</label>
               <input type="text" placeholder="Nombre de la zona"
                 value={renombrarZonaValor} onChange={e => setRenombrarZonaValor(e.target.value)}
-                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
             </div>
             <button onClick={() => renombrarZona(modalRenombrarZona, renombrarZonaValor)}
-              className="w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 rounded-xl">
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl">
               Guardar nombre
             </button>
           </div>
@@ -3973,10 +3973,10 @@ export default function GerenciaPage() {
               <label className="text-xs font-medium text-gray-500 block mb-1">Número de mesa</label>
               <input type="number" min="1" placeholder="Ej: 5"
                 value={nuevaMesaNumero} onChange={e => setNuevaMesaNumero(e.target.value)}
-                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
             </div>
             <button onClick={() => agregarMesaEnZona(modalAgregarMesa)} disabled={guardandoMesa}
-              className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl">
+              className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded-xl">
               {guardandoMesa ? 'Agregando...' : 'Agregar mesa'}
             </button>
           </div>
@@ -3987,13 +3987,13 @@ export default function GerenciaPage() {
         <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm fade-in space-y-3">
             <div className="flex justify-between items-center"><h3 className="font-bold text-lg">Nuevo usuario</h3><button onClick={() => setModalUsuario(false)}><X size={20} /></button></div>
-            <input type="text" placeholder="Nombre completo" value={nuevoUsuario.nombre} onChange={e => setNuevoUsuario(p => ({ ...p, nombre: e.target.value }))} className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
-            <input type="email" placeholder="Correo electrónico" value={nuevoUsuario.email} onChange={e => setNuevoUsuario(p => ({ ...p, email: e.target.value }))} className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
-            <input type="password" placeholder="Contraseña" value={nuevoUsuario.password} onChange={e => setNuevoUsuario(p => ({ ...p, password: e.target.value }))} className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
-            <select value={nuevoUsuario.rol} onChange={e => setNuevoUsuario(p => ({ ...p, rol: e.target.value }))} className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50">
+            <input type="text" placeholder="Nombre completo" value={nuevoUsuario.nombre} onChange={e => setNuevoUsuario(p => ({ ...p, nombre: e.target.value }))} className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+            <input type="email" placeholder="Correo electrónico" value={nuevoUsuario.email} onChange={e => setNuevoUsuario(p => ({ ...p, email: e.target.value }))} className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+            <input type="password" placeholder="Contraseña" value={nuevoUsuario.password} onChange={e => setNuevoUsuario(p => ({ ...p, password: e.target.value }))} className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+            <select value={nuevoUsuario.rol} onChange={e => setNuevoUsuario(p => ({ ...p, rol: e.target.value }))} className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40">
               <option value="mesera">Mesera</option><option value="cocina">Cocina</option><option value="gerente">Gerente</option><option value="domi">Domi</option>
             </select>
-            <button onClick={crearUsuario} disabled={creandoUsuario} className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl">
+            <button onClick={crearUsuario} disabled={creandoUsuario} className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded-xl">
               {creandoUsuario ? 'Creando...' : 'Crear usuario'}
             </button>
           </div>
@@ -4080,7 +4080,7 @@ export default function GerenciaPage() {
                 <button key={id} onClick={() => { setSeccionSettings(id); if (id === 'facturacion') cargarFacturacion() }}
                   className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                     seccionSettings === id
-                      ? id === 'restablecer' ? 'bg-red-500 text-white' : 'bg-purple-600 text-white'
+                      ? id === 'restablecer' ? 'bg-red-500 text-white' : 'bg-orange-500 text-white'
                       : 'text-gray-500 hover:bg-white/8'
                   }`}>
                   {label}
@@ -4093,8 +4093,8 @@ export default function GerenciaPage() {
               {/* ── CUENTA ── */}
               {seccionSettings === 'cuenta' && (
                 <div className="space-y-4">
-                  <div className="bg-purple-50 rounded-2xl p-4 flex items-center gap-4">
-                    <div className="w-14 h-14 bg-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-black">G</div>
+                  <div className="bg-gray-800/60 rounded-2xl p-4 flex items-center gap-4 border border-orange-500/20">
+                    <div className="w-14 h-14 bg-orange-500 rounded-full flex items-center justify-center text-white text-2xl font-black">G</div>
                     <div>
                       <p className="font-black text-white/90">Gerencia</p>
                       <p className="text-xs text-white/35">Administrador del sistema</p>
@@ -4112,7 +4112,7 @@ export default function GerenciaPage() {
                 <div className="space-y-4">
                   {cargandoFact ? (
                     <div className="flex items-center justify-center py-10">
-                      <span className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                      <span className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
                     </div>
                   ) : facturacion ? (() => {
                     const hasta = facturacion.hasta ? new Date(facturacion.hasta) : null
@@ -4146,8 +4146,8 @@ export default function GerenciaPage() {
 
                         {/* Próximo pago */}
                         <div className="bg-white/4 rounded-2xl p-4 flex items-center gap-4">
-                          <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center shrink-0">
-                            <CalendarDays size={20} className="text-violet-400" />
+                          <div className="w-10 h-10 bg-orange-500/15 rounded-xl flex items-center justify-center shrink-0">
+                            <CalendarDays size={20} className="text-orange-400" />
                           </div>
                           <div>
                             <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">
@@ -4173,10 +4173,10 @@ export default function GerenciaPage() {
 
                         {/* Pagar ahora — usuario en prueba */}
                         {!facturacion.activa && !vencido && (
-                          <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4 space-y-3">
+                          <div className="bg-orange-500/10 border-2 border-orange-500/30 rounded-2xl p-4 space-y-3">
                             <div>
-                              <p className="font-black text-gray-900 mb-0.5">💳 Adquirir plan ahora</p>
-                              <p className="text-xs text-blue-700 leading-relaxed">
+                              <p className="font-black text-white mb-0.5">💳 Adquirir plan ahora</p>
+                              <p className="text-xs text-gray-400 leading-relaxed">
                                 Paga hoy y no pierdes tus días de prueba — la suscripción empieza cuando termine tu período gratis.
                               </p>
                             </div>
@@ -4203,7 +4203,7 @@ export default function GerenciaPage() {
                         {/* Renovar — vence pronto o ya venció */}
                         {facturacion.activa && (vencido || (diasRestantes !== null && diasRestantes <= 7)) && (
                           <a href={`/checkout?plan=${facturacion.plan}&tipo=renovar`}
-                            className="block text-center bg-violet-600 hover:bg-violet-700 text-white font-bold py-3.5 rounded-2xl transition-colors text-sm">
+                            className="block text-center bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-2xl transition-colors text-sm">
                             🔄 {vencido ? 'Reactivar — pagar ahora' : `Renovar (${diasRestantes} días restantes)`}
                           </a>
                         )}
@@ -4251,7 +4251,7 @@ export default function GerenciaPage() {
               {seccionSettings === 'usuarios' && (
                 <div className="space-y-4">
                   <button onClick={() => setModalUsuario(true)}
-                    className="w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-colors">
+                    className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-colors">
                     <Plus size={18} /> Crear nuevo usuario
                   </button>
                   {listaUsuarios.length === 0 ? (
@@ -4262,10 +4262,10 @@ export default function GerenciaPage() {
                     <div className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm overflow-hidden">
                       {listaUsuarios.map((u, i) => {
                         const ROL_BADGE: Record<string, string> = {
-                          gerente: 'bg-purple-100 text-violet-400',
-                          mesera:  'bg-orange-100 text-orange-700',
-                          cocina:  'bg-green-100 text-green-700',
-                          domi:    'bg-blue-100 text-blue-700',
+                          gerente: 'bg-orange-500/20 text-orange-300 border border-orange-500/30',
+                          mesera:  'bg-gray-700 text-gray-300 border border-gray-600',
+                          cocina:  'bg-green-500/20 text-green-400 border border-green-500/30',
+                          domi:    'bg-gray-700 text-gray-300 border border-gray-600',
                         }
                         const ROL_LABEL: Record<string, string> = {
                           gerente: 'Gerente', mesera: 'Mesera', cocina: 'Cocina', domi: 'Domi',
@@ -4358,13 +4358,13 @@ export default function GerenciaPage() {
                         </div>
                       </div>
                       {!puedeAcceder('pro') && (
-                        <span className="text-[10px] bg-orange-100 text-orange-700 font-bold px-2 py-1 rounded-full shrink-0">Plan Pro</span>
+                        <span className="text-[10px] bg-orange-500/20 text-orange-300 font-bold px-2 py-1 rounded-full shrink-0">Plan Pro</span>
                       )}
                     </div>
                     {!puedeAcceder('pro') ? (
                       <div className="bg-white/4 rounded-xl p-3">
                         <p className="text-xs text-gray-400">🔒 El sugerido del mes está disponible en el Plan Pro.</p>
-                        <button onClick={abrirUpgrade} className="text-xs text-violet-400 hover:underline mt-1">Actualizar plan →</button>
+                        <button onClick={abrirUpgrade} className="text-xs text-orange-400 hover:underline mt-1">Actualizar plan →</button>
                       </div>
                     ) : (
                       <>
@@ -4460,8 +4460,8 @@ export default function GerenciaPage() {
                 <div className="space-y-4">
                   <div className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm p-5 space-y-5">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-                        <Lock size={20} className="text-violet-400" />
+                      <div className="w-10 h-10 bg-orange-500/15 rounded-xl flex items-center justify-center">
+                        <Lock size={20} className="text-orange-400" />
                       </div>
                       <div>
                         <h3 className="font-bold text-white/90">Control de flujo — Cocina</h3>
@@ -4474,7 +4474,7 @@ export default function GerenciaPage() {
                         <p className="text-xs text-gray-400 mt-0.5">La cocina solo verá un lote de pedidos a la vez</p>
                       </div>
                       <button onClick={() => setBloqueoActivo(v => !v)}
-                        className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${bloqueoActivo ? 'bg-purple-600' : 'bg-gray-300'}`}>
+                        className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${bloqueoActivo ? 'bg-orange-500' : 'bg-gray-700'}`}>
                         <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${bloqueoActivo ? 'translate-x-6' : 'translate-x-1'}`} />
                       </button>
                     </div>
@@ -4484,7 +4484,7 @@ export default function GerenciaPage() {
                         <div className="flex gap-2">
                           {[2, 3, 4, 5].map(n => (
                             <button key={n} onClick={() => setBloqueoCantidad(n)}
-                              className={`flex-1 py-3 rounded-xl font-black text-lg transition-all border-2 ${bloqueoCantidad === n ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-700 border-white/12 hover:border-purple-400'}`}>
+                              className={`flex-1 py-3 rounded-xl font-black text-lg transition-all border-2 ${bloqueoCantidad === n ? 'bg-orange-500 text-white border-orange-500' : 'bg-white/5 text-gray-300 border-white/12 hover:border-orange-500/40'}`}>
                               {n}
                             </button>
                           ))}
@@ -4506,7 +4506,7 @@ export default function GerenciaPage() {
                         </div>
                       </div>
                       {!puedeAcceder('basico') && (
-                        <span className="text-[10px] bg-orange-100 text-orange-700 font-bold px-2 py-1 rounded-full shrink-0">Plan Profesional</span>
+                        <span className="text-[10px] bg-orange-500/20 text-orange-300 font-bold px-2 py-1 rounded-full shrink-0">Plan Profesional</span>
                       )}
                     </div>
                     {!puedeAcceder('basico') ? (
@@ -4538,7 +4538,7 @@ export default function GerenciaPage() {
                   </div>
 
                   <button onClick={guardarConfiguracion} disabled={guardandoPermisos}
-                    className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl transition-colors">
+                    className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded-xl transition-colors">
                     {guardandoPermisos ? 'Guardando...' : '💾 Guardar configuración'}
                   </button>
                 </div>
@@ -4679,12 +4679,12 @@ export default function GerenciaPage() {
             {/* Filtro por categoría */}
             <div className="flex gap-2 px-4 py-2 overflow-x-auto border-b shrink-0">
               <button onClick={() => setCategoriaReemplazo('todas')}
-                className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${categoriaReemplazo === 'todas' ? 'bg-purple-600 text-white' : 'bg-white/8 text-gray-600'}`}>
+                className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${categoriaReemplazo === 'todas' ? 'bg-orange-500 text-white' : 'bg-white/8 text-gray-400'}`}>
                 Todas
               </button>
               {categorias.map(c => (
                 <button key={c.id} onClick={() => setCategoriaReemplazo(c.id)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${categoriaReemplazo === c.id ? 'bg-purple-600 text-white' : 'bg-white/8 text-gray-600'}`}>
+                  className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${categoriaReemplazo === c.id ? 'bg-orange-500 text-white' : 'bg-white/8 text-gray-400'}`}>
                   {c.nombre}
                 </button>
               ))}
@@ -4696,14 +4696,14 @@ export default function GerenciaPage() {
                   <button key={p.id}
                     onClick={() => reemplazarItem(itemReemplazando.id, p.id)}
                     disabled={guardandoEdicion}
-                    className="w-full text-left bg-white/5 border border-white/10 hover:border-violet-500/40 hover:bg-violet-500/10 rounded-2xl px-4 py-3 transition-all disabled:opacity-50">
+                    className="w-full text-left bg-white/5 border border-white/10 hover:border-orange-500/40 hover:bg-orange-500/10 rounded-2xl px-4 py-3 transition-all disabled:opacity-50">
                     <div className="flex justify-between items-start gap-2">
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-white/80 truncate">{p.nombre}</p>
                         {p.descripcion && <p className="text-xs text-white/35 truncate mt-0.5">{p.descripcion}</p>}
                         <p className="text-xs text-white/30 mt-0.5">{categorias.find(c => c.id === p.categoria_id)?.nombre}</p>
                       </div>
-                      <span className="font-black text-violet-400 shrink-0">${p.precio.toLocaleString('es-CO')}</span>
+                      <span className="font-black text-orange-400 shrink-0">${p.precio.toLocaleString('es-CO')}</span>
                     </div>
                   </button>
                 ))}
@@ -4735,11 +4735,11 @@ export default function GerenciaPage() {
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Tipo de pedido</p>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => setNuevoOrdenTipo('mesa')}
-                    className={`py-3 rounded-2xl font-bold text-sm border-2 transition-all flex items-center justify-center gap-2 ${nuevoOrdenTipo === 'mesa' ? 'bg-purple-600 text-white border-purple-600' : 'border-white/12 text-gray-600 hover:border-purple-300'}`}>
+                    className={`py-3 rounded-2xl font-bold text-sm border-2 transition-all flex items-center justify-center gap-2 ${nuevoOrdenTipo === 'mesa' ? 'bg-orange-500 text-white border-orange-500' : 'border-white/12 text-gray-400 hover:border-orange-500/40'}`}>
                     🍽️ Mesa
                   </button>
                   <button onClick={() => setNuevoOrdenTipo('domi')}
-                    className={`py-3 rounded-2xl font-bold text-sm border-2 transition-all flex items-center justify-center gap-2 ${nuevoOrdenTipo === 'domi' ? 'bg-blue-600 text-white border-blue-600' : 'border-white/12 text-gray-600 hover:border-blue-300'}`}>
+                    className={`py-3 rounded-2xl font-bold text-sm border-2 transition-all flex items-center justify-center gap-2 ${nuevoOrdenTipo === 'domi' ? 'bg-orange-500 text-white border-orange-500' : 'border-white/12 text-gray-400 hover:border-orange-500/40'}`}>
                     🛵 Domicilio
                   </button>
                 </div>
@@ -4757,10 +4757,10 @@ export default function GerenciaPage() {
                           <button key={m.id} onClick={() => setNuevoOrdenMesaId(m.id)}
                             className={`py-3 rounded-xl font-black text-sm border-2 transition-all ${
                               nuevoOrdenMesaId === m.id
-                                ? 'bg-purple-600 text-white border-purple-600'
+                                ? 'bg-orange-500 text-white border-orange-500'
                                 : m.estado === 'libre'
-                                  ? 'bg-white border-white/12 text-gray-600 hover:border-purple-300'
-                                  : 'bg-orange-50 border-orange-400 text-orange-700'
+                                  ? 'bg-white/5 border-white/12 text-white/70 hover:border-orange-500/40'
+                                  : 'bg-orange-500/15 border-orange-500/40 text-orange-300'
                             }`}>
                             {m.numero}
                             {m.estado !== 'libre' && <span className="block text-[9px] font-normal">ocupada</span>}
@@ -4781,13 +4781,13 @@ export default function GerenciaPage() {
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Datos del domicilio</p>
                   <input type="text" placeholder="Nombre del cliente" value={nuevoOrdenDomi.nombre}
                     onChange={e => setNuevoOrdenDomi(p => ({ ...p, nombre: e.target.value }))}
-                    className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                    className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
                   <input type="tel" placeholder="Teléfono" value={nuevoOrdenDomi.telefono}
                     onChange={e => setNuevoOrdenDomi(p => ({ ...p, telefono: e.target.value }))}
-                    className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                    className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
                   <input type="text" placeholder="Dirección" value={nuevoOrdenDomi.direccion}
                     onChange={e => setNuevoOrdenDomi(p => ({ ...p, direccion: e.target.value }))}
-                    className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                    className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
                 </div>
               )}
 
@@ -4796,22 +4796,22 @@ export default function GerenciaPage() {
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Platos</p>
                 <div className="flex gap-2 overflow-x-auto mb-3 pb-1">
                   <button onClick={() => setNuevoOrdenCategoria('todas')}
-                    className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${nuevoOrdenCategoria === 'todas' ? 'bg-purple-600 text-white' : 'bg-white/8 text-gray-600'}`}>
+                    className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${nuevoOrdenCategoria === 'todas' ? 'bg-orange-500 text-white' : 'bg-white/8 text-gray-400'}`}>
                     Todas
                   </button>
                   {categorias.map(c => (
                     <button key={c.id} onClick={() => setNuevoOrdenCategoria(c.id)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${nuevoOrdenCategoria === c.id ? 'bg-purple-600 text-white' : 'bg-white/8 text-gray-600'}`}>
+                      className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${nuevoOrdenCategoria === c.id ? 'bg-orange-500 text-white' : 'bg-white/8 text-gray-400'}`}>
                       {c.nombre}
                     </button>
                   ))}
                 </div>
                 <div className="space-y-2">
                   {platos.filter(p => p.activo && (nuevoOrdenCategoria === 'todas' || p.categoria_id === nuevoOrdenCategoria)).map(p => (
-                    <div key={p.id} className={`flex items-center justify-between bg-white/5 border rounded-2xl px-4 py-2.5 gap-3 transition-all ${(nuevoOrdenCarrito[p.id] ?? 0) > 0 ? 'border-violet-500/40 bg-violet-500/10' : 'border-white/10'}`}>
+                    <div key={p.id} className={`flex items-center justify-between bg-white/5 border rounded-2xl px-4 py-2.5 gap-3 transition-all ${(nuevoOrdenCarrito[p.id] ?? 0) > 0 ? 'border-orange-500/30 bg-orange-500/10' : 'border-white/10'}`}>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-white/80 truncate">{p.nombre}</p>
-                        <p className="text-xs font-bold text-violet-400">${p.precio.toLocaleString('es-CO')}</p>
+                        <p className="text-xs font-bold text-orange-400">${p.precio.toLocaleString('es-CO')}</p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <button
@@ -4822,7 +4822,7 @@ export default function GerenciaPage() {
                         <span className="w-6 text-center font-black text-white text-sm">{nuevoOrdenCarrito[p.id] ?? 0}</span>
                         <button
                           onClick={() => setNuevoOrdenCarrito(prev => ({ ...prev, [p.id]: (prev[p.id] ?? 0) + 1 }))}
-                          className="w-7 h-7 bg-violet-600 hover:bg-violet-700 text-white rounded-full flex items-center justify-center shadow-lg shadow-violet-900/40">
+                          className="w-7 h-7 bg-orange-500 hover:bg-orange-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-orange-900/30">
                           <Plus size={12} />
                         </button>
                       </div>
@@ -4840,12 +4840,12 @@ export default function GerenciaPage() {
                 <textarea value={nuevoOrdenNotas} onChange={e => setNuevoOrdenNotas(e.target.value)}
                   placeholder="Sin sal, alérgico a..."
                   rows={2}
-                  className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-none" />
+                  className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-orange-500/40 resize-none" />
               </div>
             </div>
 
             {/* Footer: resumen + botón enviar */}
-            <div className="border-t px-5 py-4 shrink-0 bg-white space-y-3">
+            <div className="border-t border-white/10 px-5 py-4 shrink-0 bg-gray-950 space-y-3">
               {Object.values(nuevoOrdenCarrito).some(v => v > 0) && (
                 <div className="flex justify-between items-center text-sm bg-white/4 rounded-xl px-4 py-2.5">
                   <span className="text-gray-500 font-medium">
@@ -4865,7 +4865,7 @@ export default function GerenciaPage() {
               <button
                 onClick={tomarPedidoGerencia}
                 disabled={tomandoPedido || !Object.values(nuevoOrdenCarrito).some(v => v > 0)}
-                className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all">
+                className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-900/30">
                 {tomandoPedido
                   ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando a cocina...</>
                   : <><ChefHat size={18} /> Enviar a cocina</>}
@@ -4891,7 +4891,7 @@ export default function GerenciaPage() {
                 type="text"
                 value={editandoUsuario.nombre}
                 onChange={e => setEditandoUsuario(p => p ? { ...p, nombre: e.target.value } : p)}
-                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
               />
             </div>
 
@@ -4901,7 +4901,7 @@ export default function GerenciaPage() {
               <select
                 value={editandoUsuario.rol}
                 onChange={e => setEditandoUsuario(p => p ? { ...p, rol: e.target.value } : p)}
-                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50">
+                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40">
                 <option value="mesera">👩 Mesera — ve el panel de mesas y pedidos</option>
                 <option value="cocina">👨‍🍳 Cocina — ve el panel de preparación</option>
                 <option value="gerente">👔 Gerente — ve el panel completo</option>
@@ -4918,7 +4918,7 @@ export default function GerenciaPage() {
                 value={editandoUsuario.nuevaPassword}
                 onChange={e => setEditandoUsuario(p => p ? { ...p, nuevaPassword: e.target.value } : p)}
                 placeholder="••••••••"
-                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
               />
             </div>
 
@@ -4926,7 +4926,7 @@ export default function GerenciaPage() {
             <button
               onClick={guardarCambiosUsuario}
               disabled={guardandoUsuario || !editandoUsuario.nombre.trim()}
-              className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl transition-colors">
+              className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded-xl transition-colors">
               {guardandoUsuario ? 'Guardando...' : '💾 Guardar cambios'}
             </button>
 
