@@ -52,15 +52,26 @@ export default function MeseraPage() {
       supabase.from('categorias').select('*').order('orden'),
       supabase.from('platos').select('*').eq('activo', true),
       supabase.from('inventario').select('*'),
-      supabase.from('turnos').select('id').is('cerrado_en', null).order('abierto_en', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('turnos').select('id, abierto_en').is('cerrado_en', null).order('abierto_en', { ascending: false }).limit(1).maybeSingle(),
     ])
     // Cargar IDs de platos con inventario en el turno activo (para restricción por plato)
     let platoIdsConInv = new Set<string>()
     if (turnoData?.id) {
+      const td = turnoData as { id: string; abierto_en: string }
       const { data: tiData } = await supabase.from('turnos_inventario')
-        .select('plato_id').eq('turno_id', turnoData.id)
-      if (tiData && tiData.length > 0)
+        .select('plato_id').eq('turno_id', td.id)
+      if (tiData && tiData.length > 0) {
+        // Fuente principal: turnos_inventario legible → usarlo como verdad absoluta
         platoIdsConInv = new Set(tiData.map((r: { plato_id: string }) => r.plato_id))
+      } else if (td.abierto_en && invData && invData.length > 0) {
+        // Fallback: turnos_inventario vacío o bloqueado por RLS
+        // Los platos actualizados DESPUÉS de que el turno abrió fueron configurados en este turno
+        const abrioEn = new Date(td.abierto_en).getTime()
+        const enTurno = (invData as unknown as Inventario[]).filter(i =>
+          i.updated_at && new Date(i.updated_at).getTime() >= abrioEn - 1000
+        )
+        if (enTurno.length > 0) platoIdsConInv = new Set(enTurno.map(i => i.plato_id))
+      }
     }
     setTurnoInventarioIds(platoIdsConInv)
     if (mesasData) setMesas(mesasData)
@@ -238,10 +249,9 @@ export default function MeseraPage() {
   function cambiarCantidad(platoId: string, delta: number) {
     if (delta > 0 && turnoInventarioIds.has(platoId)) {
       const disp = stockDisponible(platoId)
-      if (disp > 0) {
-        const enCarrito = carrito.find(i => i.plato.id === platoId)?.cantidad ?? 0
-        if (enCarrito >= disp) { toast.error('No hay más unidades disponibles'); return }
-      }
+      if (disp <= 0) { toast.error('No hay más unidades disponibles'); return }
+      const enCarrito = carrito.find(i => i.plato.id === platoId)?.cantidad ?? 0
+      if (enCarrito >= disp) { toast.error('No hay más unidades disponibles'); return }
     }
     setCarrito(prev => prev
       .map(i => i.plato.id === platoId ? { ...i, cantidad: Math.max(0, i.cantidad + delta) } : i)

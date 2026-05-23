@@ -138,7 +138,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
                       'sugerido_descripcion', 'sugerido_imagen_url']),
       supabase.from('resenas').select('*').eq('negocio_id', negocioId)
         .order('created_at', { ascending: false }),
-      supabase.from('turnos').select('id').eq('negocio_id', negocioId).is('cerrado_en', null)
+      supabase.from('turnos').select('id, abierto_en').eq('negocio_id', negocioId).is('cerrado_en', null)
         .order('abierto_en', { ascending: false }).limit(1).maybeSingle(),
     ])
     if (!neg) { setNoEncontrado(true); setCargando(false); return }
@@ -150,15 +150,29 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
     let invMap: Record<string, InvInfo> = {}
     const platosEnTurnoSet = new Set<string>()
     if (turnoData?.id) {
+      const td = turnoData as { id: string; abierto_en: string }
       const { data: tiData } = await supabase.from('turnos_inventario')
-        .select('plato_id').eq('turno_id', turnoData.id)
+        .select('plato_id').eq('turno_id', td.id)
       ;(tiData || []).forEach((t: { plato_id: string }) => platosEnTurnoSet.add(t.plato_id))
       if (platosEnTurnoSet.size > 0) {
+        // Primary: turnos_inventario legible → cargar inventario para esos platos
         const { data: invData } = await supabase.from('inventario')
           .select('plato_id, cantidad_disponible, alerta_minima')
           .in('plato_id', [...platosEnTurnoSet])
         ;(invData || []).forEach((i: { plato_id: string; cantidad_disponible: number; alerta_minima: number }) => {
           invMap[i.plato_id] = { cantidad_disponible: i.cantidad_disponible, alerta_minima: i.alerta_minima }
+        })
+      } else if (td.abierto_en) {
+        // Fallback: turnos_inventario vacío/bloqueado → usar updated_at del inventario
+        // Los platos actualizados desde que abrió el turno son los configurados en este turno
+        const abrioEn = new Date(td.abierto_en).getTime()
+        const { data: invAll } = await supabase.from('inventario')
+          .select('plato_id, cantidad_disponible, alerta_minima, updated_at')
+        ;(invAll || []).forEach((i: { plato_id: string; cantidad_disponible: number; alerta_minima: number; updated_at: string | null }) => {
+          if (i.updated_at && new Date(i.updated_at).getTime() >= abrioEn - 1000) {
+            platosEnTurnoSet.add(i.plato_id)
+            invMap[i.plato_id] = { cantidad_disponible: i.cantidad_disponible, alerta_minima: i.alerta_minima }
+          }
         })
       }
     }
@@ -237,7 +251,8 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
       if (platoConInv?.inv) {
         const disp = platoConInv.inv.cantidad_disponible
         const enCarrito = carrito.find(i => i.plato.id === id)?.cantidad ?? 0
-        if (disp > 0 && enCarrito >= disp) { toast.error('No hay más unidades disponibles'); return }
+        if (disp <= 0) { toast.error('No hay más unidades disponibles'); return }
+        if (enCarrito >= disp) { toast.error('No hay más unidades disponibles'); return }
       }
     }
     setCarrito(prev =>

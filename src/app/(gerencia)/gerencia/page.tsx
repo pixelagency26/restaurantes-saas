@@ -920,18 +920,23 @@ export default function GerenciaPage() {
   useEffect(() => {
     if (!modalNuevoPedido || !turnoActivo) { setTurnoConInventario(false); setInventarioModalMap({}); return }
     supabase.from('turnos_inventario')
-      .select('*', { count: 'exact', head: true }).eq('turno_id', turnoActivo.id)
-      .then(({ count }) => {
-        const tieneInv = (count ?? 0) > 0
+      .select('plato_id').eq('turno_id', turnoActivo.id)
+      .then(({ data: tiRows }) => {
+        const tieneInv = (tiRows?.length ?? 0) > 0
         setTurnoConInventario(tieneInv)
-        if (!tieneInv) { setInventarioModalMap({}); return }
-        supabase.from('inventario').select('plato_id, cantidad_disponible, alerta_minima').then(({ data }) => {
-          const map: Record<string, { cantidad: number; alerta: number }> = {}
-          ;(data || []).forEach((i: { plato_id: string; cantidad_disponible: number; alerta_minima: number }) => {
-            map[i.plato_id] = { cantidad: i.cantidad_disponible, alerta: i.alerta_minima }
+        if (!tieneInv || !tiRows) { setInventarioModalMap({}); return }
+        // Solo cargar inventario para los platos de ESTE turno (no todos los históricos)
+        const platoIds = tiRows.map((r: { plato_id: string }) => r.plato_id)
+        supabase.from('inventario')
+          .select('plato_id, cantidad_disponible, alerta_minima')
+          .in('plato_id', platoIds)
+          .then(({ data }) => {
+            const map: Record<string, { cantidad: number; alerta: number }> = {}
+            ;(data || []).forEach((i: { plato_id: string; cantidad_disponible: number; alerta_minima: number }) => {
+              map[i.plato_id] = { cantidad: i.cantidad_disponible, alerta: i.alerta_minima }
+            })
+            setInventarioModalMap(map)
           })
-          setInventarioModalMap(map)
-        })
       })
   }, [modalNuevoPedido, turnoActivo, supabase])
 
@@ -1179,7 +1184,7 @@ export default function GerenciaPage() {
     const entries = Object.entries(inventarioTurno).filter(([, qty]) => qty > 0)
     if (entries.length > 0) {
       // Todas las actualizaciones en paralelo — mucho más rápido que loop secuencial
-      await Promise.all([
+      const [tiResult] = await Promise.all([
         // Un solo insert con todas las filas de inventario del turno
         supabase.from('turnos_inventario').insert(
           entries.map(([platoId, qty]) => ({
@@ -1197,6 +1202,10 @@ export default function GerenciaPage() {
           )
         ),
       ])
+      if (tiResult?.error) {
+        console.error('Error al guardar inventario de turno:', tiResult.error)
+        toast.error('Error al guardar inventario del turno: ' + tiResult.error.message, { duration: 8000 })
+      }
     }
     cargarCaja(nuevoTurno.id)
 
