@@ -344,6 +344,7 @@ export default function DomiPage() {
     setCarrito([]); setClienteDomi({ nombre: '', telefono: '', direccion: '', cedula: '' })
     setNotaGeneral(''); setVista('pedidos')
     cargarPedidos()
+    cargarMenu()   // refresca el stock local después de pedido
     setEnviando(false)
   }
 
