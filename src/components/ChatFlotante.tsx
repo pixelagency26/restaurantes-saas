@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { MessageCircle, X, Send, ArrowLeft, Plus, ChevronRight, LogOut } from 'lucide-react'
+import { MessageCircle, X, Send, ArrowLeft, Plus, ChevronRight, LogOut, Lock } from 'lucide-react'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 interface Mensaje {
@@ -28,14 +28,14 @@ interface UsuarioItem {
   rol: string
 }
 
-type Vista = 'cerrado' | 'lista' | 'mensajes' | 'nuevo'
+type Vista = 'cerrado' | 'lista' | 'mensajes' | 'nuevo' | 'bloqueado'
 
 // ─── Helpers de rol ──────────────────────────────────────────────────────────
 const ROL: Record<string, { color: string; emoji: string; etiqueta: string }> = {
   gerente: { color: 'bg-orange-500', emoji: '👔', etiqueta: 'Gerencia' },
-  mesera:  { color: 'bg-blue-500',   emoji: '👩',  etiqueta: 'Mesera'   },
-  cocina:  { color: 'bg-amber-600',  emoji: '👨‍🍳', etiqueta: 'Cocina'   },
-  domi:    { color: 'bg-emerald-600',emoji: '🛵',  etiqueta: 'Domi'     },
+  mesera:  { color: 'bg-blue-500',   emoji: '👩',  etiqueta: 'Mesera'  },
+  cocina:  { color: 'bg-amber-600',  emoji: '👨‍🍳', etiqueta: 'Cocina'  },
+  domi:    { color: 'bg-emerald-600',emoji: '🛵',  etiqueta: 'Domi'    },
 }
 const ROL_DEFAULT = { color: 'bg-gray-500', emoji: '👤', etiqueta: 'Equipo' }
 const rolInfo = (r: string) => ROL[r] ?? ROL_DEFAULT
@@ -48,11 +48,13 @@ function hora(ts: string) {
 export default function ChatFlotante() {
   const [vista, setVista]             = useState<Vista>('cerrado')
   const [miId, setMiId]               = useState<string | null>(null)
+  const [miNegocioId, setMiNegocioId] = useState<string | null>(null)
   const [miPerfil, setMiPerfil]       = useState<{ nombre: string; rol: string } | null>(null)
   const [grupos, setGrupos]           = useState<GrupoChat[]>([])
   const [grupoActivo, setGrupoActivo] = useState<GrupoChat | null>(null)
   const [mensajes, setMensajes]       = useState<Mensaje[]>([])
   const [texto, setTexto]             = useState('')
+  const [esPro, setEsPro]             = useState<boolean | null>(null) // null = cargando
 
   // Nuevo chat
   const [usuarios, setUsuarios]       = useState<UsuarioItem[]>([])
@@ -60,10 +62,10 @@ export default function ChatFlotante() {
   const [nombreGrupo, setNombreGrupo] = useState('')
   const [creando, setCreando]         = useState(false)
 
-  const bottomRef  = useRef<HTMLDivElement>(null)
-  const inputRef   = useRef<HTMLInputElement>(null)
-  const grupoRef   = useRef<GrupoChat | null>(null)
-  const miIdRef    = useRef<string | null>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const inputRef  = useRef<HTMLInputElement>(null)
+  const grupoRef  = useRef<GrupoChat | null>(null)
+  const miIdRef   = useRef<string | null>(null)
 
   const supabase = createClient()
 
@@ -106,12 +108,36 @@ export default function ChatFlotante() {
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
+
       setMiId(user.id)
       miIdRef.current = user.id
 
+      // Perfil + negocio_id del usuario
       const { data: perfil } = await supabase
-        .from('usuarios').select('nombre, rol').eq('id', user.id).single()
-      if (perfil) setMiPerfil(perfil as { nombre: string; rol: string })
+        .from('usuarios').select('nombre, rol, negocio_id').eq('id', user.id).single()
+      if (perfil) {
+        setMiPerfil(perfil as { nombre: string; rol: string })
+        const nid = (perfil as { negocio_id?: string }).negocio_id ?? null
+        setMiNegocioId(nid)
+
+        // Verificar plan Pro usando el negocio_id exacto
+        if (nid) {
+          const { data: negDB } = await supabase
+            .from('negocios').select('plan').eq('id', nid).single()
+          const plan = negDB?.plan ?? 'starter'
+          setEsPro(plan === 'pro')
+          if (plan !== 'pro') return  // no inicializar chat si no es Pro
+        } else {
+          // Sin negocio_id: intentar query sin filtro
+          const { data: negDB } = await supabase.from('negocios').select('plan').single()
+          const plan = negDB?.plan ?? 'starter'
+          setEsPro(plan === 'pro')
+          if (plan !== 'pro') return
+        }
+      } else {
+        setEsPro(false)
+        return
+      }
 
       await cargarGrupos(user.id)
 
@@ -132,9 +158,7 @@ export default function ChatFlotante() {
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_miembros' }, (payload) => {
           const row = payload.new as { usuario_id: string }
-          if (miIdRef.current && row.usuario_id === miIdRef.current) {
-            cargarGrupos(miIdRef.current)
-          }
+          if (miIdRef.current && row.usuario_id === miIdRef.current) cargarGrupos(miIdRef.current)
         })
         .subscribe()
     }
@@ -172,17 +196,15 @@ export default function ChatFlotante() {
       rol:            miPerfil.rol,
       mensaje:        msg,
       grupo_id:       grupoActivo.id === 'general' ? null : grupoActivo.id,
+      ...(miNegocioId ? { negocio_id: miNegocioId } : {}),
     })
   }
 
   // ── Nuevo chat ────────────────────────────────────────────────────────────
   async function abrirNuevo() {
     const { data } = await supabase
-      .from('usuarios')
-      .select('id, nombre, rol')
-      .eq('activo', true)
-      .neq('id', miId ?? '')
-      .order('nombre')
+      .from('usuarios').select('id, nombre, rol')
+      .eq('activo', true).neq('id', miId ?? '').order('nombre')
     if (data) setUsuarios(data as UsuarioItem[])
     setSeleccion([])
     setNombreGrupo('')
@@ -198,9 +220,7 @@ export default function ChatFlotante() {
 
     if (esDM) {
       const { data: memb } = await supabase
-        .from('chat_miembros')
-        .select('grupo_id, grupo:chat_grupos(tipo)')
-        .eq('usuario_id', miId)
+        .from('chat_miembros').select('grupo_id, grupo:chat_grupos(tipo)').eq('usuario_id', miId)
 
       const idsDirectos = (memb || [])
         .filter(m => (m.grupo as unknown as { tipo: string } | null)?.tipo === 'directo')
@@ -208,19 +228,15 @@ export default function ChatFlotante() {
 
       if (idsDirectos.length) {
         const { data: existente } = await supabase
-          .from('chat_miembros')
-          .select('grupo_id')
-          .in('grupo_id', idsDirectos)
-          .eq('usuario_id', seleccion[0])
-          .maybeSingle()
+          .from('chat_miembros').select('grupo_id')
+          .in('grupo_id', idsDirectos).eq('usuario_id', seleccion[0]).maybeSingle()
 
         if (existente) {
           setCreando(false)
           const gExist = grupos.find(g => g.id === existente.grupo_id)
           if (gExist) { await abrirGrupo(gExist); return }
           await cargarGrupos(miId)
-          setVista('lista')
-          return
+          setVista('lista'); return
         }
       }
     }
@@ -230,13 +246,17 @@ export default function ChatFlotante() {
 
     const { data: nuevoG } = await supabase
       .from('chat_grupos')
-      .insert({ nombre, tipo: esDM ? 'directo' : 'grupo', creado_por: miId })
+      .insert({ nombre, tipo: esDM ? 'directo' : 'grupo', creado_por: miId, ...(miNegocioId ? { negocio_id: miNegocioId } : {}) })
       .select().single()
 
     if (!nuevoG) { setCreando(false); return }
 
     await supabase.from('chat_miembros').insert(
-      [miId, ...seleccion].map(uid => ({ grupo_id: nuevoG.id, usuario_id: uid }))
+      [miId, ...seleccion].map(uid => ({
+        grupo_id: nuevoG.id,
+        usuario_id: uid,
+        ...(miNegocioId ? { negocio_id: miNegocioId } : {}),
+      }))
     )
 
     const nuevoChat: GrupoChat = { id: nuevoG.id, nombre, tipo: esDM ? 'directo' : 'grupo', noLeidos: 0 }
@@ -249,13 +269,25 @@ export default function ChatFlotante() {
   const totalNoLeidos = grupos.reduce((a, g) => a + g.noLeidos, 0)
   const miRol = miPerfil ? rolInfo(miPerfil.rol) : ROL_DEFAULT
 
+  // Cargando plan (esperar sin mostrar nada para evitar parpadeo)
+  if (esPro === null) return null
+
   // ── BOTÓN CERRADO ─────────────────────────────────────────────────────────
   if (vista === 'cerrado') {
+    // No es Pro: botón bloqueado
+    if (!esPro) {
+      return (
+        <button onClick={() => setVista('bloqueado')}
+          className="fixed bottom-6 right-4 w-14 h-14 bg-gray-200 text-gray-400 rounded-full shadow-md flex items-center justify-center z-[99999] pointer-events-auto cursor-pointer hover:bg-gray-300 transition-colors">
+          <MessageCircle size={24} className="opacity-50" />
+          <span className="absolute -top-1 -right-1 bg-gray-400 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-bold">🔒</span>
+        </button>
+      )
+    }
+    // Es Pro: botón funcional
     return (
-      <button
-        onClick={() => setVista('lista')}
-        className={`fixed bottom-6 right-4 w-14 h-14 ${miRol.color} hover:opacity-90 text-white rounded-full shadow-lg shadow-black/25 flex items-center justify-center z-[99999] pointer-events-auto active:scale-95 transition-all`}
-      >
+      <button onClick={() => setVista('lista')}
+        className={`fixed bottom-6 right-4 w-14 h-14 ${miRol.color} hover:opacity-90 text-white rounded-full shadow-lg shadow-black/25 flex items-center justify-center z-[99999] pointer-events-auto active:scale-95 transition-all`}>
         <MessageCircle size={24} />
         {totalNoLeidos > 0 && (
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold animate-bounce">
@@ -266,7 +298,34 @@ export default function ChatFlotante() {
     )
   }
 
-  // ── PANELES ───────────────────────────────────────────────────────────────
+  // ── PANEL BLOQUEADO ────────────────────────────────────────────────────────
+  if (vista === 'bloqueado') {
+    return (
+      <div className="fixed bottom-6 right-4 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col z-[99999] overflow-hidden pointer-events-auto">
+        <div className="bg-gray-400 text-white px-4 py-3 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2"><MessageCircle size={18} /><p className="font-bold text-sm">Chat del equipo</p></div>
+          <button onClick={() => setVista('cerrado')} className="hover:bg-white/20 p-1.5 rounded-lg transition-colors"><X size={17} /></button>
+        </div>
+        <div className="flex flex-col items-center justify-center p-8 text-center gap-5">
+          <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
+            <Lock size={36} className="text-gray-400" />
+          </div>
+          <div>
+            <p className="font-black text-gray-800 text-xl">Chat interno</p>
+            <p className="text-sm font-bold text-orange-500 mt-1">Exclusivo Plan Pro</p>
+          </div>
+          <p className="text-sm text-gray-500 leading-relaxed max-w-xs">
+            Comunícate en tiempo real con todo tu equipo sin salir de la app.
+          </p>
+          <button onClick={() => setVista('cerrado')} className="w-full text-xs text-gray-400 hover:text-gray-600 py-2 transition-colors">
+            Cerrar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── PANELES PRO ───────────────────────────────────────────────────────────
   return (
     <div className="fixed bottom-6 right-4 w-80 sm:w-96 h-[490px] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col z-[99999] overflow-hidden pointer-events-auto">
 
@@ -274,13 +333,8 @@ export default function ChatFlotante() {
       {vista === 'lista' && (
         <>
           <div className={`${miRol.color} text-white px-4 py-3 flex items-center justify-between shrink-0`}>
-            <div className="flex items-center gap-2">
-              <MessageCircle size={18} />
-              <p className="font-bold text-sm">Chat del equipo</p>
-            </div>
-            <button onClick={() => setVista('cerrado')} className="hover:bg-white/20 p-1.5 rounded-lg transition-colors">
-              <X size={17} />
-            </button>
+            <div className="flex items-center gap-2"><MessageCircle size={18} /><p className="font-bold text-sm">Chat del equipo</p></div>
+            <button onClick={() => setVista('cerrado')} className="hover:bg-white/20 p-1.5 rounded-lg transition-colors"><X size={17} /></button>
           </div>
 
           <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
@@ -288,16 +342,14 @@ export default function ChatFlotante() {
               <button key={g.id} onClick={() => abrirGrupo(g)}
                 className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors text-left">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-base shrink-0 text-white ${
-                  g.tipo === 'general' ? 'bg-gray-600' :
-                  g.tipo === 'directo' ? 'bg-blue-500' : 'bg-teal-500'
+                  g.tipo === 'general' ? 'bg-gray-600' : g.tipo === 'directo' ? 'bg-blue-500' : 'bg-teal-500'
                 }`}>
                   {g.tipo === 'general' ? '📢' : g.tipo === 'directo' ? '👤' : '👥'}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-900 text-sm truncate">{g.nombre}</p>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    {g.tipo === 'general' ? 'Todo el personal' :
-                     g.tipo === 'directo' ? 'Mensaje directo' : 'Grupo'}
+                    {g.tipo === 'general' ? 'Todo el personal' : g.tipo === 'directo' ? 'Mensaje directo' : 'Grupo'}
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
@@ -316,9 +368,7 @@ export default function ChatFlotante() {
             {miPerfil && (
               <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50">
                 <div className="flex items-center gap-2 min-w-0">
-                  <div className={`w-7 h-7 rounded-full ${miRol.color} flex items-center justify-center text-xs text-white shrink-0`}>
-                    {miRol.emoji}
-                  </div>
+                  <div className={`w-7 h-7 rounded-full ${miRol.color} flex items-center justify-center text-xs text-white shrink-0`}>{miRol.emoji}</div>
                   <div className="min-w-0">
                     <p className="text-xs font-semibold text-gray-700 leading-none truncate">{miPerfil.nombre}</p>
                     <p className="text-[10px] text-gray-400 mt-0.5">{miRol.etiqueta}</p>
@@ -344,19 +394,14 @@ export default function ChatFlotante() {
         <>
           <div className={`${miRol.color} text-white px-3 py-3 flex items-center gap-2 shrink-0`}>
             <button onClick={() => { setVista('lista'); setMensajes([]); setGrupoActivo(null) }}
-              className="hover:bg-white/20 p-1.5 rounded-lg shrink-0 transition-colors">
-              <ArrowLeft size={17} />
-            </button>
+              className="hover:bg-white/20 p-1.5 rounded-lg shrink-0 transition-colors"><ArrowLeft size={17} /></button>
             <div className="flex-1 min-w-0">
               <p className="font-bold text-sm truncate">{grupoActivo.nombre}</p>
               <p className="text-xs opacity-70">
-                {grupoActivo.tipo === 'general' ? 'Todo el personal' :
-                 grupoActivo.tipo === 'directo' ? 'Mensaje directo' : 'Grupo'}
+                {grupoActivo.tipo === 'general' ? 'Todo el personal' : grupoActivo.tipo === 'directo' ? 'Mensaje directo' : 'Grupo'}
               </p>
             </div>
-            <button onClick={() => setVista('cerrado')} className="hover:bg-white/20 p-1.5 rounded-lg shrink-0 transition-colors">
-              <X size={17} />
-            </button>
+            <button onClick={() => setVista('cerrado')} className="hover:bg-white/20 p-1.5 rounded-lg shrink-0 transition-colors"><X size={17} /></button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-gray-50">
@@ -372,23 +417,16 @@ export default function ChatFlotante() {
               const rc    = rolInfo(m.rol)
               return (
                 <div key={m.id} className={`flex gap-2 ${esMio ? 'flex-row-reverse' : 'flex-row'}`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 ${rc.color} text-white`}>
-                    {rc.emoji}
-                  </div>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 ${rc.color} text-white`}>{rc.emoji}</div>
                   <div className={`max-w-[73%] flex flex-col ${esMio ? 'items-end' : 'items-start'}`}>
                     {!esMio && (
                       <p className="text-[11px] text-gray-500 font-semibold mb-0.5 px-1">
-                        {m.usuario_nombre}
-                        <span className="font-normal text-gray-400"> · {rc.etiqueta}</span>
+                        {m.usuario_nombre}<span className="font-normal text-gray-400"> · {rc.etiqueta}</span>
                       </p>
                     )}
                     <div className={`px-3 py-2 rounded-2xl text-sm leading-snug break-words ${
-                      esMio
-                        ? `${rc.color} text-white rounded-tr-sm`
-                        : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm'
-                    }`}>
-                      {m.mensaje}
-                    </div>
+                      esMio ? `${rc.color} text-white rounded-tr-sm` : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm'
+                    }`}>{m.mensaje}</div>
                     <p className="text-[10px] text-gray-400 mt-0.5 px-1">{hora(m.created_at)}</p>
                   </div>
                 </div>
@@ -398,16 +436,11 @@ export default function ChatFlotante() {
           </div>
 
           <div className="p-3 border-t border-gray-200 bg-white shrink-0 flex gap-2">
-            <input
-              ref={inputRef}
-              type="text"
-              value={texto}
+            <input ref={inputRef} type="text" value={texto}
               onChange={e => setTexto(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }}
-              placeholder="Escribe un mensaje..."
-              maxLength={300}
-              className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-300"
-            />
+              placeholder="Escribe un mensaje..." maxLength={300}
+              className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-300" />
             <button onClick={enviar} disabled={!texto.trim() || !miPerfil}
               className={`${miRol.color} hover:opacity-90 disabled:bg-gray-200 disabled:cursor-not-allowed text-white p-2.5 rounded-xl transition-all active:scale-95 shrink-0`}>
               <Send size={16} />
@@ -421,15 +454,13 @@ export default function ChatFlotante() {
         <>
           <div className={`${miRol.color} text-white px-3 py-3 flex items-center gap-2 shrink-0`}>
             <button onClick={() => { setVista('lista'); setSeleccion([]) }}
-              className="hover:bg-white/20 p-1.5 rounded-lg shrink-0 transition-colors">
-              <ArrowLeft size={17} />
-            </button>
+              className="hover:bg-white/20 p-1.5 rounded-lg shrink-0 transition-colors"><ArrowLeft size={17} /></button>
             <div className="flex-1 min-w-0">
               <p className="font-bold text-sm">Nuevo chat</p>
               <p className="text-xs opacity-70">
                 {seleccion.length === 0 ? 'Selecciona una o más personas' :
-                 seleccion.length === 1 ? '1 persona — será mensaje directo' :
-                 `${seleccion.length} personas — será grupo`}
+                 seleccion.length === 1 ? '1 persona — mensaje directo' :
+                 `${seleccion.length} personas — grupo`}
               </p>
             </div>
           </div>
@@ -439,17 +470,13 @@ export default function ChatFlotante() {
               <p className="text-center text-gray-400 text-sm py-10">No hay otros usuarios activos</p>
             )}
             {usuarios.map(u => {
-              const rc      = rolInfo(u.rol)
+              const rc = rolInfo(u.rol)
               const checked = seleccion.includes(u.id)
               return (
                 <button key={u.id}
-                  onClick={() => setSeleccion(prev =>
-                    prev.includes(u.id) ? prev.filter(x => x !== u.id) : [...prev, u.id]
-                  )}
+                  onClick={() => setSeleccion(prev => prev.includes(u.id) ? prev.filter(x => x !== u.id) : [...prev, u.id])}
                   className={`w-full flex items-center gap-3 px-4 py-3.5 transition-colors text-left ${checked ? 'bg-orange-50' : 'hover:bg-gray-50'}`}>
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm text-white shrink-0 ${rc.color}`}>
-                    {rc.emoji}
-                  </div>
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm text-white shrink-0 ${rc.color}`}>{rc.emoji}</div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm text-gray-900 truncate">{u.nombre}</p>
                     <p className="text-xs text-gray-400">{rc.etiqueta}</p>
@@ -466,19 +493,12 @@ export default function ChatFlotante() {
 
           <div className="p-3 border-t border-gray-100 bg-white shrink-0 space-y-2">
             {seleccion.length >= 2 && (
-              <input
-                type="text"
-                value={nombreGrupo}
-                onChange={e => setNombreGrupo(e.target.value)}
+              <input type="text" value={nombreGrupo} onChange={e => setNombreGrupo(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') crearChat() }}
-                placeholder="Nombre del grupo (ej: Equipo cocina)"
-                maxLength={50}
-                autoFocus
-                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-300"
-              />
+                placeholder="Nombre del grupo" maxLength={50} autoFocus
+                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-300" />
             )}
-            <button onClick={crearChat}
-              disabled={seleccion.length === 0 || creando}
+            <button onClick={crearChat} disabled={seleccion.length === 0 || creando}
               className="w-full bg-orange-500 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl text-sm transition-all active:scale-95">
               {creando ? '⏳ Creando...' :
                seleccion.length === 0 ? 'Selecciona al menos 1 persona' :
