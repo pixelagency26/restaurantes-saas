@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Mesa, Plato, Categoria, Inventario } from '@/types'
 import toast from 'react-hot-toast'
@@ -37,6 +37,8 @@ export default function MeseraPage() {
 
   // ID del usuario actual (para filtrar notificaciones propias)
   const [usuarioId, setUsuarioId] = useState<string | null>(null)
+  // Ref para acceder al id en closures de realtime (evita stale closure)
+  const usuarioIdRef = useRef<string | null>(null)
   // Plan e ID del negocio
   const [negocioPlan, setNegocioPlan] = useState<'starter' | 'basico' | 'pro'>('pro')
   const [negocioId, setNegocioId] = useState<string | null>(null)
@@ -102,7 +104,10 @@ export default function MeseraPage() {
   useEffect(() => {
     // Cargar el id del usuario actual una sola vez
     supabase.auth.getUser().then(({ data }) => {
-      if (data?.user) setUsuarioId(data.user.id)
+      if (data?.user) {
+        setUsuarioId(data.user.id)
+        usuarioIdRef.current = data.user.id  // accesible en closures de realtime
+      }
     })
     // Cargar plan e ID del negocio
     supabase.from('negocios').select('id, plan').single().then(({ data }) => {
@@ -146,8 +151,8 @@ export default function MeseraPage() {
               items: { id: string; estado: string; plato: { nombre: string } }[]
             }
             if (!p.mesa || p.tipo === 'domi') return // domicilios domi van al panel domi, no aquí
-            // Solo notificar a la mesera que hizo el pedido
-            if (p.mesera_id && usuarioId && p.mesera_id !== usuarioId) return
+            // Solo notificar a la mesera que hizo el pedido (ref evita stale closure)
+            if (p.mesera_id && usuarioIdRef.current && p.mesera_id !== usuarioIdRef.current) return
 
             // Identificar el plato específico que acaba de quedar listo
             const itemListo = p.items.find(i => i.id === item.id)
@@ -358,6 +363,7 @@ export default function MeseraPage() {
           cantidad: item.cantidad,
           precio_unitario: item.plato.precio,
           notas: item.notas || null,
+          pedido_por: user?.id || null,  // registrar quién hizo el pedido (visible en cocina)
         }))
       )
       if (!modoDomi && mesaSeleccionada) {

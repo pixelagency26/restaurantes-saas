@@ -308,7 +308,7 @@ export default function CocinaPage() {
   const cargarPedidos = useCallback(async () => {
     const { data } = await supabase
       .from('pedidos')
-      .select(`*, mesa:mesas(numero), items:items_pedido(*, plato:platos(nombre), pedido_por_usuario:usuarios!pedido_por(nombre))`)
+      .select(`*, mesa:mesas(numero), mesera:usuarios!mesera_id(nombre), items:items_pedido(*, plato:platos(nombre), pedido_por_usuario:usuarios!pedido_por(nombre))`)
       .in('estado', ['pendiente', 'en_preparacion'])
       .order('created_at', { ascending: true })
     if (data) setPedidos(data as unknown as Pedido[])
@@ -327,7 +327,7 @@ export default function CocinaPage() {
     return () => { supabase.removeChannel(canal); clearInterval(intervalo); clearInterval(tick) }
   }, [cargarPedidos, cargarConfig, supabase])
 
-  // ── Preparar ítem — con cocinero seleccionado ──────────────────────────────
+  // ── Preparar ítem — asignar directamente con nombre del usuario autenticado ──
   async function marcarPreparando(itemId: string, pedidoId: string, cocineroNombre: string) {
     await supabase.from('items_pedido').update({
       estado: 'en_preparacion',
@@ -335,7 +335,6 @@ export default function CocinaPage() {
       cocinero: cocineroNombre,
     }).eq('id', itemId)
     await supabase.from('pedidos').update({ estado: 'en_preparacion' }).eq('id', pedidoId).eq('estado', 'pendiente')
-    setAsignandoItem(null)
     toast.success(`🔥 ${cocineroNombre} está preparando`)
     cargarPedidos()
   }
@@ -500,8 +499,11 @@ export default function CocinaPage() {
             const mesa        = (pedido.mesa as unknown as { numero: number } | null)
             const UMBRAL_ADICIONAL_MS = 2 * 60 * 1000
 
-            // Quién tomó el pedido (del primer ítem con pedido_por_usuario)
-            const tomadoPor = itemsPedido.find(i => i.pedido_por_usuario)?.pedido_por_usuario?.nombre || null
+            // Quién tomó el pedido: primero mesera_id del pedido, luego pedido_por de ítems como fallback
+            const pedidoMesera = (pedido as unknown as { mesera?: { nombre: string } | null }).mesera
+            const tomadoPor = pedidoMesera?.nombre
+              || itemsPedido.find(i => i.pedido_por_usuario)?.pedido_por_usuario?.nombre
+              || null
 
             return (
               <div key={pedido.id}
