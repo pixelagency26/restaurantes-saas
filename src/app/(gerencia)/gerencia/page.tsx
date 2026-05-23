@@ -1565,6 +1565,27 @@ export default function GerenciaPage() {
       )
       if (errItems) throw new Error(errItems.message)
 
+      // Descontar inventario de turno inmediatamente al enviar a cocina
+      if (turnoConInventario) {
+        const platosConInvSet = new Set(Object.keys(inventarioModalMap))
+        const itemsConInv = itemsCarrito
+          .filter(([platoId]) => platosConInvSet.has(platoId))
+          .map(([platoId, qty]) => ({ plato_id: platoId, cantidad: qty }))
+        if (itemsConInv.length > 0) {
+          const { data: invActual } = await supabase.from('inventario')
+            .select('plato_id, cantidad_disponible').in('plato_id', itemsConInv.map(i => i.plato_id))
+          if (invActual) {
+            await Promise.all(itemsConInv.map(item => {
+              const cur = (invActual as { plato_id: string; cantidad_disponible: number }[]).find(r => r.plato_id === item.plato_id)
+              if (!cur) return Promise.resolve()
+              return supabase.from('inventario')
+                .update({ cantidad_disponible: Math.max(0, cur.cantidad_disponible - item.cantidad) })
+                .eq('plato_id', item.plato_id)
+            }))
+          }
+        }
+      }
+
       toast.success('✅ Pedido enviado a cocina')
       setModalNuevoPedido(false)
       setNuevoOrdenCarrito({}); setNuevoOrdenMesaId(null); setNuevoOrdenNotas('')
@@ -4900,8 +4921,10 @@ export default function GerenciaPage() {
                 <div className="space-y-2">
                   {platos.filter(p => p.activo && (nuevoOrdenCategoria === 'todas' || p.categoria_id === nuevoOrdenCategoria)).map(p => {
                     const inv = inventarioModalMap[p.id]
-                    const sinStock  = turnoConInventario && (inv?.cantidad ?? 0) === 0
-                    const stockBajo = turnoConInventario && inv && inv.cantidad > 0 && inv.cantidad <= inv.alerta
+                    // sinStock solo si este plato TIENE inventario de turno configurado Y está en 0
+                    // Si inv es undefined → plato sin restricción de turno → siempre disponible
+                    const sinStock  = inv !== undefined && inv.cantidad === 0
+                    const stockBajo = inv !== undefined && inv.cantidad > 0 && inv.cantidad <= inv.alerta
                     return (
                     <div key={p.id} className={`flex items-center justify-between bg-white/5 border rounded-2xl px-4 py-2.5 gap-3 transition-all ${
                       sinStock ? 'border-red-500/20 opacity-50' :

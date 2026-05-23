@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Mesa, Plato, Categoria, Inventario } from '@/types'
 import toast from 'react-hot-toast'
 import { UtensilsCrossed, ShoppingBag, Bell, CheckCircle, X, Plus, Minus, Bike } from 'lucide-react'
+import { descontarInventario } from '@/lib/inventario'
 
 type ItemCarrito = { plato: Plato; cantidad: number; notas: string }
 
@@ -39,10 +40,10 @@ export default function MeseraPage() {
   const [usuarioId, setUsuarioId] = useState<string | null>(null)
   // Plan del negocio
   const [negocioPlan, setNegocioPlan] = useState<'starter' | 'basico' | 'pro'>('pro')
-  // Inventario de turno activo
-  const [turnoConInventario, setTurnoConInventario] = useState(false)
-  // IDs de platos que tienen inventario configurado para el turno actual
+  // plato_ids con inventario de turno configurado (solo estos tienen restricción de stock)
   const [turnoInventarioIds, setTurnoInventarioIds] = useState<Set<string>>(new Set())
+  // true si al menos un plato tiene inventario de turno activo
+  const turnoConInventario = turnoInventarioIds.size > 0
 
   const supabase = createClient()
 
@@ -62,7 +63,6 @@ export default function MeseraPage() {
       if (tiData && tiData.length > 0)
         platoIdsConInv = new Set(tiData.map((r: { plato_id: string }) => r.plato_id))
     }
-    setTurnoConInventario(platoIdsConInv.size > 0)
     setTurnoInventarioIds(platoIdsConInv)
     if (mesasData) setMesas(mesasData)
     if (catData) { setCategorias(catData); if (!categoriaActiva && catData[0]) setCategoriaActiva(catData[0].id) }
@@ -285,6 +285,8 @@ export default function MeseraPage() {
       )
       if (error) { toast.error('Error al agregar platos'); setEnviando(false); return }
       await supabase.from('pedidos').update({ estado: 'en_preparacion' }).eq('id', pedidoExistenteId)
+      // Descontar del inventario de turno los platos pedidos
+      await descontarInventario(supabase, carrito.map(i => ({ plato_id: i.plato.id, cantidad: i.cantidad })), turnoInventarioIds)
       toast.success('¡Platos agregados al pedido!')
     } else {
       // ── PEDIDO NUEVO (mesa o domi) ──────────────────────────
@@ -320,6 +322,8 @@ export default function MeseraPage() {
           notas: item.notas || null,
         }))
       )
+      // Descontar del inventario de turno inmediatamente al enviar a cocina
+      await descontarInventario(supabase, carrito.map(i => ({ plato_id: i.plato.id, cantidad: i.cantidad })), turnoInventarioIds)
       if (!modoDomi && mesaSeleccionada) {
         await supabase.from('mesas').update({ estado: 'ocupada' }).eq('id', mesaSeleccionada.id)
       }

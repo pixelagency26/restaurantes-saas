@@ -145,22 +145,24 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
     setNegocio(neg as Negocio)
     if (cats) { setCategorias(cats as Categoria[]); if (cats[0]) setCatActiva(cats[0].id) }
 
-    // Verificar si el turno activo tiene inventario configurado
-    let tieneInv = false
+    // Cargar inventario con restricción POR PLATO (no global)
+    // Solo los platos que están en turnos_inventario tienen límite de stock
     let invMap: Record<string, InvInfo> = {}
+    const platosEnTurnoSet = new Set<string>()
     if (turnoData?.id) {
-      const { count } = await supabase.from('turnos_inventario')
-        .select('*', { count: 'exact', head: true }).eq('turno_id', turnoData.id)
-      tieneInv = (count ?? 0) > 0
-      if (tieneInv) {
+      const { data: tiData } = await supabase.from('turnos_inventario')
+        .select('plato_id').eq('turno_id', turnoData.id)
+      ;(tiData || []).forEach((t: { plato_id: string }) => platosEnTurnoSet.add(t.plato_id))
+      if (platosEnTurnoSet.size > 0) {
         const { data: invData } = await supabase.from('inventario')
           .select('plato_id, cantidad_disponible, alerta_minima')
+          .in('plato_id', [...platosEnTurnoSet])
         ;(invData || []).forEach((i: { plato_id: string; cantidad_disponible: number; alerta_minima: number }) => {
           invMap[i.plato_id] = { cantidad_disponible: i.cantidad_disponible, alerta_minima: i.alerta_minima }
         })
       }
     }
-    setTurnoConInventario(tieneInv)
+    setTurnoConInventario(platosEnTurnoSet.size > 0)
     if (pls) setPlatos((pls as Plato[]).map(p => ({ ...p, inv: invMap[p.id] })))
     if (cfg) {
       const m: Record<string, string> = {}
@@ -379,6 +381,27 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
       }))
     )
     if (itemsError) console.error('Error insertando items:', itemsError)
+
+    // Descontar inventario de turno — solo los platos que tengan inv de turno
+    if (turnoConInventario) {
+      const platosConInv = new Set(platos.filter(p => p.inv !== undefined).map(p => p.id))
+      const itemsParaDescontar = carrito
+        .filter(i => platosConInv.has(i.plato.id))
+        .map(i => ({ plato_id: i.plato.id, cantidad: i.cantidad }))
+      if (itemsParaDescontar.length) {
+        const { data: invActual } = await supabase.from('inventario')
+          .select('plato_id, cantidad_disponible').in('plato_id', itemsParaDescontar.map(i => i.plato_id))
+        if (invActual) {
+          await Promise.all(itemsParaDescontar.map(item => {
+            const cur = (invActual as { plato_id: string; cantidad_disponible: number }[]).find(r => r.plato_id === item.plato_id)
+            if (!cur) return Promise.resolve()
+            return supabase.from('inventario')
+              .update({ cantidad_disponible: Math.max(0, cur.cantidad_disponible - item.cantidad) })
+              .eq('plato_id', item.plato_id)
+          }))
+        }
+      }
+    }
 
     if (mesaId) await supabase.from('mesas').update({ estado: 'ocupada' }).eq('id', mesaId)
 
