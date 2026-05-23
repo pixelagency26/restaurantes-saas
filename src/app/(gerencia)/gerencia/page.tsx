@@ -1184,20 +1184,19 @@ export default function GerenciaPage() {
     const entries = Object.entries(inventarioTurno).filter(([, qty]) => qty > 0)
     if (entries.length > 0) {
       // Todas las actualizaciones en paralelo — mucho más rápido que loop secuencial
+      // turnos_inventario e inventario NO tienen columna negocio_id en el schema SaaS.
+      // La RLS funciona vía turno_id→turnos.negocio_id y plato_id→platos.negocio_id.
       const [tiResult] = await Promise.all([
-        // Un solo insert con todas las filas de inventario del turno
         supabase.from('turnos_inventario').insert(
           entries.map(([platoId, qty]) => ({
             turno_id: nuevoTurno.id,
             plato_id: platoId,
             cantidad_inicial: qty,
-            ...(myNegocioId ? { negocio_id: myNegocioId } : {}),
           }))
         ),
-        // Upsert inventario: actualiza cantidad Y repara filas sin negocio_id (problema de RLS)
         ...entries.map(([platoId, qty]) =>
           supabase.from('inventario').upsert(
-            { plato_id: platoId, cantidad_disponible: qty, ...(myNegocioId ? { negocio_id: myNegocioId } : {}) },
+            { plato_id: platoId, cantidad_disponible: qty },
             { onConflict: 'plato_id' }
           )
         ),
