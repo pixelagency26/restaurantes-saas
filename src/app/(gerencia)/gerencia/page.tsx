@@ -1544,6 +1544,7 @@ export default function GerenciaPage() {
             pedidoId = await crearPedido({
               mesa_id: nuevoOrdenMesaId, mesera_id: user?.id || null, turno_id: turnoActivo.id,
               estado: 'pendiente', tipo: 'mesera', notas: nuevoOrdenNotas || null,
+              ...(negocioId ? { negocio_id: negocioId } : {}),
             })
             await supabase.from('mesas').update({ estado: 'ocupada' }).eq('id', nuevoOrdenMesaId!)
           }
@@ -1552,6 +1553,7 @@ export default function GerenciaPage() {
           pedidoId = await crearPedido({
             mesa_id: nuevoOrdenMesaId, mesera_id: user?.id || null, turno_id: turnoActivo.id,
             estado: 'pendiente', tipo: 'mesera', notas: nuevoOrdenNotas || null,
+            ...(negocioId ? { negocio_id: negocioId } : {}),
           })
           await supabase.from('mesas').update({ estado: 'ocupada' }).eq('id', nuevoOrdenMesaId!)
         }
@@ -1563,6 +1565,7 @@ export default function GerenciaPage() {
           cliente_nombre:    nuevoOrdenDomi.nombre    || null,
           cliente_telefono:  nuevoOrdenDomi.telefono  || null,
           cliente_direccion: nuevoOrdenDomi.direccion || null,
+          ...(negocioId ? { negocio_id: negocioId } : {}),
         })
       }
 

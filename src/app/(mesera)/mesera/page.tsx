@@ -37,8 +37,9 @@ export default function MeseraPage() {
 
   // ID del usuario actual (para filtrar notificaciones propias)
   const [usuarioId, setUsuarioId] = useState<string | null>(null)
-  // Plan del negocio
+  // Plan e ID del negocio
   const [negocioPlan, setNegocioPlan] = useState<'starter' | 'basico' | 'pro'>('pro')
+  const [negocioId, setNegocioId] = useState<string | null>(null)
   // plato_ids con inventario de turno configurado (solo estos tienen restricción de stock)
   const [turnoInventarioIds, setTurnoInventarioIds] = useState<Set<string>>(new Set())
   // true si al menos un plato tiene inventario de turno activo
@@ -103,9 +104,10 @@ export default function MeseraPage() {
     supabase.auth.getUser().then(({ data }) => {
       if (data?.user) setUsuarioId(data.user.id)
     })
-    // Cargar plan del negocio
-    supabase.from('negocios').select('plan').single().then(({ data }) => {
+    // Cargar plan e ID del negocio
+    supabase.from('negocios').select('id, plan').single().then(({ data }) => {
       if (data?.plan) setNegocioPlan(data.plan as 'starter' | 'basico' | 'pro')
+      if (data?.id) setNegocioId(data.id)
     })
     cargarDatos()
     cargarPedidosListos()
@@ -280,6 +282,14 @@ export default function MeseraPage() {
 
     const { data: { user } } = await supabase.auth.getUser()
 
+    // Asegurar que tenemos el negocio_id antes de crear el pedido
+    let myNegocioId = negocioId
+    if (!myNegocioId) {
+      const { data: neg } = await supabase.from('negocios').select('id').single()
+      myNegocioId = neg?.id ?? null
+      if (myNegocioId) setNegocioId(myNegocioId)
+    }
+
     if (pedidoExistenteId) {
       // ── AGREGAR A PEDIDO EXISTENTE ──────────────────────────
       const { error } = await supabase.from('items_pedido').insert(
@@ -315,6 +325,7 @@ export default function MeseraPage() {
           cliente_cedula: modoDomi && domiCliente.cedula ? domiCliente.cedula.trim() : null,
           cliente_telefono: modoDomi && domiCliente.telefono ? domiCliente.telefono.trim() : null,
           cliente_direccion: modoDomi && domiCliente.direccion ? domiCliente.direccion.trim() : null,
+          ...(myNegocioId ? { negocio_id: myNegocioId } : {}),
         })
         .select().single()
 
