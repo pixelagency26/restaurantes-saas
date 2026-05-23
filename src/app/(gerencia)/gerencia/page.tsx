@@ -72,7 +72,7 @@ export default function GerenciaPage() {
   const [mesas, setMesas] = useState<{ id: number; numero: number; estado: string; zona: string | null }[]>([])
   const [domiActivos, setDomiActivos] = useState<{ id: string; created_at: string; total: number; cliente_nombre: string | null; cliente_telefono: string | null; estado: string; metodos: string[] }[]>([])
   const [mesaDetalle, setMesaDetalle] = useState<{ mesa: typeof mesas[0] | null; pedido: PedidoDetalle; pagos: PagoRegistrado[]; isDomi?: boolean } | null>(null)
-  const [montoPago, setMontoPago] = useState(''); const [propinaPago, setPropinaPago] = useState('')
+  const [montoPago, setMontoPago] = useState(''); const [propinaPago, setPropinaPago] = useState(''); const [pagaCon, setPagaCon] = useState('')
   const [metodoPago, setMetodoPago] = useState<MetodoPago>('efectivo'); const [agregandoPago, setAgregandoPago] = useState(false)
   const [vistaModal, setVistaModal] = useState<'pago' | 'cliente'>('pago')
 
@@ -155,6 +155,17 @@ export default function GerenciaPage() {
   const [bloqueoActivo, setBloqueoActivo] = useState(false)
   const [bloqueoCantidad, setBloqueoCantidad] = useState(3)
   const [guardandoPermisos, setGuardandoPermisos] = useState(false)
+  // Nombres de cocineros (sin cuenta separada)
+  const [nombresCocineros, setNombresCocineros] = useState<string[]>([])
+  const [nuevoNombreCocinero, setNuevoNombreCocinero] = useState('')
+  const [guardandoNombresCocineros, setGuardandoNombresCocineros] = useState(false)
+  // Sugerido del mes
+  const [sugeridoActivo, setSugeridoActivo] = useState(false)
+  const [sugeridoNombre, setSugeridoNombre] = useState('')
+  const [sugeridoPrecio, setSugeridoPrecio] = useState('')
+  const [sugeridoDescripcion, setSugeridoDescripcion] = useState('')
+  const [sugeridoImagenUrl, setSugeridoImagenUrl] = useState('')
+  const [guardandoSugerido, setGuardandoSugerido] = useState(false)
   // Permisos QR
   const [qrConsumoActivo, setQrConsumoActivo] = useState(false)
   const [qrDomiActivo, setQrDomiActivo] = useState(false)
@@ -165,7 +176,7 @@ export default function GerenciaPage() {
 
   // Panel de configuración ⚙️
   const [modalSettings, setModalSettings] = useState(false)
-  const [seccionSettings, setSeccionSettings] = useState<'cuenta' | 'usuarios' | 'permisos' | 'restablecer' | 'facturacion'>('cuenta')
+  const [seccionSettings, setSeccionSettings] = useState<'cuenta' | 'usuarios' | 'permisos' | 'restablecer' | 'facturacion' | 'marketing'>('cuenta')
   // Facturación
   const [facturacion, setFacturacion] = useState<{ plan: string; activa: boolean; hasta: string | null; nombre: string } | null>(null)
   const [cargandoFact, setCargandoFact] = useState(false)
@@ -408,7 +419,8 @@ export default function GerenciaPage() {
     const { data } = await supabase
       .from('configuracion')
       .select('clave, valor')
-      .in('clave', ['bloqueo_cocina_activo', 'bloqueo_cocina_cantidad', 'qr_consumo_activo', 'qr_domi_activo'])
+      .in('clave', ['bloqueo_cocina_activo', 'bloqueo_cocina_cantidad', 'qr_consumo_activo', 'qr_domi_activo', 'nombres_cocineros',
+                    'sugerido_activo', 'sugerido_nombre', 'sugerido_precio', 'sugerido_descripcion', 'sugerido_imagen_url'])
     if (data) {
       const cfg: Record<string, string> = {}
       data.forEach((r: { clave: string; valor: string }) => { cfg[r.clave] = r.valor })
@@ -416,6 +428,12 @@ export default function GerenciaPage() {
       if ('bloqueo_cocina_cantidad' in cfg) setBloqueoCantidad(parseInt(cfg['bloqueo_cocina_cantidad']) || 3)
       if ('qr_consumo_activo' in cfg) setQrConsumoActivo(cfg['qr_consumo_activo'] === 'true')
       if ('qr_domi_activo' in cfg) setQrDomiActivo(cfg['qr_domi_activo'] === 'true')
+      if ('nombres_cocineros' in cfg) { try { setNombresCocineros(JSON.parse(cfg['nombres_cocineros']) as string[]) } catch { setNombresCocineros([]) } }
+      if ('sugerido_activo' in cfg) setSugeridoActivo(cfg['sugerido_activo'] === 'true')
+      if ('sugerido_nombre' in cfg) setSugeridoNombre(cfg['sugerido_nombre'] || '')
+      if ('sugerido_precio' in cfg) setSugeridoPrecio(cfg['sugerido_precio'] || '')
+      if ('sugerido_descripcion' in cfg) setSugeridoDescripcion(cfg['sugerido_descripcion'] || '')
+      if ('sugerido_imagen_url' in cfg) setSugeridoImagenUrl(cfg['sugerido_imagen_url'] || '')
     }
   }, [supabase])
 
@@ -451,7 +469,7 @@ export default function GerenciaPage() {
     const precio = planReq === 'pro' ? '$149.000/mes' : '$89.900/mes'
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center px-6">
-        <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-5">
+        <div className="w-20 h-20 bg-white/8 rounded-full flex items-center justify-center mb-5">
           <Lock size={32} className="text-gray-400" />
         </div>
         <p className="font-black text-gray-900 text-xl mb-1">Plan {nombre}</p>
@@ -596,16 +614,70 @@ export default function GerenciaPage() {
     setRestableciendo(false)
   }
 
+  // ── Helper: upsert en configuracion con negocio_id correcto ──
+  async function upsertConfig(pares: { clave: string; valor: string }[]) {
+    // Obtener negocio_id (desde estado o desde la BD)
+    let nid: string | null = negocioId
+    if (!nid) {
+      const { data: u } = await supabase.auth.getUser()
+      if (u.user?.id) {
+        const { data: uData } = await supabase.from('usuarios').select('negocio_id').eq('id', u.user.id).single()
+        nid = uData?.negocio_id ?? null
+        if (nid) setNegocioId(nid)
+      }
+    }
+    if (!nid) { toast.error('No se pudo identificar el negocio'); return false }
+    const rows = pares.map(p => ({ ...p, negocio_id: nid }))
+    const { error } = await supabase.from('configuracion').upsert(rows, { onConflict: 'negocio_id,clave' })
+    if (error) { toast.error('Error al guardar: ' + error.message); return false }
+    return true
+  }
+
   async function guardarConfiguracion() {
     setGuardandoPermisos(true)
-    await supabase.from('configuracion').upsert([
+    const ok = await upsertConfig([
       { clave: 'bloqueo_cocina_activo',   valor: String(bloqueoActivo)   },
       { clave: 'bloqueo_cocina_cantidad', valor: String(bloqueoCantidad) },
       { clave: 'qr_consumo_activo',       valor: String(qrConsumoActivo) },
       { clave: 'qr_domi_activo',          valor: String(qrDomiActivo)    },
-    ], { onConflict: 'clave' })
-    toast.success('✅ Permisos guardados')
+    ])
+    if (ok) toast.success('✅ Permisos guardados')
     setGuardandoPermisos(false)
+  }
+
+  async function guardarNombresCocineros(lista: string[]) {
+    setGuardandoNombresCocineros(true)
+    const ok = await upsertConfig([{ clave: 'nombres_cocineros', valor: JSON.stringify(lista) }])
+    if (ok) toast.success('✅ Nombres guardados')
+    setGuardandoNombresCocineros(false)
+  }
+
+  function agregarNombreCocinero() {
+    const nombre = nuevoNombreCocinero.trim()
+    if (!nombre || nombresCocineros.includes(nombre)) return
+    const nueva = [...nombresCocineros, nombre]
+    setNombresCocineros(nueva)
+    setNuevoNombreCocinero('')
+    guardarNombresCocineros(nueva)
+  }
+
+  function eliminarNombreCocinero(nombre: string) {
+    const nueva = nombresCocineros.filter(n => n !== nombre)
+    setNombresCocineros(nueva)
+    guardarNombresCocineros(nueva)
+  }
+
+  async function guardarSugerido() {
+    setGuardandoSugerido(true)
+    const ok = await upsertConfig([
+      { clave: 'sugerido_activo',      valor: String(sugeridoActivo)  },
+      { clave: 'sugerido_nombre',      valor: sugeridoNombre          },
+      { clave: 'sugerido_precio',      valor: sugeridoPrecio          },
+      { clave: 'sugerido_descripcion', valor: sugeridoDescripcion     },
+      { clave: 'sugerido_imagen_url',  valor: sugeridoImagenUrl       },
+    ])
+    if (ok) toast.success(sugeridoActivo ? '🌟 Sugerido activado' : '✅ Sugerido guardado (inactivo)')
+    setGuardandoSugerido(false)
   }
 
   async function abrirClienteDetalle(cliente: ClienteStat) {
@@ -879,7 +951,7 @@ export default function GerenciaPage() {
       if (cl) setClienteEncontrado(cl)
     }
     setMesaDetalle({ mesa, pedido: fmt, pagos: (pagos || []) as PagoRegistrado[] })
-    setMontoPago(''); setPropinaPago(''); setMetodoPago('efectivo'); setVistaModal('pago')
+    setMontoPago(''); setPropinaPago(''); setPagaCon(''); setPagaCon(''); setMetodoPago('efectivo'); setVistaModal('pago')
   }
 
   async function abrirDetalleDomi(pedidoId: string) {
@@ -910,7 +982,7 @@ export default function GerenciaPage() {
       metodo_pago_cliente: p.metodo_pago_cliente,
     }
     setMesaDetalle({ mesa: null, pedido: fmt, pagos: (pagos || []) as PagoRegistrado[], isDomi: true })
-    setMontoPago(''); setPropinaPago(''); setMetodoPago('efectivo'); setVistaModal('pago')
+    setMontoPago(''); setPropinaPago(''); setPagaCon(''); setPagaCon(''); setMetodoPago('efectivo'); setVistaModal('pago')
   }
 
   async function confirmarPagoTransferencia() {
@@ -944,7 +1016,7 @@ export default function GerenciaPage() {
     const { data: pagosActualizados } = await supabase.from('pagos').select('*').eq('pedido_id', mesaDetalle.pedido.id).order('created_at')
     const totalPagadoNuevo = (pagosActualizados || []).reduce((a: number, p: PagoRegistrado) => a + p.monto + p.propina, 0)
     const totalPedidoActual = mesaDetalle.pedido.items.reduce((a, i) => a + i.cantidad * i.precio_unitario, 0)
-    setMontoPago(''); setPropinaPago('')
+    setMontoPago(''); setPropinaPago(''); setPagaCon('')
     if (totalPagadoNuevo >= totalPedidoActual) {
       // Pago completo → cerrar pedido + (si tiene mesa) liberarla
       await supabase.from('pedidos').update({ estado: 'pagado', pagado_en: new Date().toISOString() }).eq('id', mesaDetalle.pedido.id)
@@ -1040,8 +1112,24 @@ export default function GerenciaPage() {
     setAbriendo(true)
 
     const { data: { user } } = await supabase.auth.getUser()
+
+    // Obtener negocio_id directamente de la BD (igual que mi_negocio_id() en SQL)
+    // Esto evita el error de RLS cuando el estado aún no ha cargado
+    let myNegocioId: string | null = negocioId
+    if (!myNegocioId && user?.id) {
+      const { data: uData } = await supabase
+        .from('usuarios').select('negocio_id').eq('id', user.id).single()
+      myNegocioId = uData?.negocio_id ?? null
+      if (myNegocioId) setNegocioId(myNegocioId) // actualizar estado también
+    }
+    if (!myNegocioId) {
+      toast.error('No se pudo identificar el negocio. Recarga la página.')
+      setAbriendo(false)
+      return
+    }
+
     const { data: nuevoTurno, error: turnoError } = await supabase
-      .from('turnos').insert({ abierto_por: user?.id, monto_inicial: parseFloat(montoInicial) || 0 })
+      .from('turnos').insert({ negocio_id: myNegocioId, abierto_por: user?.id, monto_inicial: parseFloat(montoInicial) || 0 })
       .select().single()
 
     if (turnoError || !nuevoTurno?.id) {
@@ -1475,37 +1563,38 @@ export default function GerenciaPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#07070f]">
       {/* Header */}
-      <div className="bg-white border-b px-4 py-4 flex items-center justify-between">
+      <div className="bg-[#0d0d1a]/95 backdrop-blur-xl border-b border-white/8 px-4 py-3.5 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-3">
-          <div className="bg-purple-600 p-2 rounded-xl"><BarChart3 size={22} className="text-white" /></div>
+          <div className="bg-gradient-to-br from-violet-500 to-purple-700 p-2 rounded-xl shadow-lg shadow-violet-900/40">
+            <BarChart3 size={20} className="text-white" />
+          </div>
           <div>
-            <h1 className="font-bold text-gray-900">Panel Gerencia</h1>
-            <p className="text-xs text-gray-400">{new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+            <h1 className="font-bold text-white tracking-tight">Panel Gerencia</h1>
+            <p className="text-[11px] text-purple-400/70 capitalize">{new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className={`px-3 py-1 rounded-full text-xs font-bold ${turnoActivo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+          <div className={`px-3 py-1 rounded-full text-xs font-bold border ${turnoActivo ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-red-500/15 text-red-400 border-red-500/30'}`}>
             {turnoActivo ? '● Turno abierto' : '○ Sin turno'}
           </div>
           <button onClick={() => {
               setModalSettings(true)
               setSeccionSettings('cuenta')
-              // Cargar usuarios al abrir settings
               supabase.from('usuarios').select('id, nombre, rol, activo').order('nombre').then(({ data }) => {
                 if (data) setListaUsuarios(data)
               })
               cargarFacturacion()
             }}
-            className="w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center justify-center transition-colors">
-            <Settings size={18} className="text-gray-600" />
+            className="w-9 h-9 bg-white/6 hover:bg-white/12 border border-white/10 rounded-xl flex items-center justify-center transition-colors">
+            <Settings size={18} className="text-white/60" />
           </button>
         </div>
       </div>
 
       {/* Navegación */}
-      <div className="flex gap-1 px-4 py-3 bg-white border-b overflow-x-auto">
+      <div className="flex gap-1 px-3 py-2.5 bg-[#0d0d1a]/80 backdrop-blur-xl border-b border-white/8 overflow-x-auto scrollbar-none">
         {nav.map(n => {
           const bloqueado = !puedeAcceder(n.planReq)
           return (
@@ -1514,11 +1603,14 @@ export default function GerenciaPage() {
                 if (bloqueado) { abrirUpgrade(); toast(`🔒 Plan ${n.planReq === 'pro' ? 'Pro' : 'Profesional'} requerido`, { icon: '⬆️' }); return }
                 setSeccion(n.id as Seccion)
               }}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors
-                ${seccion === n.id && !bloqueado ? 'bg-purple-600 text-white' : ''}
-                ${bloqueado ? 'text-gray-300 cursor-default' : 'text-gray-600 hover:bg-gray-100'}`}>
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all
+                ${seccion === n.id && !bloqueado
+                  ? 'bg-violet-600/90 text-white shadow-lg shadow-violet-900/50'
+                  : bloqueado
+                  ? 'text-white/20 cursor-default'
+                  : 'text-white/50 hover:bg-white/8 hover:text-white/90'}`}>
               {n.icon} {n.label}
-              {bloqueado && <Lock size={12} className="text-gray-300 ml-0.5" />}
+              {bloqueado && <Lock size={12} className="text-white/20 ml-0.5" />}
             </button>
           )
         })}
@@ -1533,12 +1625,12 @@ export default function GerenciaPage() {
             <div className="flex items-center justify-between mb-4 gap-2">
               {!modoGestionMesas ? (
                 <div className="flex gap-3 text-xs flex-wrap">
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-gray-200 inline-block" /> Libre</span>
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-orange-400 inline-block" /> Ocupada</span>
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-400 inline-block" /> Cobrando</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-white/20 inline-block" /><span className="text-white/40">Libre</span></span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-orange-400 inline-block" /><span className="text-white/60">Ocupada</span></span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-400 inline-block" /><span className="text-white/60">Cobrando</span></span>
                 </div>
               ) : (
-                <p className="text-sm font-bold text-purple-700">Modo gestión de mesas</p>
+                <p className="text-sm font-bold text-violet-400">Modo gestión de mesas</p>
               )}
               <div className="flex gap-2 shrink-0">
                 <button onClick={() => {
@@ -1548,15 +1640,15 @@ export default function GerenciaPage() {
                   setNuevoOrdenCategoria('todas')
                   setNuevoOrdenDomi({ nombre: '', telefono: '', direccion: '' })
                 }}
-                  className="text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 bg-purple-600 text-white hover:bg-purple-700 transition-colors">
+                  className="text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 bg-violet-600 text-white hover:bg-violet-700 shadow-lg shadow-violet-900/40 transition-all">
                   <Plus size={13} /> Pedido
                 </button>
                 <button onClick={() => setModalQRDomi(true)}
-                  className="text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 bg-orange-500 text-white hover:bg-orange-600 transition-colors">
+                  className="text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 bg-orange-500/90 text-white hover:bg-orange-500 shadow-lg shadow-orange-900/30 transition-all">
                   🌐 Mi Página
                 </button>
                 <button onClick={() => setModoGestionMesas(g => !g)}
-                  className={`text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors ${modoGestionMesas ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  className={`text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all ${modoGestionMesas ? 'bg-violet-600 text-white shadow-lg shadow-violet-900/40' : 'bg-white/8 text-white/60 hover:bg-white/14 border border-white/10'}`}>
                   <Settings size={13} /> {modoGestionMesas ? 'Salir' : 'Gestionar'}
                 </button>
               </div>
@@ -1566,23 +1658,23 @@ export default function GerenciaPage() {
               /* ── MODO GESTIÓN ── */
               <div className="space-y-4">
                 <button onClick={() => { setModalNuevaZona(true); setNuevaZonaNombre(''); setNuevaMesaNumero('') }}
-                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2">
+                  className="w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-violet-900/40 transition-all">
                   <Plus size={18} /> Nueva zona
                 </button>
                 {zonasLista.length === 0 && (
-                  <p className="text-center text-gray-400 text-sm py-8">No hay zonas. Crea la primera.</p>
+                  <p className="text-center text-white/30 text-sm py-8">No hay zonas. Crea la primera.</p>
                 )}
                 {zonasLista.map(zona => (
-                  <div key={zona} className="bg-white rounded-2xl border border-gray-100 p-4">
+                  <div key={zona} className="bg-white/5 rounded-2xl border border-white/10 p-4 backdrop-blur-sm">
                     <div className="flex items-center justify-between mb-3 gap-2">
-                      <span className="font-bold text-gray-900 text-base">{zona}</span>
+                      <span className="font-bold text-white text-base">{zona}</span>
                       <div className="flex gap-2 shrink-0">
                         <button onClick={() => { setModalRenombrarZona(zona); setRenombrarZonaValor(zona) }}
-                          className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1.5 rounded-lg flex items-center gap-1 font-medium">
+                          className="text-xs bg-white/8 hover:bg-white/14 text-white/60 hover:text-white px-2 py-1.5 rounded-lg flex items-center gap-1 font-medium border border-white/10 transition-all">
                           <Pencil size={12} /> Renombrar
                         </button>
                         <button onClick={() => { setModalAgregarMesa(zona); setNuevaMesaNumero('') }}
-                          className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 px-2 py-1.5 rounded-lg flex items-center gap-1 font-medium">
+                          className="text-xs bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 px-2 py-1.5 rounded-lg flex items-center gap-1 font-medium border border-violet-500/30 transition-all">
                           <Plus size={12} /> Mesa
                         </button>
                       </div>
@@ -1592,24 +1684,24 @@ export default function GerenciaPage() {
                         .filter(m => (m.zona || 'Sin zona') === zona)
                         .sort((a, b) => a.numero - b.numero)
                         .map(m => (
-                          <div key={m.id} className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
-                            <span className="font-bold text-gray-700 text-sm">Mesa {m.numero}</span>
-                            <button onClick={() => setModalQR(m)} className="text-gray-400 hover:text-purple-600 ml-0.5" title="Ver QR">
+                          <div key={m.id} className="flex items-center gap-1.5 bg-white/6 border border-white/12 rounded-xl px-3 py-2">
+                            <span className="font-bold text-white/80 text-sm">Mesa {m.numero}</span>
+                            <button onClick={() => setModalQR(m)} className="text-white/30 hover:text-violet-400 ml-0.5 transition-colors" title="Ver QR">
                               <span className="text-xs">QR</span>
                             </button>
                             {m.estado === 'libre' ? (
-                              <button onClick={() => eliminarMesa(m.id)} className="text-red-400 hover:text-red-600 ml-0.5" title="Eliminar">
+                              <button onClick={() => eliminarMesa(m.id)} className="text-red-400/70 hover:text-red-400 ml-0.5 transition-colors" title="Eliminar">
                                 <X size={14} />
                               </button>
                             ) : (
-                              <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${m.estado === 'ocupada' ? 'bg-orange-100 text-orange-600' : 'bg-yellow-100 text-yellow-700'}`}>
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${m.estado === 'ocupada' ? 'bg-orange-500/20 text-orange-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
                                 {m.estado === 'ocupada' ? 'ocupada' : 'cobrando'}
                               </span>
                             )}
                           </div>
                         ))}
                       {mesas.filter(m => (m.zona || 'Sin zona') === zona).length === 0 && (
-                        <p className="text-sm text-gray-400 italic">Sin mesas</p>
+                        <p className="text-sm text-white/25 italic">Sin mesas</p>
                       )}
                     </div>
                   </div>
@@ -1620,7 +1712,7 @@ export default function GerenciaPage() {
               <div className="space-y-5">
                 {zonasLista.map(zona => (
                   <div key={zona}>
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">{zona}</h3>
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-400/60 mb-2.5">{zona}</h3>
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                       {mesas
                         .filter(m => (m.zona || 'Sin zona') === zona)
@@ -1629,19 +1721,21 @@ export default function GerenciaPage() {
                           <div key={mesa.id} className="relative group">
                             <button onClick={() => abrirDetalleMesa(mesa)}
                               className={`w-full rounded-2xl p-4 text-center font-bold transition-all border-2 ${
-                                mesa.estado === 'libre'          ? 'bg-white border-gray-200 text-gray-500' :
-                                mesa.estado === 'ocupada'        ? 'bg-orange-50 border-orange-400 text-orange-700' :
-                                'bg-yellow-50 border-yellow-400 text-yellow-700'
+                                mesa.estado === 'libre'
+                                  ? 'bg-white/4 border-white/10 text-white/35 hover:bg-white/8 hover:border-white/20'
+                                  : mesa.estado === 'ocupada'
+                                  ? 'bg-orange-500/12 border-orange-500/50 text-orange-300 shadow-lg shadow-orange-900/20 hover:bg-orange-500/18'
+                                  : 'bg-yellow-500/12 border-yellow-500/50 text-yellow-300 shadow-lg shadow-yellow-900/20 hover:bg-yellow-500/18'
                               }`}>
                               <p className="text-3xl font-black">{mesa.numero}</p>
-                              <p className="text-xs mt-1 capitalize">{mesa.estado.replace('_', ' ')}</p>
+                              <p className="text-xs mt-1 capitalize opacity-80">{mesa.estado.replace('_', ' ')}</p>
                             </button>
                             {/* QR icon — visible on hover */}
                             <button
                               onClick={e => { e.stopPropagation(); setModalQR(mesa) }}
                               title="Ver QR de mesa"
-                              className="absolute top-1.5 right-1.5 w-6 h-6 bg-white border border-gray-200 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-purple-50 hover:border-purple-300">
-                              <span className="text-[10px] font-black text-gray-500">QR</span>
+                              className="absolute top-1.5 right-1.5 w-6 h-6 bg-white/8 border border-white/15 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm hover:bg-violet-500/20 hover:border-violet-500/40">
+                              <span className="text-[10px] font-black text-white/50">QR</span>
                             </button>
                           </div>
                         ))}
@@ -1650,8 +1744,8 @@ export default function GerenciaPage() {
                 ))}
                 {mesas.length === 0 && (
                   <div className="text-center py-12">
-                    <p className="text-gray-400 text-sm mb-3">No hay mesas configuradas.</p>
-                    <button onClick={() => setModoGestionMesas(true)} className="text-purple-600 font-bold text-sm underline">
+                    <p className="text-white/30 text-sm mb-3">No hay mesas configuradas.</p>
+                    <button onClick={() => setModoGestionMesas(true)} className="text-violet-400 font-bold text-sm hover:text-violet-300 transition-colors">
                       Crear primera zona →
                     </button>
                   </div>
@@ -1662,7 +1756,7 @@ export default function GerenciaPage() {
             {/* Panel domicilios del día */}
             {domiActivos.length > 0 && (
               <div className="mt-5">
-                <h3 className="font-bold text-gray-700 text-sm mb-2 flex items-center gap-2">🛵 Domicilios de hoy</h3>
+                <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-400/60 mb-2.5">🛵 Domicilios de hoy</h3>
                 <div className="space-y-2">
                   {domiActivos.map(d => {
                     const mins = Math.floor((Date.now() - new Date(d.created_at).getTime()) / 60000)
@@ -1671,30 +1765,30 @@ export default function GerenciaPage() {
                     return (
                       <button key={d.id} onClick={() => !pagado && abrirDetalleDomi(d.id)}
                         disabled={pagado}
-                        className={`w-full rounded-2xl px-4 py-3 text-left transition-colors border ${pagado ? 'bg-gray-50 border-gray-200 opacity-70 cursor-default' : 'bg-blue-50 border-blue-200 hover:bg-blue-100'}`}>
+                        className={`w-full rounded-2xl px-4 py-3 text-left transition-all border ${pagado ? 'bg-white/4 border-white/8 opacity-50 cursor-default' : 'bg-blue-500/10 border-blue-500/30 hover:bg-blue-500/16 hover:border-blue-500/50'}`}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`text-xs font-black px-2 py-0.5 rounded-full ${pagado ? 'bg-gray-400 text-white' : 'bg-blue-600 text-white'}`}>
+                              <span className={`text-xs font-black px-2 py-0.5 rounded-full ${pagado ? 'bg-white/20 text-white/50' : 'bg-blue-500 text-white'}`}>
                                 {pagado ? '✓ PAGADO' : 'DOMI'}
                               </span>
-                              <span className="font-bold text-gray-900 text-sm">
-                                {d.cliente_nombre || <span className="text-gray-400 italic font-normal">Sin nombre</span>}
+                              <span className="font-bold text-white/80 text-sm">
+                                {d.cliente_nombre || <span className="text-white/30 italic font-normal">Sin nombre</span>}
                               </span>
                             </div>
                             <div className="flex items-center gap-3 mt-1 flex-wrap">
-                              {d.cliente_telefono && <span className="text-xs text-gray-500">📞 {d.cliente_telefono}</span>}
-                              <span className="text-xs font-semibold text-gray-700">${d.total.toLocaleString('es-CO')}</span>
+                              {d.cliente_telefono && <span className="text-xs text-white/40">📞 {d.cliente_telefono}</span>}
+                              <span className="text-xs font-semibold text-white/70">${d.total.toLocaleString('es-CO')}</span>
                               {d.metodos.length > 0 && (
-                                <span className="text-xs text-gray-500">{d.metodos.map(m => EMOJIS[m] || m).join(' ')} {d.metodos.join(' / ')}</span>
+                                <span className="text-xs text-white/40">{d.metodos.map(m => EMOJIS[m] || m).join(' ')} {d.metodos.join(' / ')}</span>
                               )}
                             </div>
                           </div>
-                          <span className={`text-xs font-bold px-2 py-1 rounded-full shrink-0 ${pagado ? 'bg-gray-100 text-gray-500' : mins >= 40 ? 'bg-red-100 text-red-700' : mins >= 20 ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                          <span className={`text-xs font-bold px-2 py-1 rounded-full shrink-0 ${pagado ? 'bg-white/10 text-white/40' : mins >= 40 ? 'bg-red-500/20 text-red-400' : mins >= 20 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
                             {pagado ? new Date(d.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : `${mins} min`}
                           </span>
                         </div>
-                        {!pagado && <p className="text-xs text-blue-500 mt-1">Toca para cobrar →</p>}
+                        {!pagado && <p className="text-xs text-blue-400/70 mt-1">Toca para cobrar →</p>}
                       </button>
                     )
                   })}
@@ -1710,11 +1804,11 @@ export default function GerenciaPage() {
             {/* Tabs de subsección */}
             <div className="flex gap-2 mb-4">
               <button onClick={() => setSubSeccionCarta('carta')}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${subSeccionCarta === 'carta' ? 'bg-purple-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>
+                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${subSeccionCarta === 'carta' ? 'bg-violet-600 text-white shadow-lg shadow-violet-900/40' : 'bg-white/6 text-white/50 border border-white/10 hover:bg-white/10 hover:text-white/80'}`}>
                 <UtensilsCrossed size={15} /> Carta general
               </button>
               <button onClick={() => setSubSeccionCarta('menus')}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${subSeccionCarta === 'menus' ? 'bg-orange-500 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>
+                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${subSeccionCarta === 'menus' ? 'bg-orange-500/90 text-white shadow-lg shadow-orange-900/30' : 'bg-white/6 text-white/50 border border-white/10 hover:bg-white/10 hover:text-white/80'}`}>
                 <ClipboardList size={15} /> Menús de turno
               </button>
             </div>
@@ -1723,21 +1817,21 @@ export default function GerenciaPage() {
             {subSeccionCarta === 'carta' && (
               <div>
                 <div className="flex items-center justify-between mb-4 gap-2">
-                  <h2 className="font-bold text-gray-900">Gestión de carta</h2>
-                  <button onClick={abrirNuevoPlato} className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5">
+                  <h2 className="font-bold text-white">Gestión de carta</h2>
+                  <button onClick={abrirNuevoPlato} className="bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 shadow-lg shadow-violet-900/40 transition-all">
                     <Plus size={15} /> Nuevo plato
                   </button>
                 </div>
 
                 {/* Filtro por categoría */}
-                <div className="flex gap-2 mb-4 overflow-x-auto">
+                <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-none">
                   <button onClick={() => setCategoriaActivaCarta('todas')}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${categoriaActivaCarta === 'todas' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${categoriaActivaCarta === 'todas' ? 'bg-violet-600 text-white shadow-lg shadow-violet-900/40' : 'bg-white/8 text-white/50 border border-white/10 hover:bg-white/14'}`}>
                     Todas
                   </button>
                   {categorias.map(c => (
                     <button key={c.id} onClick={() => setCategoriaActivaCarta(c.id)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${categoriaActivaCarta === c.id ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${categoriaActivaCarta === c.id ? 'bg-violet-600 text-white shadow-lg shadow-violet-900/40' : 'bg-white/8 text-white/50 border border-white/10 hover:bg-white/14'}`}>
                       {c.nombre}
                     </button>
                   ))}
@@ -1747,27 +1841,27 @@ export default function GerenciaPage() {
                   {platosFiltradosCarta.map(plato => {
                     const margen = utilidadPlato(plato)
                     return (
-                      <div key={plato.id} className={`bg-white rounded-2xl p-4 border ${plato.activo ? 'border-gray-100' : 'border-gray-200 opacity-60'}`}>
+                      <div key={plato.id} className={`bg-white/5 rounded-2xl p-4 border backdrop-blur-sm transition-all ${plato.activo ? 'border-white/10 hover:bg-white/8' : 'border-white/6 opacity-50'}`}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-semibold text-gray-900">{plato.nombre}</p>
-                              {!plato.activo && <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">Inactivo</span>}
-                              {margen && <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${parseInt(margen) >= 50 ? 'bg-green-100 text-green-700' : parseInt(margen) >= 30 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{margen}% margen</span>}
+                              <p className="font-semibold text-white/90">{plato.nombre}</p>
+                              {!plato.activo && <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full border border-red-500/20">Inactivo</span>}
+                              {margen && <span className={`text-xs px-2 py-0.5 rounded-full font-bold border ${parseInt(margen) >= 50 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' : parseInt(margen) >= 30 ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/20' : 'bg-red-500/15 text-red-400 border-red-500/20'}`}>{margen}% margen</span>}
                             </div>
-                            {plato.descripcion && <p className="text-xs text-gray-400 mt-0.5 truncate">{plato.descripcion}</p>}
+                            {plato.descripcion && <p className="text-xs text-white/35 mt-0.5 truncate">{plato.descripcion}</p>}
                             <div className="flex gap-4 mt-1">
-                              <span className="text-sm font-bold text-gray-900">${plato.precio.toLocaleString('es-CO')} <span className="font-normal text-gray-400">precio</span></span>
-                              {plato.costo ? <span className="text-sm text-gray-500">${plato.costo.toLocaleString('es-CO')} <span className="text-gray-400">costo</span></span> : <span className="text-xs text-orange-400">Sin costo registrado</span>}
+                              <span className="text-sm font-bold text-white/80">${plato.precio.toLocaleString('es-CO')} <span className="font-normal text-white/35">precio</span></span>
+                              {plato.costo ? <span className="text-sm text-white/50">${plato.costo.toLocaleString('es-CO')} <span className="text-white/30">costo</span></span> : <span className="text-xs text-orange-400/70">Sin costo registrado</span>}
                             </div>
-                            <p className="text-xs text-gray-400 mt-0.5">{categorias.find(c => c.id === plato.categoria_id)?.nombre}</p>
+                            <p className="text-xs text-white/30 mt-0.5">{categorias.find(c => c.id === plato.categoria_id)?.nombre}</p>
                           </div>
                           <div className="flex gap-1 shrink-0">
-                            <button onClick={() => abrirEditarPlato(plato)} className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center justify-center"><Pencil size={14} className="text-gray-600" /></button>
-                            <button onClick={() => toggleActivoPlato(plato)} className={`w-8 h-8 rounded-xl flex items-center justify-center ${plato.activo ? 'bg-orange-100 hover:bg-orange-200' : 'bg-green-100 hover:bg-green-200'}`}>
-                              {plato.activo ? <X size={14} className="text-orange-600" /> : <CheckCircle size={14} className="text-green-600" />}
+                            <button onClick={() => abrirEditarPlato(plato)} className="w-8 h-8 bg-white/8 hover:bg-white/14 rounded-xl flex items-center justify-center border border-white/10 transition-all"><Pencil size={14} className="text-white/60" /></button>
+                            <button onClick={() => toggleActivoPlato(plato)} className={`w-8 h-8 rounded-xl flex items-center justify-center border transition-all ${plato.activo ? 'bg-orange-500/15 hover:bg-orange-500/25 border-orange-500/20' : 'bg-emerald-500/15 hover:bg-emerald-500/25 border-emerald-500/20'}`}>
+                              {plato.activo ? <X size={14} className="text-orange-400" /> : <CheckCircle size={14} className="text-emerald-400" />}
                             </button>
-                            <button onClick={() => eliminarPlato(plato)} className="w-8 h-8 bg-red-50 hover:bg-red-100 rounded-xl flex items-center justify-center"><Trash2 size={14} className="text-red-500" /></button>
+                            <button onClick={() => eliminarPlato(plato)} className="w-8 h-8 bg-red-500/12 hover:bg-red-500/22 rounded-xl flex items-center justify-center border border-red-500/15 transition-all"><Trash2 size={14} className="text-red-400" /></button>
                           </div>
                         </div>
                       </div>
@@ -1781,35 +1875,35 @@ export default function GerenciaPage() {
             {subSeccionCarta === 'menus' && (
               <div>
                 <div className="flex items-center justify-between mb-3 gap-2">
-                  <h2 className="font-bold text-gray-900">Menús de turno</h2>
+                  <h2 className="font-bold text-white">Menús de turno</h2>
                   <button
                     onClick={() => { setModalNuevoMenu('nuevo'); setEditandoMenuId(null); setMenuForm({ nombre: '', items: {} }) }}
-                    className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5">
+                    className="bg-orange-500/90 hover:bg-orange-500 text-white px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 shadow-lg shadow-orange-900/30 transition-all">
                     <Plus size={15} /> Nuevo menú
                   </button>
                 </div>
 
-                <div className="bg-orange-50 border border-orange-200 rounded-2xl px-4 py-3 text-xs text-orange-700 leading-relaxed mb-4">
+                <div className="bg-orange-500/10 border border-orange-500/20 rounded-2xl px-4 py-3 text-xs text-orange-300/80 leading-relaxed mb-4">
                   💡 Crea menús con nombre para tener tus plantillas de cantidad por día o temporada. Al abrir el turno puedes escoger uno de la lista o ingresar cantidades manualmente.
                 </div>
 
                 <div className="space-y-3">
                   {menusTurno.length === 0 && (
-                    <div className="text-center py-12 text-gray-400">
-                      <ClipboardList size={36} className="mx-auto mb-3 opacity-25" />
+                    <div className="text-center py-12 text-white/25">
+                      <ClipboardList size={36} className="mx-auto mb-3 opacity-30" />
                       <p className="text-sm font-medium">No hay menús creados todavía</p>
-                      <p className="text-xs mt-1">Toca "Nuevo menú" para crear el primero</p>
+                      <p className="text-xs mt-1">Toca &quot;Nuevo menú&quot; para crear el primero</p>
                     </div>
                   )}
                   {menusTurno.map(menu => {
                     const itemsConCantidad = menu.items.filter(i => i.cantidad > 0)
                     const totalUnidades = menu.items.reduce((a, i) => a + i.cantidad, 0)
                     return (
-                      <div key={menu.id} className="bg-white rounded-2xl border border-gray-100 p-4">
+                      <div key={menu.id} className="bg-white/5 rounded-2xl border border-white/10 p-4 backdrop-blur-sm hover:bg-white/8 transition-all">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <p className="font-black text-gray-900 text-base">{menu.nombre}</p>
-                            <p className="text-xs text-gray-400 mt-0.5">
+                            <p className="font-black text-white/90 text-base">{menu.nombre}</p>
+                            <p className="text-xs text-white/35 mt-0.5">
                               {itemsConCantidad.length} platos · {totalUnidades} unidades totales
                             </p>
                             <div className="flex flex-wrap gap-1 mt-2">
@@ -1817,13 +1911,13 @@ export default function GerenciaPage() {
                                 const plato = platos.find(p => p.id === item.plato_id)
                                 if (!plato) return null
                                 return (
-                                  <span key={item.plato_id} className="text-xs bg-orange-50 text-orange-700 border border-orange-100 px-2 py-0.5 rounded-full">
+                                  <span key={item.plato_id} className="text-xs bg-orange-500/15 text-orange-300 border border-orange-500/20 px-2 py-0.5 rounded-full">
                                     {plato.nombre} ×{item.cantidad}
                                   </span>
                                 )
                               })}
                               {itemsConCantidad.length > 5 && (
-                                <span className="text-xs text-gray-400 px-1">+{itemsConCantidad.length - 5} más</span>
+                                <span className="text-xs text-white/30 px-1">+{itemsConCantidad.length - 5} más</span>
                               )}
                             </div>
                           </div>
@@ -1834,12 +1928,12 @@ export default function GerenciaPage() {
                               setMenuForm({ nombre: menu.nombre, items })
                               setEditandoMenuId(menu.id)
                               setModalNuevoMenu('editar')
-                            }} className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center justify-center">
-                              <Pencil size={14} className="text-gray-600" />
+                            }} className="w-8 h-8 bg-white/8 hover:bg-white/14 rounded-xl flex items-center justify-center border border-white/10 transition-all">
+                              <Pencil size={14} className="text-white/60" />
                             </button>
                             <button onClick={() => eliminarMenuTurno(menu.id, menu.nombre)}
-                              className="w-8 h-8 bg-red-50 hover:bg-red-100 rounded-xl flex items-center justify-center">
-                              <Trash2 size={14} className="text-red-500" />
+                              className="w-8 h-8 bg-red-500/12 hover:bg-red-500/22 rounded-xl flex items-center justify-center border border-red-500/15 transition-all">
+                              <Trash2 size={14} className="text-red-400" />
                             </button>
                           </div>
                         </div>
@@ -1856,11 +1950,11 @@ export default function GerenciaPage() {
         {seccion === 'resumen' && puedeAcceder('basico') && (
           <div className="space-y-4">
             {/* Selector de rango */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-3 space-y-2">
+            <div className="bg-white/5 rounded-2xl border border-white/10 p-3 space-y-2 backdrop-blur-sm">
               <div className="flex gap-1.5">
                 {([['hoy', 'Hoy'], ['semana', 'Últimos 7 días'], ['mes', 'Este mes'], ['personalizado', '📅 Personalizado']] as [RangoResumen, string][]).map(([r, label]) => (
                   <button key={r} onClick={() => setRangoResumen(r)}
-                    className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${rangoResumen === r ? 'bg-purple-600 text-white' : 'text-gray-500 hover:bg-gray-100 bg-gray-50'}`}>
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${rangoResumen === r ? 'bg-violet-600 text-white shadow-lg shadow-violet-900/40' : 'text-white/40 hover:bg-white/8 hover:text-white/70 bg-white/4'}`}>
                     {label}
                   </button>
                 ))}
@@ -1868,17 +1962,17 @@ export default function GerenciaPage() {
               {rangoResumen === 'personalizado' && (
                 <div className="flex gap-2 items-end pt-1">
                   <div className="flex-1">
-                    <label className="text-xs text-gray-400 block mb-1">Desde</label>
+                    <label className="text-xs text-white/40 block mb-1">Desde</label>
                     <input type="date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)}
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                      className="w-full bg-white/8 border border-white/15 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 [color-scheme:dark]" />
                   </div>
                   <div className="flex-1">
-                    <label className="text-xs text-gray-400 block mb-1">Hasta</label>
+                    <label className="text-xs text-white/40 block mb-1">Hasta</label>
                     <input type="date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)}
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                      className="w-full bg-white/8 border border-white/15 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 [color-scheme:dark]" />
                   </div>
                   <button onClick={() => cargarResumen(fechaDesde, fechaHasta)}
-                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-2 rounded-xl text-sm whitespace-nowrap">
+                    className="bg-violet-600 hover:bg-violet-700 text-white font-bold px-4 py-2 rounded-xl text-sm whitespace-nowrap shadow-lg shadow-violet-900/40 transition-all">
                     Ver
                   </button>
                 </div>
@@ -1886,30 +1980,30 @@ export default function GerenciaPage() {
             </div>
 
             {cargandoResumen ? (
-              <div className="flex items-center justify-center py-12 text-gray-400">
-                <div className="text-center"><BarChart3 size={32} className="mx-auto mb-2 animate-pulse" /><p>Cargando datos...</p></div>
+              <div className="flex items-center justify-center py-12 text-white/30">
+                <div className="text-center"><BarChart3 size={32} className="mx-auto mb-2 animate-pulse text-violet-400" /><p>Cargando datos...</p></div>
               </div>
             ) : (<>
 
             {/* KPIs */}
             <div className="grid grid-cols-2 gap-2">
               {[
-                { label: 'Ventas totales', valor: `$${resumenStats.ventas.toLocaleString('es-CO')}`, icon: <DollarSign size={18}/>, color: 'bg-green-500' },
-                { label: 'Pedidos', valor: resumenStats.pedidos, icon: <ChefHat size={18}/>, color: 'bg-blue-500' },
-                { label: 'Utilidad', valor: `$${resumenStats.utilidad.toLocaleString('es-CO')}`, icon: <TrendingUp size={18}/>, color: 'bg-purple-500' },
-                { label: 'Domicilios', valor: `$${resumenStats.domis.toLocaleString('es-CO')}`, icon: <Bike size={18}/>, color: 'bg-blue-400' },
+                { label: 'Ventas totales', valor: `$${resumenStats.ventas.toLocaleString('es-CO')}`, icon: <DollarSign size={18}/>, color: 'bg-emerald-500', glow: 'shadow-emerald-900/40' },
+                { label: 'Pedidos', valor: resumenStats.pedidos, icon: <ChefHat size={18}/>, color: 'bg-blue-500', glow: 'shadow-blue-900/40' },
+                { label: 'Utilidad', valor: `$${resumenStats.utilidad.toLocaleString('es-CO')}`, icon: <TrendingUp size={18}/>, color: 'bg-violet-500', glow: 'shadow-violet-900/40' },
+                { label: 'Domicilios', valor: `$${resumenStats.domis.toLocaleString('es-CO')}`, icon: <Bike size={18}/>, color: 'bg-cyan-500', glow: 'shadow-cyan-900/40' },
               ].map(s => (
-                <div key={s.label} className="bg-white rounded-2xl p-3 border border-gray-100 text-center">
-                  <div className={`${s.color} w-8 h-8 rounded-xl flex items-center justify-center text-white mx-auto mb-1.5`}>{s.icon}</div>
-                  <p className="text-lg font-black text-gray-900 leading-tight">{s.valor}</p>
-                  <p className="text-xs text-gray-400">{s.label}</p>
+                <div key={s.label} className="bg-white/5 rounded-2xl p-3 border border-white/10 text-center backdrop-blur-sm hover:bg-white/8 transition-all">
+                  <div className={`${s.color} shadow-lg ${s.glow} w-9 h-9 rounded-xl flex items-center justify-center text-white mx-auto mb-2`}>{s.icon}</div>
+                  <p className="text-lg font-black text-white leading-tight">{s.valor}</p>
+                  <p className="text-xs text-white/40 mt-0.5">{s.label}</p>
                 </div>
               ))}
             </div>
 
             {/* Gráfico ventas por hora o por día */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-4">
-              <h3 className="font-bold text-gray-900 mb-3">
+            <div className="bg-white/5 rounded-2xl border border-white/10 p-4 backdrop-blur-sm">
+              <h3 className="font-bold text-white/80 mb-3">
                 {(rangoResumen === 'hoy' || (rangoResumen === 'personalizado' && fechaDesde === fechaHasta)) ? '📈 Ventas por hora' : '📅 Ventas por día'}
               </h3>
               {(() => {
@@ -1918,29 +2012,29 @@ export default function GerenciaPage() {
                   <ResponsiveContainer width="100%" height={180}>
                     {esPorHora ? (
                       <BarChart data={ventasPorHora} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                        <XAxis dataKey="hora" tick={{ fontSize: 10 }} />
-                        <YAxis tick={{ fontSize: 10 }} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
-                        <Tooltip formatter={(v) => [`$${Number(v ?? 0).toLocaleString('es-CO')}`, 'Ventas']} />
-                        <Bar dataKey="ventas" fill="#9333ea" radius={[4,4,0,0]} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                        <XAxis dataKey="hora" tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }} />
+                        <YAxis tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
+                        <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff' }} formatter={(v) => [`$${Number(v ?? 0).toLocaleString('es-CO')}`, 'Ventas']} />
+                        <Bar dataKey="ventas" fill="#7c3aed" radius={[4,4,0,0]} />
                       </BarChart>
                     ) : (
                       <BarChart data={ventasPorDia} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                        <XAxis dataKey="dia" tick={{ fontSize: 9 }} />
-                        <YAxis tick={{ fontSize: 10 }} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
-                        <Tooltip formatter={(v, n) => [`$${Number(v ?? 0).toLocaleString('es-CO')}`, n === 'ventas' ? 'Establecimiento' : 'Domicilios']} />
-                        <Bar dataKey="ventas" stackId="a" fill="#9333ea" radius={[0,0,0,0]} name="ventas" />
-                        <Bar dataKey="domis" stackId="a" fill="#3b82f6" radius={[4,4,0,0]} name="domis" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                        <XAxis dataKey="dia" tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.4)' }} />
+                        <YAxis tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
+                        <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff' }} formatter={(v, n) => [`$${Number(v ?? 0).toLocaleString('es-CO')}`, n === 'ventas' ? 'Establecimiento' : 'Domicilios']} />
+                        <Bar dataKey="ventas" stackId="a" fill="#7c3aed" radius={[0,0,0,0]} name="ventas" />
+                        <Bar dataKey="domis" stackId="a" fill="#0ea5e9" radius={[4,4,0,0]} name="domis" />
                       </BarChart>
                     )}
                   </ResponsiveContainer>
                 )
               })()}
               {ventasPorDia.length > 0 && (
-                <div className="flex gap-3 mt-2 justify-center text-xs">
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-purple-600 inline-block"/>Establecimiento</span>
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-500 inline-block"/>Domicilios</span>
+                <div className="flex gap-3 mt-2 justify-center text-xs text-white/40">
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-violet-600 inline-block"/>Establecimiento</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-sky-500 inline-block"/>Domicilios</span>
                 </div>
               )}
             </div>
@@ -1949,25 +2043,25 @@ export default function GerenciaPage() {
             <div className="grid grid-cols-1 gap-4">
               {/* Torta */}
               {datosPagosMetodo.length > 0 && (
-                <div className="bg-white rounded-2xl border border-gray-100 p-4">
-                  <h3 className="font-bold text-gray-900 mb-2">💳 Métodos de pago</h3>
+                <div className="bg-white/5 rounded-2xl border border-white/10 p-4 backdrop-blur-sm">
+                  <h3 className="font-bold text-white/80 mb-2">💳 Métodos de pago</h3>
                   <div className="flex items-center gap-4">
                     <ResponsiveContainer width={130} height={130}>
                       <PieChart>
                         <Pie data={datosPagosMetodo} cx="50%" cy="50%" innerRadius={35} outerRadius={58} dataKey="value" paddingAngle={3}>
                           {datosPagosMetodo.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                         </Pie>
-                        <Tooltip formatter={(v) => [`$${Number(v ?? 0).toLocaleString('es-CO')}`, '']} />
+                        <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff' }} formatter={(v) => [`$${Number(v ?? 0).toLocaleString('es-CO')}`, '']} />
                       </PieChart>
                     </ResponsiveContainer>
                     <div className="flex-1 space-y-2">
                       {datosPagosMetodo.map(m => (
                         <div key={m.name} className="flex items-center justify-between">
-                          <span className="flex items-center gap-1.5 text-sm text-gray-700">
+                          <span className="flex items-center gap-1.5 text-sm text-white/60">
                             <span className="w-3 h-3 rounded-full inline-block shrink-0" style={{ backgroundColor: m.color }} />
                             {m.name}
                           </span>
-                          <span className="font-bold text-sm text-gray-900">${m.value.toLocaleString('es-CO')}</span>
+                          <span className="font-bold text-sm text-white/90">${m.value.toLocaleString('es-CO')}</span>
                         </div>
                       ))}
                     </div>
@@ -1977,7 +2071,7 @@ export default function GerenciaPage() {
 
               {/* Top platos gráfico */}
               {platosTop.length > 0 && (
-                <div className="bg-white rounded-2xl border border-gray-100 p-4">
+                <div className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm p-4">
                   <h3 className="font-bold text-gray-900 mb-3">🏆 Platos más vendidos</h3>
                   <ResponsiveContainer width="100%" height={Math.min(platosTop.slice(0,6).length * 36, 220)}>
                     <BarChart layout="vertical" data={platosTop.slice(0,6).map(p => ({ nombre: p.nombre.length > 18 ? p.nombre.slice(0,16)+'…' : p.nombre, cant: p.cantidad, total: p.total }))}
@@ -1994,17 +2088,17 @@ export default function GerenciaPage() {
 
             {/* Desempeño meseras */}
             {meseras.length > 0 && (
-              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                <div className="px-4 py-3 border-b"><h3 className="font-bold text-gray-900">👩 Desempeño meseras</h3></div>
-                <div className="divide-y">
+              <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
+                <div className="px-4 py-3 border-b border-white/8"><h3 className="font-bold text-white/80">👩 Desempeño meseras</h3></div>
+                <div className="divide-y divide-white/6">
                   {meseras.map((m, i) => (
                     <div key={m.nombre} className="flex items-center gap-3 px-4 py-3">
-                      <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black text-white ${i === 0 ? 'bg-yellow-400' : i === 1 ? 'bg-gray-400' : 'bg-purple-300'}`}>{i+1}</span>
+                      <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black text-white ${i === 0 ? 'bg-yellow-500' : i === 1 ? 'bg-white/30' : 'bg-violet-500/60'}`}>{i+1}</span>
                       <div className="flex-1">
-                        <p className="font-semibold text-gray-900 text-sm">{m.nombre}</p>
-                        <p className="text-xs text-gray-400">{m.pedidos} pedido(s)</p>
+                        <p className="font-semibold text-white/80 text-sm">{m.nombre}</p>
+                        <p className="text-xs text-white/35">{m.pedidos} pedido(s)</p>
                       </div>
-                      <span className="font-bold text-gray-900 text-sm">${m.total.toLocaleString('es-CO')}</span>
+                      <span className="font-bold text-white/80 text-sm">${m.total.toLocaleString('es-CO')}</span>
                     </div>
                   ))}
                 </div>
@@ -2014,24 +2108,24 @@ export default function GerenciaPage() {
             {/* ── Tiempos del período ── */}
             {(resumenTiempoCocinero.length > 0 || resumenTiempoPlato.length > 0) && (
               <div className="space-y-3">
-                <h3 className="font-bold text-gray-900 flex items-center gap-2"><Timer size={16} className="text-orange-500"/> Tiempos del período</h3>
+                <h3 className="font-bold text-white/70 flex items-center gap-2"><Timer size={16} className="text-orange-400"/> Tiempos del período</h3>
 
                 {resumenTiempoCocinero.length > 0 && (
-                  <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                    <div className="px-4 py-3 border-b flex items-center gap-2">
-                      <ChefHat size={15} className="text-orange-500"/>
-                      <p className="font-bold text-gray-900 text-sm">Rendimiento cocineras</p>
+                  <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
+                    <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
+                      <ChefHat size={15} className="text-orange-400"/>
+                      <p className="font-bold text-white/80 text-sm">Rendimiento cocineras</p>
                     </div>
-                    <div className="divide-y">
+                    <div className="divide-y divide-white/6">
                       {resumenTiempoCocinero.map(c => (
                         <div key={c.nombre} className="flex items-center justify-between px-4 py-3">
                           <div>
-                            <p className="font-semibold text-gray-900 text-sm">👩‍🍳 {c.nombre}</p>
-                            <p className="text-xs text-gray-400">{c.platos} plato(s)</p>
+                            <p className="font-semibold text-white/80 text-sm">👩‍🍳 {c.nombre}</p>
+                            <p className="text-xs text-white/35">{c.platos} plato(s)</p>
                           </div>
                           <div className="text-right">
-                            <p className="font-bold text-gray-900">{c.tiempoPromedio} min</p>
-                            <p className="text-xs text-gray-400">prom. preparación</p>
+                            <p className="font-bold text-white/80">{c.tiempoPromedio} min</p>
+                            <p className="text-xs text-white/35">prom. preparación</p>
                           </div>
                         </div>
                       ))}
@@ -2040,22 +2134,22 @@ export default function GerenciaPage() {
                 )}
 
                 {resumenTiempoPlato.length > 0 && (
-                  <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                    <div className="px-4 py-3 border-b flex items-center gap-2">
-                      <Clock size={15} className="text-blue-500"/>
-                      <p className="font-bold text-gray-900 text-sm">Tiempos por plato</p>
+                  <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
+                    <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
+                      <Clock size={15} className="text-sky-400"/>
+                      <p className="font-bold text-white/80 text-sm">Tiempos por plato</p>
                     </div>
-                    <div className="divide-y max-h-56 overflow-y-auto">
+                    <div className="divide-y divide-white/6 max-h-56 overflow-y-auto">
                       {resumenTiempoPlato.map(p => (
                         <div key={p.nombre} className="px-4 py-3">
                           <div className="flex justify-between items-start mb-1">
-                            <p className="font-semibold text-gray-900 text-sm">{p.nombre}</p>
-                            <span className="text-xs text-gray-400">{p.cantidad} veces</span>
+                            <p className="font-semibold text-white/80 text-sm">{p.nombre}</p>
+                            <span className="text-xs text-white/35">{p.cantidad} veces</span>
                           </div>
                           <div className="flex gap-3 text-xs">
-                            <span className="text-blue-600">⏳ Espera: <b>{p.espera} min</b></span>
-                            <span className="text-orange-600">🔥 Prep: <b>{p.preparacion} min</b></span>
-                            <span className="text-green-600">✅ Total: <b>{p.total} min</b></span>
+                            <span className="text-sky-400">⏳ Espera: <b>{p.espera} min</b></span>
+                            <span className="text-orange-400">🔥 Prep: <b>{p.preparacion} min</b></span>
+                            <span className="text-emerald-400">✅ Total: <b>{p.total} min</b></span>
                           </div>
                         </div>
                       ))}
@@ -2066,27 +2160,27 @@ export default function GerenciaPage() {
             )}
 
             {/* Historial pedidos */}
-            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              <div className="px-4 py-3 border-b"><h3 className="font-bold text-gray-900">📋 Pedidos del período</h3></div>
-              <div className="divide-y max-h-64 overflow-y-auto">
+            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
+              <div className="px-4 py-3 border-b border-white/8"><h3 className="font-bold text-white/80">📋 Pedidos del período</h3></div>
+              <div className="divide-y divide-white/6 max-h-64 overflow-y-auto">
                 {pedidosHoy.slice(0, 30).map(p => (
                   <div key={p.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
                     <div className="flex items-center gap-2">
-                      {p.tipo === 'domi' ? <Bike size={14} className="text-blue-500 shrink-0"/> : <MapPin size={14} className="text-gray-400 shrink-0"/>}
+                      {p.tipo === 'domi' ? <Bike size={14} className="text-sky-400 shrink-0"/> : <MapPin size={14} className="text-white/30 shrink-0"/>}
                       <div>
-                        <span className="font-semibold text-gray-800">{p.tipo === 'domi' ? 'Domi' : `Mesa ${p.mesa}`}</span>
-                        <span className="ml-1.5 text-gray-400 text-xs">{new Date(p.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="font-semibold text-white/80">{p.tipo === 'domi' ? 'Domi' : `Mesa ${p.mesa}`}</span>
+                        <span className="ml-1.5 text-white/30 text-xs">{new Date(p.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-bold">${p.total.toLocaleString('es-CO')}</span>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${p.estado === 'pagado' ? 'bg-green-100 text-green-700' : p.estado === 'listo' ? 'bg-blue-100 text-blue-700' : p.estado === 'en_preparacion' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}`}>
+                      <span className="font-bold text-white/80">${p.total.toLocaleString('es-CO')}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${p.estado === 'pagado' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' : p.estado === 'listo' ? 'bg-sky-500/15 text-sky-400 border-sky-500/20' : p.estado === 'en_preparacion' ? 'bg-orange-500/15 text-orange-400 border-orange-500/20' : 'bg-white/8 text-white/40 border-white/10'}`}>
                         {p.estado.replace('_', ' ')}
                       </span>
                     </div>
                   </div>
                 ))}
-                {pedidosHoy.length === 0 && <p className="text-center text-gray-400 py-6 text-sm">Sin pedidos en este período</p>}
+                {pedidosHoy.length === 0 && <p className="text-center text-white/25 py-6 text-sm">Sin pedidos en este período</p>}
               </div>
             </div>
             </>)}
@@ -2096,52 +2190,52 @@ export default function GerenciaPage() {
         {/* ══ TIEMPOS ═════════════════════════════════════════════ */}
         {seccion === 'tiempos' && puedeAcceder('pro') && (
           <div className="space-y-4">
-            <p className="text-xs text-gray-400">Datos de hoy — basado en pedidos completados</p>
+            <p className="text-xs text-white/30">Datos de hoy — basado en pedidos completados</p>
 
             {/* Por cocinera */}
-            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              <div className="px-4 py-3 border-b flex items-center gap-2">
-                <ChefHat size={16} className="text-orange-500" />
-                <h3 className="font-bold text-gray-900">Rendimiento por cocinera</h3>
+            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
+              <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
+                <ChefHat size={16} className="text-orange-400" />
+                <h3 className="font-bold text-white/80">Rendimiento por cocinera</h3>
               </div>
-              <div className="divide-y">
+              <div className="divide-y divide-white/6">
                 {tiemposPorCocinero.map(c => (
                   <div key={c.nombre} className="flex items-center justify-between px-4 py-3">
                     <div>
                       <p className="font-semibold text-gray-900 text-sm">👩‍🍳 {c.nombre}</p>
-                      <p className="text-xs text-gray-400">{c.platos} plato(s) preparado(s)</p>
+                      <p className="text-xs text-white/35">{c.platos} plato(s) preparado(s)</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-gray-900">{c.tiempoPromedio} min</p>
-                      <p className="text-xs text-gray-400">prom. preparación</p>
+                      <p className="font-bold text-white/80">{c.tiempoPromedio} min</p>
+                      <p className="text-xs text-white/35">prom. preparación</p>
                     </div>
                   </div>
                 ))}
-                {tiemposPorCocinero.length === 0 && <p className="text-center text-gray-400 py-6 text-sm">Sin datos — los tiempos se registran cuando cocina asigna platos</p>}
+                {tiemposPorCocinero.length === 0 && <p className="text-center text-white/25 py-6 text-sm">Sin datos — los tiempos se registran cuando cocina asigna platos</p>}
               </div>
             </div>
 
             {/* Permanencia en mesa */}
-            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              <div className="px-4 py-3 border-b flex items-center gap-2">
-                <MapPin size={16} className="text-green-500" />
-                <h3 className="font-bold text-gray-900">Tiempo de permanencia en mesa</h3>
+            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
+              <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
+                <MapPin size={16} className="text-emerald-400" />
+                <h3 className="font-bold text-white/80">Tiempo de permanencia en mesa</h3>
               </div>
-              <div className="divide-y">
+              <div className="divide-y divide-white/6">
                 {(() => {
                   const pagadosHoy = pedidosHoy.filter(p => p.estado === 'pagado')
-                  if (pagadosHoy.length === 0) return <p className="text-center text-gray-400 py-6 text-sm">Sin mesas cerradas hoy</p>
+                  if (pagadosHoy.length === 0) return <p className="text-center text-white/25 py-6 text-sm">Sin mesas cerradas hoy</p>
                   return pagadosHoy.slice(0, 8).map(p => {
                     const mins = p.pagado_en ? Math.round((new Date(p.pagado_en).getTime() - new Date(p.created_at).getTime()) / 60000) : null
                     return (
                       <div key={p.id} className="flex items-center justify-between px-4 py-3">
                         <div>
-                          <p className="font-semibold text-gray-900 text-sm">Mesa {p.mesa}</p>
-                          <p className="text-xs text-gray-400">{new Date(p.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</p>
+                          <p className="font-semibold text-white/80 text-sm">Mesa {p.mesa}</p>
+                          <p className="text-xs text-white/35">{new Date(p.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</p>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold text-gray-900">{mins !== null ? `${mins} min` : '—'}</p>
-                          <p className="text-xs text-gray-400">en mesa</p>
+                          <p className="font-bold text-white/80">{mins !== null ? `${mins} min` : '—'}</p>
+                          <p className="text-xs text-white/35">en mesa</p>
                         </div>
                       </div>
                     )
@@ -2151,46 +2245,46 @@ export default function GerenciaPage() {
             </div>
 
             {/* Por mesera */}
-            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              <div className="px-4 py-3 border-b flex items-center gap-2">
-                <Users size={16} className="text-purple-500" />
-                <h3 className="font-bold text-gray-900">Tiempos por mesera</h3>
+            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
+              <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
+                <Users size={16} className="text-violet-400" />
+                <h3 className="font-bold text-white/80">Tiempos por mesera</h3>
               </div>
-              <div className="divide-y">
+              <div className="divide-y divide-white/6">
                 {tiemposPorMesera.map(m => (
                   <div key={m.nombre} className="flex items-center justify-between px-4 py-3">
-                    <p className="font-semibold text-gray-900 text-sm">{m.nombre}</p>
+                    <p className="font-semibold text-white/80 text-sm">{m.nombre}</p>
                     <div className="text-right">
-                      <p className="font-bold text-gray-900">{m.tiempoPromedio} min</p>
-                      <p className="text-xs text-gray-400">tiempo total promedio</p>
+                      <p className="font-bold text-white/80">{m.tiempoPromedio} min</p>
+                      <p className="text-xs text-white/35">tiempo total promedio</p>
                     </div>
                   </div>
                 ))}
-                {tiemposPorMesera.length === 0 && <p className="text-center text-gray-400 py-6 text-sm">Sin datos hoy</p>}
+                {tiemposPorMesera.length === 0 && <p className="text-center text-white/25 py-6 text-sm">Sin datos hoy</p>}
               </div>
             </div>
 
             {/* Por plato */}
-            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              <div className="px-4 py-3 border-b flex items-center gap-2">
-                <Clock size={16} className="text-blue-500" />
-                <h3 className="font-bold text-gray-900">Tiempos por plato</h3>
+            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
+              <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
+                <Clock size={16} className="text-sky-400" />
+                <h3 className="font-bold text-white/80">Tiempos por plato</h3>
               </div>
-              <div className="divide-y">
+              <div className="divide-y divide-white/6">
                 {tiemposPorPlato.map(p => (
                   <div key={p.nombre} className="px-4 py-3">
                     <div className="flex justify-between items-start mb-1">
-                      <p className="font-semibold text-gray-900 text-sm">{p.nombre}</p>
-                      <span className="text-xs text-gray-400">{p.cantidad} veces</span>
+                      <p className="font-semibold text-white/80 text-sm">{p.nombre}</p>
+                      <span className="text-xs text-white/35">{p.cantidad} veces</span>
                     </div>
                     <div className="flex gap-4 text-xs">
-                      <span className="text-blue-600">⏳ Espera: <b>{p.espera} min</b></span>
-                      <span className="text-orange-600">🔥 Prep: <b>{p.preparacion} min</b></span>
-                      <span className="text-green-600">✅ Total: <b>{p.total} min</b></span>
+                      <span className="text-sky-400">⏳ Espera: <b>{p.espera} min</b></span>
+                      <span className="text-orange-400">🔥 Prep: <b>{p.preparacion} min</b></span>
+                      <span className="text-emerald-400">✅ Total: <b>{p.total} min</b></span>
                     </div>
                   </div>
                 ))}
-                {tiemposPorPlato.length === 0 && <p className="text-center text-gray-400 py-6 text-sm">Sin datos hoy</p>}
+                {tiemposPorPlato.length === 0 && <p className="text-center text-white/25 py-6 text-sm">Sin datos hoy</p>}
               </div>
             </div>
           </div>
@@ -2203,22 +2297,22 @@ export default function GerenciaPage() {
             {/* Buscador + botón exportar */}
             <div className="flex gap-2">
               <div className="flex-1 relative">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
                 <input type="text" placeholder="Buscar por nombre o cédula..." value={busquedaCliente}
                   onChange={e => setBusquedaCliente(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                  className="w-full pl-9 pr-3 py-2.5 bg-white/6 border border-white/12 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
               </div>
               <button onClick={exportarClientesCSV}
-                className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white font-bold px-3 py-2.5 rounded-xl text-sm whitespace-nowrap transition-colors">
+                className="flex items-center gap-1.5 bg-emerald-600/80 hover:bg-emerald-600 text-white font-bold px-3 py-2.5 rounded-xl text-sm whitespace-nowrap shadow-lg shadow-emerald-900/30 transition-all">
                 <Download size={15} /> Excel
               </button>
             </div>
 
             {/* Filtros */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-3 space-y-2">
+            <div className="bg-white/5 rounded-2xl border border-white/10 p-3 space-y-2 backdrop-blur-sm">
               {/* Ordenar por */}
               <div>
-                <p className="text-xs text-gray-400 font-medium mb-1.5 flex items-center gap-1"><SlidersHorizontal size={12}/> Ordenar por</p>
+                <p className="text-xs text-white/35 font-medium mb-1.5 flex items-center gap-1"><SlidersHorizontal size={12}/> Ordenar por</p>
                 <div className="flex gap-1.5 flex-wrap">
                   {([
                     ['mayor_consumo', '💰 Mayor consumo'],
@@ -2227,7 +2321,7 @@ export default function GerenciaPage() {
                     ['cumpleanos',    '🎂 Cumpleaños próximo'],
                   ] as ['mayor_consumo'|'menor_consumo'|'az'|'cumpleanos', string][]).map(([v, label]) => (
                     <button key={v} onClick={() => setOrdenClientes(v)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${ordenClientes === v ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${ordenClientes === v ? 'bg-violet-600 text-white shadow-lg shadow-violet-900/40' : 'bg-white/6 text-white/45 border border-white/10 hover:bg-white/12'}`}>
                       {label}
                     </button>
                   ))}
@@ -2235,15 +2329,15 @@ export default function GerenciaPage() {
               </div>
               {/* Filtrar por mes de cumpleaños */}
               <div>
-                <p className="text-xs text-gray-400 font-medium mb-1.5 flex items-center gap-1"><CalendarDays size={12}/> Filtrar por mes de cumpleaños</p>
+                <p className="text-xs text-white/35 font-medium mb-1.5 flex items-center gap-1"><CalendarDays size={12}/> Filtrar por mes de cumpleaños</p>
                 <div className="flex gap-1.5 flex-wrap">
                   <button onClick={() => setFiltroMesCumple(0)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${filtroMesCumple === 0 ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${filtroMesCumple === 0 ? 'bg-violet-600 text-white shadow-lg shadow-violet-900/40' : 'bg-white/6 text-white/45 border border-white/10 hover:bg-white/12'}`}>
                     Todos
                   </button>
                   {MESES_ES.map((mes, i) => (
                     <button key={mes} onClick={() => setFiltroMesCumple(i + 1)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${filtroMesCumple === i + 1 ? 'bg-pink-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${filtroMesCumple === i + 1 ? 'bg-pink-500/80 text-white shadow-lg shadow-pink-900/30' : 'bg-white/6 text-white/45 border border-white/10 hover:bg-white/12'}`}>
                       {mes.slice(0, 3)}
                     </button>
                   ))}
@@ -2253,68 +2347,66 @@ export default function GerenciaPage() {
 
             {/* Contador resultados */}
             {(busquedaCliente || filtroMesCumple > 0) && (
-              <p className="text-xs text-gray-400 px-1">
+              <p className="text-xs text-white/30 px-1">
                 {clientesFiltradosOrdenados.length} resultado(s)
                 {filtroMesCumple > 0 && ` · Cumpleaños en ${MESES_ES[filtroMesCumple - 1]}`}
               </p>
             )}
 
             {cargandoClientes ? (
-              <div className="flex justify-center py-12 text-gray-400">
-                <div className="text-center"><UserCircle size={32} className="mx-auto mb-2 animate-pulse"/><p>Cargando...</p></div>
+              <div className="flex justify-center py-12 text-white/30">
+                <div className="text-center"><UserCircle size={32} className="mx-auto mb-2 animate-pulse text-violet-400"/><p>Cargando...</p></div>
               </div>
             ) : (
               <div className="space-y-2">
                 {clientesFiltradosOrdenados.map((c, idx) => {
-                  // Resaltar si cumpleaños este mes
                   const esCumpleMes = c.fecha_cumpleanos != null &&
                     new Date(c.fecha_cumpleanos + 'T12:00:00').getMonth() === new Date().getMonth()
-                  // Badge de posición si está ordenado por consumo
                   const mostrarRanking = ordenClientes === 'mayor_consumo' || ordenClientes === 'menor_consumo'
                   return (
                     <button key={c.id} onClick={() => abrirClienteDetalle(c)}
-                      className={`w-full rounded-2xl border p-4 text-left transition-colors ${esCumpleMes ? 'bg-pink-50 border-pink-200 hover:border-pink-400' : 'bg-white border-gray-100 hover:border-purple-300'}`}>
+                      className={`w-full rounded-2xl border p-4 text-left transition-all backdrop-blur-sm ${esCumpleMes ? 'bg-pink-500/12 border-pink-500/30 hover:bg-pink-500/18' : 'bg-white/5 border-white/10 hover:bg-white/8 hover:border-white/20'}`}>
                       <div className="flex items-center gap-3">
                         <div className="relative shrink-0">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${esCumpleMes ? 'bg-pink-200' : 'bg-purple-100'}`}>
-                            <span className={`font-black text-sm ${esCumpleMes ? 'text-pink-700' : 'text-purple-700'}`}>{c.nombre.charAt(0).toUpperCase()}</span>
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${esCumpleMes ? 'bg-pink-500/30' : 'bg-violet-500/20'}`}>
+                            <span className={`font-black text-sm ${esCumpleMes ? 'text-pink-300' : 'text-violet-300'}`}>{c.nombre.charAt(0).toUpperCase()}</span>
                           </div>
                           {mostrarRanking && idx < 3 && (
-                            <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full text-white text-[10px] font-black flex items-center justify-center ${idx === 0 ? 'bg-yellow-400' : idx === 1 ? 'bg-gray-400' : 'bg-amber-600'}`}>{idx + 1}</span>
+                            <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full text-white text-[10px] font-black flex items-center justify-center ${idx === 0 ? 'bg-yellow-500' : idx === 1 ? 'bg-white/40' : 'bg-amber-600'}`}>{idx + 1}</span>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-semibold text-gray-900">{c.nombre}</p>
-                            {esCumpleMes && <span className="text-xs bg-pink-200 text-pink-700 px-1.5 py-0.5 rounded-full font-bold">🎂 Este mes</span>}
+                            <p className="font-semibold text-white/85">{c.nombre}</p>
+                            {esCumpleMes && <span className="text-xs bg-pink-500/25 text-pink-300 border border-pink-500/30 px-1.5 py-0.5 rounded-full font-bold">🎂 Este mes</span>}
                           </div>
-                          <div className="flex gap-3 text-xs text-gray-400 mt-0.5 flex-wrap">
+                          <div className="flex gap-3 text-xs text-white/35 mt-0.5 flex-wrap">
                             {c.cedula && <span>🪪 {c.cedula}</span>}
                             {c.telefono && <span>📞 {c.telefono}</span>}
                             {c.fecha_cumpleanos && (
-                              <span className={esCumpleMes ? 'text-pink-500 font-semibold' : ''}>
+                              <span className={esCumpleMes ? 'text-pink-400 font-semibold' : ''}>
                                 🎂 {new Date(c.fecha_cumpleanos + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}
                               </span>
                             )}
                           </div>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="font-black text-gray-900 text-sm">${c.totalGastado.toLocaleString('es-CO')}</p>
-                          <p className="text-xs text-gray-400">{c.pedidos} visita(s)</p>
+                          <p className="font-black text-white/85 text-sm">${c.totalGastado.toLocaleString('es-CO')}</p>
+                          <p className="text-xs text-white/35">{c.pedidos} visita(s)</p>
                         </div>
                       </div>
                     </button>
                   )
                 })}
                 {clientes.length === 0 && (
-                  <div className="text-center py-12 text-gray-400">
+                  <div className="text-center py-12 text-white/25">
                     <UserCircle size={40} className="mx-auto mb-2"/>
                     <p>Sin clientes registrados aún</p>
                     <p className="text-xs mt-1">Se agregan al cobrar y capturar cédula</p>
                   </div>
                 )}
                 {clientes.length > 0 && clientesFiltradosOrdenados.length === 0 && (
-                  <div className="text-center py-8 text-gray-400">
+                  <div className="text-center py-8 text-white/25">
                     <Search size={32} className="mx-auto mb-2"/>
                     <p>Sin resultados para los filtros aplicados</p>
                   </div>
@@ -2324,41 +2416,41 @@ export default function GerenciaPage() {
 
             {/* Modal detalle cliente */}
             {clienteDetalle && (
-              <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
-                <div className="bg-white w-full md:max-w-lg md:rounded-3xl rounded-t-3xl max-h-[90vh] flex flex-col overflow-hidden fade-in">
-                  <div className="flex items-center justify-between px-5 py-4 border-b">
+              <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-0 md:p-4">
+                <div className="bg-[#0f0f1e] border border-white/10 w-full md:max-w-lg md:rounded-3xl rounded-t-3xl max-h-[90vh] flex flex-col overflow-hidden fade-in">
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-white/8">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                        <span className="text-purple-700 font-black text-lg">{clienteDetalle.cliente.nombre.charAt(0)}</span>
+                      <div className="w-12 h-12 bg-violet-500/20 rounded-full flex items-center justify-center border border-violet-500/30">
+                        <span className="text-violet-300 font-black text-lg">{clienteDetalle.cliente.nombre.charAt(0)}</span>
                       </div>
                       <div>
-                        <h2 className="text-lg font-black text-gray-900">{clienteDetalle.cliente.nombre}</h2>
-                        <p className="text-xs text-gray-400">
+                        <h2 className="text-lg font-black text-white">{clienteDetalle.cliente.nombre}</h2>
+                        <p className="text-xs text-white/40">
                           {clienteDetalle.cliente.pedidos} visita(s) · ${clienteDetalle.cliente.totalGastado.toLocaleString('es-CO')} total
                         </p>
                       </div>
                     </div>
-                    <button onClick={() => setClienteDetalle(null)} className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center"><X size={18}/></button>
+                    <button onClick={() => setClienteDetalle(null)} className="w-9 h-9 rounded-full bg-white/8 hover:bg-white/14 border border-white/10 flex items-center justify-center transition-all"><X size={18} className="text-white/60"/></button>
                   </div>
                   <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
                     {/* Datos */}
-                    <div className="bg-gray-50 rounded-2xl p-4 space-y-2 text-sm">
-                      {clienteDetalle.cliente.cedula && <div className="flex justify-between"><span className="text-gray-500">Cédula</span><span className="font-semibold">{clienteDetalle.cliente.cedula}</span></div>}
-                      {clienteDetalle.cliente.telefono && <div className="flex justify-between"><span className="text-gray-500">Teléfono</span><span className="font-semibold">{clienteDetalle.cliente.telefono}</span></div>}
+                    <div className="bg-white/5 rounded-2xl p-4 space-y-2 text-sm border border-white/8">
+                      {clienteDetalle.cliente.cedula && <div className="flex justify-between"><span className="text-white/40">Cédula</span><span className="font-semibold text-white/80">{clienteDetalle.cliente.cedula}</span></div>}
+                      {clienteDetalle.cliente.telefono && <div className="flex justify-between"><span className="text-white/40">Teléfono</span><span className="font-semibold text-white/80">{clienteDetalle.cliente.telefono}</span></div>}
                       {clienteDetalle.cliente.fecha_cumpleanos && (
                         <div className="flex justify-between">
-                          <span className="text-gray-500">Cumpleaños</span>
-                          <span className="font-semibold">🎂 {new Date(clienteDetalle.cliente.fecha_cumpleanos + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })}</span>
+                          <span className="text-white/40">Cumpleaños</span>
+                          <span className="font-semibold text-white/80">🎂 {new Date(clienteDetalle.cliente.fecha_cumpleanos + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })}</span>
                         </div>
                       )}
                       {clienteDetalle.cliente.ultimaVisita && (
                         <div className="flex justify-between">
-                          <span className="text-gray-500">Última visita</span>
-                          <span className="font-semibold">{new Date(clienteDetalle.cliente.ultimaVisita).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                          <span className="text-white/40">Última visita</span>
+                          <span className="font-semibold text-white/80">{new Date(clienteDetalle.cliente.ultimaVisita).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                         </div>
                       )}
                     </div>
-                    {/* Platos favoritos — resumen para patrones */}
+                    {/* Platos favoritos */}
                     {clienteDetalle.pedidos.length > 0 && (() => {
                       const conteo: Record<string, number> = {}
                       clienteDetalle.pedidos.forEach(p =>
@@ -2366,12 +2458,12 @@ export default function GerenciaPage() {
                       )
                       const top = Object.entries(conteo).sort((a, b) => b[1] - a[1])
                       return (
-                        <div className="bg-purple-50 border border-purple-100 rounded-2xl p-4">
-                          <p className="text-xs font-bold text-purple-700 uppercase mb-2">🏆 Platos más pedidos</p>
+                        <div className="bg-violet-500/10 border border-violet-500/20 rounded-2xl p-4">
+                          <p className="text-xs font-bold text-violet-400 uppercase tracking-wider mb-2">🏆 Platos más pedidos</p>
                           <div className="flex flex-wrap gap-1.5">
                             {top.map(([nombre, cant]) => (
                               <span key={nombre}
-                                className={`text-xs px-2.5 py-1 rounded-full font-semibold ${cant >= 3 ? 'bg-purple-600 text-white' : cant >= 2 ? 'bg-purple-200 text-purple-800' : 'bg-white text-purple-600 border border-purple-200'}`}>
+                                className={`text-xs px-2.5 py-1 rounded-full font-semibold border ${cant >= 3 ? 'bg-violet-600 text-white border-violet-500/50' : cant >= 2 ? 'bg-violet-500/20 text-violet-300 border-violet-500/20' : 'bg-white/6 text-violet-300 border-white/10'}`}>
                                 {nombre} <span className="opacity-75">×{cant}</span>
                               </span>
                             ))}
@@ -2382,21 +2474,21 @@ export default function GerenciaPage() {
 
                     {/* Historial de visitas con platos */}
                     <div>
-                      <h3 className="font-bold text-gray-800 mb-2">Historial de visitas</h3>
+                      <h3 className="font-bold text-white/70 mb-2">Historial de visitas</h3>
                       <div className="space-y-2">
                         {clienteDetalle.pedidos.map(p => (
-                          <div key={p.id} className="bg-white border border-gray-100 rounded-xl text-sm overflow-hidden">
+                          <div key={p.id} className="bg-white/5 border border-white/10 rounded-xl text-sm overflow-hidden">
                             {/* Cabecera de la visita */}
                             <div className="flex items-center justify-between px-3 py-2.5">
                               <div className="flex items-center gap-2">
-                                <span className="font-semibold text-gray-800">{p.tipo === 'domi' ? '🛵 Domi' : '🍽️ Mesa'}</span>
-                                <span className="text-gray-400 text-xs">
+                                <span className="font-semibold text-white/80">{p.tipo === 'domi' ? '🛵 Domi' : '🍽️ Mesa'}</span>
+                                <span className="text-white/35 text-xs">
                                   {new Date(p.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2">
-                                <span className="font-bold text-gray-900">${p.total.toLocaleString('es-CO')}</span>
-                                <span className={`text-xs px-2 py-0.5 rounded-full ${p.estado === 'pagado' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                <span className="font-bold text-white/80">${p.total.toLocaleString('es-CO')}</span>
+                                <span className={`text-xs px-2 py-0.5 rounded-full border ${p.estado === 'pagado' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' : 'bg-white/8 text-white/40 border-white/10'}`}>
                                   {p.estado}
                                 </span>
                               </div>
@@ -2405,7 +2497,7 @@ export default function GerenciaPage() {
                             {p.items.length > 0 && (
                               <div className="px-3 pb-2.5 pt-1.5 border-t border-gray-50 flex flex-wrap gap-1">
                                 {p.items.map((item, i) => (
-                                  <span key={i} className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full">
+                                  <span key={i} className="bg-white/8 text-gray-700 text-xs px-2 py-0.5 rounded-full">
                                     {item.cantidad}× {item.nombre}
                                   </span>
                                 ))}
@@ -2452,101 +2544,101 @@ export default function GerenciaPage() {
           <div className="space-y-4">
 
             {/* Estado turno */}
-            <div className={`rounded-2xl p-4 text-white ${turnoActivo ? 'bg-green-600' : 'bg-gray-500'}`}>
-              <p className="text-sm opacity-80">{turnoActivo ? '● Turno abierto desde' : '○ Sin turno activo'}</p>
+            <div className={`rounded-2xl p-4 border ${turnoActivo ? 'bg-emerald-500/15 border-emerald-500/30' : 'bg-white/5 border-white/10'}`}>
+              <p className={`text-sm ${turnoActivo ? 'text-emerald-400/80' : 'text-white/40'}`}>{turnoActivo ? '● Turno abierto desde' : '○ Sin turno activo'}</p>
               {turnoActivo && <>
-                <p className="font-bold">{new Date(turnoActivo.abierto_en).toLocaleString('es-CO', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}</p>
-                <p className="text-sm opacity-80">Base inicial: ${turnoActivo.monto_inicial.toLocaleString('es-CO')}</p>
+                <p className="font-bold text-white">{new Date(turnoActivo.abierto_en).toLocaleString('es-CO', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}</p>
+                <p className="text-sm text-emerald-400/70">Base inicial: ${turnoActivo.monto_inicial.toLocaleString('es-CO')}</p>
               </>}
             </div>
 
             {turnoActivo && <>
               {/* Desglose por método de pago */}
-              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                <div className="px-4 py-3 border-b"><h3 className="font-bold text-gray-900">Pagos recibidos por método</h3></div>
-                <div className="divide-y">
-                  {pagosPorMetodo.length === 0 && <p className="text-center text-gray-400 py-4 text-sm">Sin pagos aún</p>}
+              <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
+                <div className="px-4 py-3 border-b border-white/8"><h3 className="font-bold text-white/80">Pagos recibidos por método</h3></div>
+                <div className="divide-y divide-white/6">
+                  {pagosPorMetodo.length === 0 && <p className="text-center text-white/25 py-4 text-sm">Sin pagos aún</p>}
                   {pagosPorMetodo.map(p => (
                     <div key={p.metodo} className="flex items-center justify-between px-4 py-3">
                       <div>
-                        <p className="font-semibold text-gray-800 text-sm">{EMOJIS[p.metodo] || '💳'} {p.metodo.charAt(0).toUpperCase() + p.metodo.slice(1)}</p>
-                        {p.propina > 0 && <p className="text-xs text-gray-400">Incluye ${p.propina.toLocaleString('es-CO')} en propinas</p>}
+                        <p className="font-semibold text-white/80 text-sm">{EMOJIS[p.metodo] || '💳'} {p.metodo.charAt(0).toUpperCase() + p.metodo.slice(1)}</p>
+                        {p.propina > 0 && <p className="text-xs text-white/35">Incluye ${p.propina.toLocaleString('es-CO')} en propinas</p>}
                       </div>
-                      <p className="font-black text-gray-900">${(p.monto + p.propina).toLocaleString('es-CO')}</p>
+                      <p className="font-black text-white/90">${(p.monto + p.propina).toLocaleString('es-CO')}</p>
                     </div>
                   ))}
-                  <div className="flex items-center justify-between px-4 py-3 bg-gray-50">
-                    <p className="font-bold text-gray-700 text-sm">Total cobrado</p>
-                    <p className="font-black text-gray-900">${pagosPorMetodo.reduce((a, p) => a + p.monto + p.propina, 0).toLocaleString('es-CO')}</p>
+                  <div className="flex items-center justify-between px-4 py-3 bg-white/4">
+                    <p className="font-bold text-white/60 text-sm">Total cobrado</p>
+                    <p className="font-black text-emerald-400">${pagosPorMetodo.reduce((a, p) => a + p.monto + p.propina, 0).toLocaleString('es-CO')}</p>
                   </div>
                 </div>
               </div>
 
               {/* Ventas establecimiento vs domicilios */}
-              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                <div className="px-4 py-3 border-b"><h3 className="font-bold text-gray-900">Ventas del turno</h3></div>
-                <div className="divide-y">
+              <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
+                <div className="px-4 py-3 border-b border-white/8"><h3 className="font-bold text-white/80">Ventas del turno</h3></div>
+                <div className="divide-y divide-white/6">
                   <div className="flex items-center justify-between px-4 py-3">
-                    <div><p className="font-semibold text-gray-800 text-sm">🍽️ Establecimiento</p><p className="text-xs text-gray-400">{pedidosEstab} pedido(s)</p></div>
-                    <p className="font-black text-gray-900">${ventasEstab.toLocaleString('es-CO')}</p>
+                    <div><p className="font-semibold text-white/80 text-sm">🍽️ Establecimiento</p><p className="text-xs text-white/35">{pedidosEstab} pedido(s)</p></div>
+                    <p className="font-black text-white/85">${ventasEstab.toLocaleString('es-CO')}</p>
                   </div>
                   <div className="flex items-center justify-between px-4 py-3">
-                    <div><p className="font-semibold text-gray-800 text-sm">🛵 Domicilios</p><p className="text-xs text-gray-400">{pedidosDomi} pedido(s)</p></div>
-                    <p className="font-black text-gray-900">${ventasDomi.toLocaleString('es-CO')}</p>
+                    <div><p className="font-semibold text-white/80 text-sm">🛵 Domicilios</p><p className="text-xs text-white/35">{pedidosDomi} pedido(s)</p></div>
+                    <p className="font-black text-white/85">${ventasDomi.toLocaleString('es-CO')}</p>
                   </div>
-                  <div className="flex items-center justify-between px-4 py-3 bg-gray-50">
-                    <p className="font-black text-gray-800">Total</p>
-                    <p className="font-black text-purple-700 text-lg">${(ventasEstab + ventasDomi).toLocaleString('es-CO')}</p>
+                  <div className="flex items-center justify-between px-4 py-3 bg-white/4">
+                    <p className="font-black text-white/70">Total</p>
+                    <p className="font-black text-violet-400 text-lg">${(ventasEstab + ventasDomi).toLocaleString('es-CO')}</p>
                   </div>
                 </div>
               </div>
 
               {/* Movimientos de caja */}
-              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                <div className="px-4 py-3 border-b flex items-center justify-between">
-                  <h3 className="font-bold text-gray-900">Notas de caja</h3>
+              <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
+                <div className="px-4 py-3 border-b border-white/8 flex items-center justify-between">
+                  <h3 className="font-bold text-white/80">Notas de caja</h3>
                   {(totalIngresos > 0 || totalEgresos > 0) && (
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-white/35">
                       +${totalIngresos.toLocaleString('es-CO')} / -${totalEgresos.toLocaleString('es-CO')}
                     </span>
                   )}
                 </div>
-                <div className="divide-y">
-                  {movimientosCaja.length === 0 && <p className="text-center text-gray-400 py-3 text-sm">Sin movimientos</p>}
+                <div className="divide-y divide-white/6">
+                  {movimientosCaja.length === 0 && <p className="text-center text-white/25 py-3 text-sm">Sin movimientos</p>}
                   {movimientosCaja.map(m => (
                     <div key={m.id} className="flex items-center justify-between px-4 py-3">
                       <div>
-                        <p className="text-sm font-semibold text-gray-800">{m.descripcion}</p>
-                        <p className="text-xs text-gray-400">{new Date(m.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</p>
+                        <p className="text-sm font-semibold text-white/80">{m.descripcion}</p>
+                        <p className="text-xs text-white/35">{new Date(m.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</p>
                       </div>
-                      <span className={`font-black text-sm ${m.tipo === 'ingreso' ? 'text-green-600' : 'text-red-600'}`}>
+                      <span className={`font-black text-sm ${m.tipo === 'ingreso' ? 'text-emerald-400' : 'text-red-400'}`}>
                         {m.tipo === 'ingreso' ? '+' : '-'}${m.monto.toLocaleString('es-CO')}
                       </span>
                     </div>
                   ))}
                 </div>
                 {/* Formulario nuevo movimiento */}
-                <div className="px-4 py-3 border-t bg-gray-50 space-y-2">
-                  <p className="text-xs font-bold text-gray-600 uppercase">Registrar movimiento</p>
+                <div className="px-4 py-3 border-t border-white/8 bg-white/4 space-y-2">
+                  <p className="text-xs font-bold text-white/40 uppercase tracking-wider">Registrar movimiento</p>
                   <div className="grid grid-cols-2 gap-2">
                     <button onClick={() => setNuevoMov(p => ({ ...p, tipo: 'ingreso' }))}
-                      className={`py-2 rounded-xl text-sm font-bold border-2 transition-all ${nuevoMov.tipo === 'ingreso' ? 'bg-green-500 text-white border-green-500' : 'bg-white text-gray-600 border-gray-200'}`}>
+                      className={`py-2 rounded-xl text-sm font-bold border-2 transition-all ${nuevoMov.tipo === 'ingreso' ? 'bg-emerald-500/80 text-white border-emerald-500/60 shadow-lg shadow-emerald-900/30' : 'bg-white/5 text-white/50 border-white/15 hover:bg-white/10'}`}>
                       ↑ Ingreso
                     </button>
                     <button onClick={() => setNuevoMov(p => ({ ...p, tipo: 'egreso' }))}
-                      className={`py-2 rounded-xl text-sm font-bold border-2 transition-all ${nuevoMov.tipo === 'egreso' ? 'bg-red-500 text-white border-red-500' : 'bg-white text-gray-600 border-gray-200'}`}>
+                      className={`py-2 rounded-xl text-sm font-bold border-2 transition-all ${nuevoMov.tipo === 'egreso' ? 'bg-red-500/80 text-white border-red-500/60 shadow-lg shadow-red-900/30' : 'bg-white/5 text-white/50 border-white/15 hover:bg-white/10'}`}>
                       ↓ Egreso
                     </button>
                   </div>
                   <input type="text" placeholder='Descripción (ej: "Se sacó para mercado")' value={nuevoMov.descripcion}
                     onChange={e => setNuevoMov(p => ({ ...p, descripcion: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white" />
+                    className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
                   <div className="flex gap-2">
                     <input type="number" placeholder="Monto $" value={nuevoMov.monto}
                       onChange={e => setNuevoMov(p => ({ ...p, monto: e.target.value }))}
-                      className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white" />
+                      className="flex-1 bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
                     <button onClick={agregarMovimiento} disabled={agregandoMov}
-                      className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-bold px-4 rounded-xl text-sm">
+                      className="bg-violet-600 hover:bg-violet-700 disabled:bg-white/10 disabled:text-white/30 text-white font-bold px-4 rounded-xl text-sm shadow-lg shadow-violet-900/40 transition-all">
                       {agregandoMov ? '...' : 'Agregar'}
                     </button>
                   </div>
@@ -2564,20 +2656,20 @@ export default function GerenciaPage() {
 
               {/* Domicilios para cuadre */}
               {pedidosDomi > 0 && (
-                <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                  <div className="px-4 py-3 border-b"><h3 className="font-bold text-gray-900 text-sm">Domicilios del turno</h3></div>
-                  <div className="divide-y">
+                <div className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm overflow-hidden">
+                  <div className="px-4 py-3 border-b border-white/8"><h3 className="font-bold text-white/80 text-sm">Domicilios del turno</h3></div>
+                  <div className="divide-y divide-white/6">
                     {pedidosTurno.filter(p => p.tipo === 'domi').map(p => {
                       const domi = domiActivos.find(d => d.id === p.id)
                       return (
                         <div key={p.id} className="flex items-center justify-between px-4 py-3 text-sm">
                           <div>
-                            <p className="font-semibold text-gray-800">{domi?.cliente_nombre || 'Sin nombre'}</p>
-                            {domi?.metodos.length ? <p className="text-xs text-gray-500">{domi.metodos.map(m => `${EMOJIS[m] || ''} ${m}`).join(' · ')}</p> : <p className="text-xs text-orange-500">⚠️ Sin pago</p>}
+                            <p className="font-semibold text-white/80">{domi?.cliente_nombre || 'Sin nombre'}</p>
+                            {domi?.metodos.length ? <p className="text-xs text-white/40">{domi.metodos.map(m => `${EMOJIS[m] || ''} ${m}`).join(' · ')}</p> : <p className="text-xs text-orange-400">⚠️ Sin pago</p>}
                           </div>
                           <div className="text-right">
-                            <p className="font-bold">${p.total.toLocaleString('es-CO')}</p>
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${p.estado === 'pagado' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>{p.estado === 'pagado' ? 'Pagado' : 'Pendiente'}</span>
+                            <p className="font-bold text-white/80">${p.total.toLocaleString('es-CO')}</p>
+                            <span className={`text-xs px-2 py-0.5 rounded-full border ${p.estado === 'pagado' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' : 'bg-orange-500/15 text-orange-400 border-orange-500/20'}`}>{p.estado === 'pagado' ? 'Pagado' : 'Pendiente'}</span>
                           </div>
                         </div>
                       )
@@ -2588,8 +2680,8 @@ export default function GerenciaPage() {
             </>}
 
             {!turnoActivo
-              ? <button onClick={() => setModalCaja('abrir')} className="w-full bg-green-500 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 text-lg"><Play size={20} /> Abrir turno</button>
-              : <button onClick={() => setModalCaja('cerrar')} className="w-full bg-red-500 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 text-lg"><Square size={20} /> Cerrar turno</button>
+              ? <button onClick={() => setModalCaja('abrir')} className="w-full bg-emerald-600/80 hover:bg-emerald-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 text-lg shadow-xl shadow-emerald-900/30 transition-all"><Play size={20} /> Abrir turno</button>
+              : <button onClick={() => setModalCaja('cerrar')} className="w-full bg-red-600/80 hover:bg-red-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 text-lg shadow-xl shadow-red-900/30 transition-all"><Square size={20} /> Cerrar turno</button>
             }
           </div>
           )
@@ -2598,45 +2690,45 @@ export default function GerenciaPage() {
         {/* ══ USUARIOS ════════════════════════════════════════════ */}
         {seccion === 'usuarios' && (
           <div className="space-y-4">
-            <button onClick={() => setModalUsuario(true)} className="w-full bg-purple-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2">
+            <button onClick={() => setModalUsuario(true)} className="w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-violet-900/40 transition-all">
               <Plus size={20} /> Crear nuevo usuario
             </button>
             {listaUsuarios.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center">
-                <p className="text-gray-400 text-sm">No hay usuarios registrados todavía.</p>
+              <div className="bg-white/5 rounded-2xl border border-white/10 p-6 text-center">
+                <p className="text-white/30 text-sm">No hay usuarios registrados todavía.</p>
               </div>
             ) : (
-              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
                 {listaUsuarios.map((u, i) => {
                   const ROL_BADGE: Record<string, string> = {
-                    gerente: 'bg-purple-100 text-purple-700',
-                    mesera:  'bg-orange-100 text-orange-700',
-                    cocina:  'bg-green-100 text-green-700',
-                    domi:    'bg-blue-100 text-blue-700',
+                    gerente: 'bg-violet-500/20 text-violet-300 border-violet-500/20',
+                    mesera:  'bg-orange-500/20 text-orange-300 border-orange-500/20',
+                    cocina:  'bg-emerald-500/20 text-emerald-300 border-emerald-500/20',
+                    domi:    'bg-sky-500/20 text-sky-300 border-sky-500/20',
                   }
                   const ROL_LABEL: Record<string, string> = {
                     gerente: 'Gerente', mesera: 'Mesera', cocina: 'Cocina', domi: 'Domi',
                   }
                   return (
-                    <div key={u.id} className={`flex items-center justify-between px-4 py-3.5 ${i !== 0 ? 'border-t border-gray-50' : ''} ${!u.activo ? 'opacity-50' : ''}`}>
+                    <div key={u.id} className={`flex items-center justify-between px-4 py-3.5 ${i !== 0 ? 'border-t border-white/6' : ''} ${!u.activo ? 'opacity-40' : ''}`}>
                       <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${u.activo ? 'bg-gray-100 text-gray-500' : 'bg-red-100 text-red-400'}`}>
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${u.activo ? 'bg-white/10 text-white/60' : 'bg-red-500/20 text-red-400'}`}>
                           {u.nombre.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <span className="font-medium text-gray-900 text-sm">{u.nombre}</span>
-                          {!u.activo && <p className="text-xs text-red-500 font-medium">Inhabilitado</p>}
+                          <span className="font-medium text-white/80 text-sm">{u.nombre}</span>
+                          {!u.activo && <p className="text-xs text-red-400 font-medium">Inhabilitado</p>}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full capitalize ${ROL_BADGE[u.rol] || 'bg-gray-100 text-gray-600'}`}>
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full capitalize border ${ROL_BADGE[u.rol] || 'bg-white/8 text-white/40 border-white/10'}`}>
                           {ROL_LABEL[u.rol] || u.rol}
                         </span>
                         <button
                           onClick={() => setEditandoUsuario({ id: u.id, nombre: u.nombre, rol: u.rol, activo: u.activo ?? true, nuevaPassword: '' })}
-                          className="w-7 h-7 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center transition-colors"
+                          className="w-7 h-7 bg-white/8 hover:bg-white/14 border border-white/10 rounded-lg flex items-center justify-center transition-all"
                           title="Editar usuario">
-                          <Pencil size={13} className="text-gray-500" />
+                          <Pencil size={13} className="text-white/50" />
                         </button>
                       </div>
                     </div>
@@ -2650,14 +2742,14 @@ export default function GerenciaPage() {
         {seccion === 'permisos' && (
           <div className="space-y-4">
             {/* Cocina */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-5">
+            <div className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm p-5 space-y-5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-                  <Lock size={20} className="text-purple-600" />
+                  <Lock size={20} className="text-violet-400" />
                 </div>
                 <div>
-                  <h2 className="font-bold text-gray-900">Control de flujo — Cocina</h2>
-                  <p className="text-xs text-gray-400">Regula cuántos pedidos ve la cocina a la vez</p>
+                  <h2 className="font-bold text-white/90">Control de flujo — Cocina</h2>
+                  <p className="text-xs text-white/35">Regula cuántos pedidos ve la cocina a la vez</p>
                 </div>
               </div>
               <div className="flex items-center justify-between gap-4">
@@ -2677,35 +2769,35 @@ export default function GerenciaPage() {
                   <div className="flex gap-2">
                     {[2, 3, 4, 5].map(n => (
                       <button key={n} onClick={() => setBloqueoCantidad(n)}
-                        className={`flex-1 py-3 rounded-xl font-black text-lg transition-all border-2 ${bloqueoCantidad === n ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-700 border-gray-200 hover:border-purple-400'}`}>
+                        className={`flex-1 py-3 rounded-xl font-black text-lg transition-all border-2 ${bloqueoCantidad === n ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-700 border-white/12 hover:border-purple-400'}`}>
                         {n}
                       </button>
                     ))}
                   </div>
                   <div className="mt-3 bg-purple-50 border border-purple-100 rounded-xl p-3">
-                    <p className="text-xs text-purple-700 leading-relaxed">
+                    <p className="text-xs text-violet-400 leading-relaxed">
                       🔒 Cocina verá solo los primeros <b>{bloqueoCantidad} pedido{bloqueoCantidad !== 1 ? 's' : ''}</b> (por orden de llegada).
                     </p>
                   </div>
                 </div>
               )}
               {!bloqueoActivo && (
-                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
-                  <p className="text-xs text-gray-500">🟢 Sin restricción — la cocina ve todos los pedidos activos al mismo tiempo.</p>
+                <div className="bg-white/4 border border-white/12 rounded-xl p-3">
+                  <p className="text-xs text-white/50">🟢 Sin restricción — la cocina ve todos los pedidos activos al mismo tiempo.</p>
                 </div>
               )}
             </div>
 
             {/* QR — solo basico/pro */}
-            <div className={`bg-white rounded-2xl border border-gray-100 p-5 space-y-5 ${!puedeAcceder('basico') ? 'opacity-60' : ''}`}>
+            <div className={`bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm p-5 space-y-5 ${!puedeAcceder('basico') ? 'opacity-60' : ''}`}>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
                     <span className="text-xl">📱</span>
                   </div>
                   <div>
-                    <h2 className="font-bold text-gray-900">Pedidos por QR</h2>
-                    <p className="text-xs text-gray-400">Permite que los clientes pidan desde su celular</p>
+                    <h2 className="font-bold text-white/90">Pedidos por QR</h2>
+                    <p className="text-xs text-white/35">Permite que los clientes pidan desde su celular</p>
                   </div>
                 </div>
                 {!puedeAcceder('basico') && (
@@ -2713,7 +2805,7 @@ export default function GerenciaPage() {
                 )}
               </div>
               {!puedeAcceder('basico') ? (
-                <p className="text-xs text-gray-400 bg-gray-50 rounded-xl p-3">
+                <p className="text-xs text-gray-400 bg-white/4 rounded-xl p-3">
                   🔒 Disponible desde el plan Profesional ($89.900/mes). Actualiza tu plan para habilitar pedidos por QR.
                 </p>
               ) : (
@@ -2765,9 +2857,9 @@ export default function GerenciaPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="font-bold text-gray-900 text-lg">Reservas</h2>
-                <p className="text-xs text-gray-400">Solicitudes de reserva de tus clientes</p>
+                <p className="text-xs text-white/35">Solicitudes de reserva de tus clientes</p>
               </div>
-              <button onClick={cargarReservas} className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors">
+              <button onClick={cargarReservas} className="p-2 rounded-xl bg-white/8 hover:bg-white/14 transition-colors">
                 <RotateCcw size={16} className="text-gray-600" />
               </button>
             </div>
@@ -2782,7 +2874,7 @@ export default function GerenciaPage() {
                         : f === 'confirmada' ? 'bg-green-500 text-white border-green-500'
                         : f === 'cancelada' ? 'bg-red-400 text-white border-red-400'
                         : 'bg-purple-600 text-white border-purple-600'
-                      : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                      : 'bg-white text-gray-500 border-white/12 hover:border-gray-300'
                   }`}>
                   {f === 'todos' ? 'Todas' : f.charAt(0).toUpperCase() + f.slice(1)}
                   {f !== 'todos' && (
@@ -2800,10 +2892,10 @@ export default function GerenciaPage() {
               </div>
             ) : reservas.filter(r => filtroReservaEstado === 'todos' || r.estado === filtroReservaEstado).length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-3">
+                <div className="w-16 h-16 bg-white/8 rounded-2xl flex items-center justify-center mb-3">
                   <CalendarDays size={28} className="text-gray-400" />
                 </div>
-                <p className="font-bold text-gray-500">Sin reservas</p>
+                <p className="font-bold text-white/50">Sin reservas</p>
                 <p className="text-xs text-gray-400 mt-1">Las solicitudes de tus clientes aparecerán aquí</p>
               </div>
             ) : (
@@ -2811,11 +2903,11 @@ export default function GerenciaPage() {
                 {reservas
                   .filter(r => filtroReservaEstado === 'todos' || r.estado === filtroReservaEstado)
                   .map(r => (
-                    <div key={r.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                    <div key={r.id} className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm overflow-hidden shadow-sm">
                       <div className="p-4">
                         <div className="flex items-start justify-between gap-3 mb-3">
                           <div>
-                            <p className="font-bold text-gray-900">{r.nombre}</p>
+                            <p className="font-bold text-white/90">{r.nombre}</p>
                             <p className="text-xs text-gray-500 mt-0.5">📞 {r.telefono}</p>
                           </div>
                           <span className={`text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${
@@ -2827,17 +2919,17 @@ export default function GerenciaPage() {
                           </span>
                         </div>
                         <div className="grid grid-cols-3 gap-2 text-center mb-3">
-                          <div className="bg-gray-50 rounded-xl p-2">
+                          <div className="bg-white/4 rounded-xl p-2">
                             <p className="text-[10px] text-gray-400 uppercase tracking-wide">Fecha</p>
-                            <p className="text-sm font-bold text-gray-900">{new Date(r.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}</p>
+                            <p className="text-sm font-bold text-white/90">{new Date(r.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}</p>
                           </div>
-                          <div className="bg-gray-50 rounded-xl p-2">
+                          <div className="bg-white/4 rounded-xl p-2">
                             <p className="text-[10px] text-gray-400 uppercase tracking-wide">Hora</p>
-                            <p className="text-sm font-bold text-gray-900">{r.hora}</p>
+                            <p className="text-sm font-bold text-white/90">{r.hora}</p>
                           </div>
-                          <div className="bg-gray-50 rounded-xl p-2">
+                          <div className="bg-white/4 rounded-xl p-2">
                             <p className="text-[10px] text-gray-400 uppercase tracking-wide">Personas</p>
-                            <p className="text-sm font-bold text-gray-900">{r.personas}</p>
+                            <p className="text-sm font-bold text-white/90">{r.personas}</p>
                           </div>
                         </div>
                         {r.notas && (
@@ -2852,14 +2944,14 @@ export default function GerenciaPage() {
                               <CheckCircle size={14} /> Confirmar
                             </button>
                             <button onClick={() => actualizarEstadoReserva(r.id, 'cancelada')}
-                              className="flex-1 bg-gray-100 hover:bg-red-50 text-gray-600 hover:text-red-600 text-xs font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-1.5">
+                              className="flex-1 bg-white/8 hover:bg-red-50 text-gray-600 hover:text-red-600 text-xs font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-1.5">
                               <X size={14} /> Cancelar
                             </button>
                           </div>
                         )}
                         {r.estado !== 'pendiente' && (
                           <button onClick={() => actualizarEstadoReserva(r.id, 'pendiente')}
-                            className="w-full bg-gray-100 hover:bg-gray-200 text-gray-500 text-xs font-medium py-2 rounded-xl transition-colors">
+                            className="w-full bg-white/8 hover:bg-white/14 text-gray-500 text-xs font-medium py-2 rounded-xl transition-colors">
                             Marcar como pendiente
                           </button>
                         )}
@@ -2877,32 +2969,32 @@ export default function GerenciaPage() {
       {/* ══ MODAL DETALLE MESA ══════════════════════════════════════ */}
       {mesaDetalle && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
-          <div className="bg-white w-full md:max-w-lg md:rounded-3xl rounded-t-3xl max-h-[92vh] flex flex-col overflow-hidden fade-in">
+          <div className="bg-[#0f0f1e] border border-white/10 w-full md:max-w-lg md:rounded-3xl rounded-t-3xl max-h-[92vh] flex flex-col overflow-hidden fade-in">
 
             {/* ── Paso: captura de cliente (aparece después de pago) ── */}
             {vistaModal === 'cliente' && (
               <>
-                <div className="flex items-center justify-between px-5 py-4 border-b">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-white/8">
                   <div>
-                    <h2 className="text-xl font-black text-gray-900">Datos del cliente</h2>
+                    <h2 className="text-xl font-black text-white/90">Datos del cliente</h2>
                     <p className="text-xs text-green-600 font-medium">✅ Mesa pagada y liberada</p>
                   </div>
-                  <button onClick={saltarCliente} className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center"><X size={18} /></button>
+                  <button onClick={saltarCliente} className="w-9 h-9 rounded-full bg-white/8 flex items-center justify-center"><X size={18} /></button>
                 </div>
                 <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
-                  <p className="text-sm text-gray-500">Opcional — para la base de datos de clientes y marketing</p>
+                  <p className="text-sm text-white/50">Opcional — para la base de datos de clientes y marketing</p>
                   <div className="flex gap-2">
                     <input type="text" value={cedulaCliente} onChange={e => setCedulaCliente(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && buscarCliente()}
                       placeholder="Cédula del cliente"
-                      className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                      className="flex-1 bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
                     <button onClick={buscarCliente} disabled={buscandoCl || !cedulaCliente.trim()}
                       className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white px-4 py-2.5 rounded-xl text-sm font-bold">
                       {buscandoCl ? '...' : 'Buscar'}
                     </button>
                   </div>
                   {cedulaCliente && !buscandoCl && (
-                    <div className={`rounded-xl p-3 text-sm ${clienteEncontrado ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-200'}`}>
+                    <div className={`rounded-xl p-3 text-sm ${clienteEncontrado ? 'bg-green-50 border border-green-200' : 'bg-white/4 border border-white/12'}`}>
                       {clienteEncontrado
                         ? <p className="text-green-700 font-semibold">✓ Cliente frecuente: {clienteEncontrado.nombre}</p>
                         : <p className="text-gray-500">Cliente nuevo — completa los datos:</p>
@@ -2913,10 +3005,10 @@ export default function GerenciaPage() {
                     <div className="space-y-2">
                       <input type="text" placeholder="Nombre completo *" value={clienteForm.nombre}
                         onChange={e => setClienteForm(p => ({ ...p, nombre: e.target.value }))}
-                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                        className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
                       <input type="tel" placeholder="Teléfono" value={clienteForm.telefono}
                         onChange={e => setClienteForm(p => ({ ...p, telefono: e.target.value }))}
-                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                        className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
                       <div>
                         <label className="text-xs text-gray-400 block mb-1">🎂 Cumpleaños (opcional)</label>
                         <div className="grid grid-cols-3 gap-2">
@@ -2925,7 +3017,7 @@ export default function GerenciaPage() {
                               const parts = clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-') : ['2000', '01', '01']
                               setClienteForm(p => ({ ...p, fecha_cumpleanos: `${parts[0]}-${parts[1]}-${e.target.value.padStart(2,'0')}` }))
                             }}
-                            className="border border-gray-200 rounded-xl px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">
+                            className="border border-white/12 rounded-xl px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50">
                             <option value="">Día</option>
                             {Array.from({length:31},(_,i)=>i+1).map(d=><option key={d} value={String(d).padStart(2,'0')}>{d}</option>)}
                           </select>
@@ -2934,7 +3026,7 @@ export default function GerenciaPage() {
                               const parts = clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-') : ['2000', '01', '01']
                               setClienteForm(p => ({ ...p, fecha_cumpleanos: `${parts[0]}-${e.target.value}-${parts[2]}` }))
                             }}
-                            className="border border-gray-200 rounded-xl px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">
+                            className="border border-white/12 rounded-xl px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50">
                             <option value="">Mes</option>
                             {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((m,i)=><option key={m} value={String(i+1).padStart(2,'0')}>{m}</option>)}
                           </select>
@@ -2943,7 +3035,7 @@ export default function GerenciaPage() {
                               const parts = clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-') : ['2000', '01', '01']
                               setClienteForm(p => ({ ...p, fecha_cumpleanos: `${e.target.value}-${parts[1]}-${parts[2]}` }))
                             }}
-                            className="border border-gray-200 rounded-xl px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">
+                            className="border border-white/12 rounded-xl px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50">
                             <option value="">Año</option>
                             {Array.from({length:80},(_,i)=>new Date().getFullYear()-i).map(y=><option key={y} value={y}>{y}</option>)}
                           </select>
@@ -2959,7 +3051,7 @@ export default function GerenciaPage() {
                       {guardandoCl ? 'Guardando...' : clienteEncontrado ? 'Registrar en este pedido' : 'Guardar cliente'}
                     </button>
                   )}
-                  <button onClick={saltarCliente} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium py-3 rounded-xl text-sm">
+                  <button onClick={saltarCliente} className="w-full bg-white/8 hover:bg-white/14 text-gray-600 font-medium py-3 rounded-xl text-sm">
                     Saltar — cerrar sin guardar
                   </button>
                 </div>
@@ -2968,17 +3060,17 @@ export default function GerenciaPage() {
 
             {/* ── Paso: detalle + pago ── */}
             {vistaModal === 'pago' && (<>
-            <div className="flex items-center justify-between px-5 py-4 border-b">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/8">
               <div>
                 {mesaDetalle.isDomi ? (
                   <div>
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="bg-blue-600 text-white text-xs font-black px-2 py-0.5 rounded-full">🛵 DOMI</span>
-                      <span className="text-lg font-black text-gray-900">{mesaDetalle.pedido.cliente_nombre || 'Sin nombre'}</span>
+                      <span className="text-lg font-black text-white/90">{mesaDetalle.pedido.cliente_nombre || 'Sin nombre'}</span>
                     </div>
-                    {mesaDetalle.pedido.cliente_cedula && <p className="text-xs text-gray-400">🪪 C.C. {mesaDetalle.pedido.cliente_cedula}</p>}
-                    {mesaDetalle.pedido.cliente_telefono && <p className="text-xs text-gray-400">📞 {mesaDetalle.pedido.cliente_telefono}</p>}
-                    {mesaDetalle.pedido.cliente_direccion && <p className="text-xs text-gray-400">📍 {mesaDetalle.pedido.cliente_direccion}</p>}
+                    {mesaDetalle.pedido.cliente_cedula && <p className="text-xs text-white/35">🪪 C.C. {mesaDetalle.pedido.cliente_cedula}</p>}
+                    {mesaDetalle.pedido.cliente_telefono && <p className="text-xs text-white/35">📞 {mesaDetalle.pedido.cliente_telefono}</p>}
+                    {mesaDetalle.pedido.cliente_direccion && <p className="text-xs text-white/35">📍 {mesaDetalle.pedido.cliente_direccion}</p>}
                     {mesaDetalle.pedido.metodo_pago_cliente && (
                       <p className="text-xs font-bold mt-1">
                         💳 Pago: <span className="capitalize text-blue-700">{mesaDetalle.pedido.metodo_pago_cliente}</span>
@@ -2987,16 +3079,16 @@ export default function GerenciaPage() {
                   </div>
                 ) : (
                   <div>
-                    <h2 className="text-xl font-black text-gray-900">Mesa {mesaDetalle.mesa?.numero}</h2>
+                    <h2 className="text-xl font-black text-white/90">Mesa {mesaDetalle.mesa?.numero}</h2>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       {mesaDetalle.pedido.mesera ? (
                         <span className="inline-flex items-center gap-1 bg-orange-100 text-orange-700 text-xs font-bold px-2.5 py-1 rounded-full">
                           👩‍🍳 {mesaDetalle.pedido.mesera.nombre}
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-400">📱 Pedido QR</span>
+                        <span className="text-xs text-white/35">📱 Pedido QR</span>
                       )}
-                      <span className="text-xs text-gray-400">{new Date(mesaDetalle.pedido.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span className="text-xs text-white/35">{new Date(mesaDetalle.pedido.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                   </div>
                 )}
@@ -3012,7 +3104,7 @@ export default function GerenciaPage() {
                     {modoEdicionPedido ? '✓ Listo' : '✏️ Editar'}
                   </button>
                 )}
-                <button onClick={() => { setMesaDetalle(null); setVistaModal('pago'); setModoEdicionPedido(false); setItemReemplazando(null) }} className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center"><X size={18} /></button>
+                <button onClick={() => { setMesaDetalle(null); setVistaModal('pago'); setModoEdicionPedido(false); setItemReemplazando(null) }} className="w-9 h-9 rounded-full bg-white/8 flex items-center justify-center"><X size={18} /></button>
               </div>
             </div>
             <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
@@ -3123,7 +3215,7 @@ export default function GerenciaPage() {
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1">
                     {itemsSinListar.map((item, i) => (
-                      <span key={i} className={`text-xs font-semibold px-2 py-0.5 rounded-full ${item.estado === 'en_preparacion' ? 'bg-orange-200 text-orange-800' : 'bg-gray-200 text-gray-700'}`}>
+                      <span key={i} className={`text-xs font-semibold px-2 py-0.5 rounded-full ${item.estado === 'en_preparacion' ? 'bg-orange-200 text-orange-800' : 'bg-white/14 text-gray-700'}`}>
                         {item.cantidad}× {item.nombre} · {item.estado === 'en_preparacion' ? 'preparando' : 'pendiente'}
                       </span>
                     ))}
@@ -3140,12 +3232,12 @@ export default function GerenciaPage() {
                       const soloEfectivo = negocioPlan === 'starter' && m.id !== 'efectivo'
                       return (
                         <button key={m.id}
-                          onClick={() => { if (soloEfectivo) { abrirUpgrade(); toast('Solo efectivo en Plan Básico', { icon: '🔒' }); return } setMetodoPago(m.id) }}
+                          onClick={() => { if (soloEfectivo) { abrirUpgrade(); toast('Solo efectivo en Plan Básico', { icon: '🔒' }); return } setMetodoPago(m.id); setPagaCon('') }}
                           className={`py-2 rounded-xl text-xs font-bold flex flex-col items-center gap-1 border-2 transition-all relative
-                            ${metodoPago === m.id && !soloEfectivo ? `${m.color} text-white border-transparent` : 'bg-white border-gray-200 text-gray-600'}
+                            ${metodoPago === m.id && !soloEfectivo ? `${m.color} text-white border-transparent` : 'bg-white border-white/12 text-gray-600'}
                             ${soloEfectivo ? 'opacity-35' : ''}`}>
                           <span className="text-lg">{m.emoji}</span>{m.label}
-                          {soloEfectivo && <Lock size={10} className="absolute top-1 right-1 text-gray-400" />}
+                          {soloEfectivo && <Lock size={10} className="absolute top-1 right-1 text-white/35" />}
                         </button>
                       )
                     })}
@@ -3153,15 +3245,52 @@ export default function GerenciaPage() {
                   <div className={`flex gap-2 mb-2 transition-opacity ${!pedidoListoPagar ? 'opacity-40 pointer-events-none' : ''}`}>
                     <div className="flex-1">
                       <label className="text-xs text-gray-500 block mb-1">Monto</label>
-                      <input type="number" value={montoPago} onChange={e => setMontoPago(e.target.value)} placeholder={`$${saldoPendiente.toLocaleString('es-CO')}`} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                      <input type="number" value={montoPago} onChange={e => setMontoPago(e.target.value)} placeholder={`$${saldoPendiente.toLocaleString('es-CO')}`} className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
                     </div>
                     <div className="w-28">
                       <label className="text-xs text-gray-500 block mb-1">Propina</label>
-                      <input type="number" value={propinaPago} onChange={e => setPropinaPago(e.target.value)} placeholder="$0" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                      <input type="number" value={propinaPago} onChange={e => setPropinaPago(e.target.value)} placeholder="$0" className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
                     </div>
                   </div>
+                  {/* ── Paga con / Cambio (solo efectivo) ── */}
+                  {metodoPago === 'efectivo' && pedidoListoPagar && (
+                    <div className="mb-3">
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <label className="text-xs text-white/50 block mb-1">Paga con</label>
+                          <input
+                            type="number"
+                            value={pagaCon}
+                            onChange={e => setPagaCon(e.target.value)}
+                            placeholder={`$${saldoPendiente.toLocaleString('es-CO')}`}
+                            className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                          />
+                        </div>
+                        {pagaCon && parseFloat(pagaCon) >= saldoPendiente && (
+                          <div className="w-32 flex flex-col justify-end">
+                            <label className="text-xs text-emerald-400 block mb-1">Cambio</label>
+                            <div className="bg-emerald-500/15 border border-emerald-500/30 rounded-xl px-3 py-2 text-center">
+                              <span className="text-emerald-400 font-black text-sm">
+                                ${(parseFloat(pagaCon) - saldoPendiente).toLocaleString('es-CO')}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        {pagaCon && parseFloat(pagaCon) < saldoPendiente && (
+                          <div className="w-32 flex flex-col justify-end">
+                            <label className="text-xs text-red-400 block mb-1">Faltan</label>
+                            <div className="bg-red-500/15 border border-red-500/30 rounded-xl px-3 py-2 text-center">
+                              <span className="text-red-400 font-black text-sm">
+                                ${(saldoPendiente - parseFloat(pagaCon)).toLocaleString('es-CO')}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   {pedidoListoPagar && (
-                    <button onClick={() => setMontoPago(String(saldoPendiente))} className="text-xs text-purple-600 font-medium mb-3 hover:underline">→ Usar saldo exacto (${saldoPendiente.toLocaleString('es-CO')})</button>
+                    <button onClick={() => setMontoPago(String(saldoPendiente))} className="text-xs text-violet-400 font-medium mb-3 hover:underline">→ Usar saldo exacto (${saldoPendiente.toLocaleString('es-CO')})</button>
                   )}
                   <button
                     onClick={agregarPago}
@@ -3169,7 +3298,7 @@ export default function GerenciaPage() {
                     title={!pedidoListoPagar ? 'Hay platos que aún no han salido de cocina' : ''}
                     className={`w-full font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
                       !pedidoListoPagar
-                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                        ? 'bg-white/14 text-gray-400 cursor-not-allowed'
                         : 'bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white'
                     }`}>
                     <Banknote size={18} />
@@ -3187,7 +3316,7 @@ export default function GerenciaPage() {
                   className={`w-full font-bold py-4 rounded-2xl flex items-center justify-center gap-2 text-lg transition-all ${
                     pedidoListoPagar
                       ? 'bg-green-500 hover:bg-green-600 text-white'
-                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'bg-white/14 text-gray-400 cursor-not-allowed'
                   }`}>
                   <CheckCircle size={22} />
                   {pedidoListoPagar ? 'Cerrar mesa' : '🔒 Esperando cocina…'}
@@ -3207,16 +3336,16 @@ export default function GerenciaPage() {
       {/* ══ MODAL NUEVO / EDITAR MENÚ DE TURNO ══════════════════════ */}
       {modalNuevoMenu && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center p-0 md:p-4">
-          <div className="bg-white w-full md:max-w-lg md:rounded-3xl rounded-t-3xl max-h-[92vh] flex flex-col overflow-hidden fade-in">
+          <div className="bg-[#0f0f1e] border border-white/10 w-full md:max-w-lg md:rounded-3xl rounded-t-3xl max-h-[92vh] flex flex-col overflow-hidden fade-in">
             <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
               <div>
-                <h2 className="text-lg font-black text-gray-900">
+                <h2 className="text-lg font-black text-white/90">
                   {modalNuevoMenu === 'editar' ? '✏️ Editar menú' : '📋 Nuevo menú de turno'}
                 </h2>
                 <p className="text-xs text-gray-400 mt-0.5">Define cantidades estándar por plato</p>
               </div>
               <button onClick={() => { setModalNuevoMenu(null); setEditandoMenuId(null); setMenuForm({ nombre: '', items: {} }) }}
-                className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center"><X size={18} /></button>
+                className="w-9 h-9 rounded-full bg-white/8 flex items-center justify-center"><X size={18} /></button>
             </div>
             <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
               {/* Nombre del menú */}
@@ -3227,7 +3356,7 @@ export default function GerenciaPage() {
                   placeholder="Ej: Entre semana, Fin de semana, Festivo..."
                   value={menuForm.nombre}
                   onChange={e => setMenuForm(prev => ({ ...prev, nombre: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-400"
                 />
               </div>
               {/* Cantidades por plato */}
@@ -3239,22 +3368,22 @@ export default function GerenciaPage() {
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">{cat.nombre}</p>
                     <div className="space-y-2">
                       {platosCategoria.map(p => (
-                        <div key={p.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5 gap-3">
+                        <div key={p.id} className="flex items-center justify-between bg-white/4 rounded-xl px-3 py-2.5 gap-3">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-800 truncate">{p.nombre}</p>
-                            <p className="text-xs text-gray-400">${p.precio.toLocaleString('es-CO')}</p>
+                            <p className="text-xs text-white/35">${p.precio.toLocaleString('es-CO')}</p>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <button
                               onClick={() => setMenuForm(prev => ({ ...prev, items: { ...prev.items, [p.id]: Math.max(0, (prev.items[p.id] ?? 0) - 1) } }))}
-                              className="w-7 h-7 bg-white border border-gray-200 rounded-full flex items-center justify-center text-gray-600 hover:bg-gray-100">
+                              className="w-7 h-7 bg-white/8 border border-white/15 rounded-full flex items-center justify-center text-white/50 hover:bg-white/14">
                               <Minus size={12} />
                             </button>
                             <input
                               type="number" min="0"
                               value={menuForm.items[p.id] ?? 0}
                               onChange={e => setMenuForm(prev => ({ ...prev, items: { ...prev.items, [p.id]: parseInt(e.target.value) || 0 } }))}
-                              className="w-14 border border-gray-200 rounded-xl px-2 py-1.5 text-sm font-bold text-center focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
+                              className="w-14 border border-white/12 rounded-xl px-2 py-1.5 text-sm font-bold text-center focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
                             />
                             <button
                               onClick={() => setMenuForm(prev => ({ ...prev, items: { ...prev.items, [p.id]: (prev.items[p.id] ?? 0) + 1 } }))}
@@ -3292,20 +3421,20 @@ export default function GerenciaPage() {
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">Nombre del plato *</label>
-              <input type="text" value={platoForm.nombre} onChange={e => setPlatoForm(p => ({ ...p, nombre: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+              <input type="text" value={platoForm.nombre} onChange={e => setPlatoForm(p => ({ ...p, nombre: e.target.value }))} className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">Descripción (visible para meseras y clientes)</label>
-              <textarea value={platoForm.descripcion || ''} onChange={e => setPlatoForm(p => ({ ...p, descripcion: e.target.value }))} rows={2} placeholder="Describe el plato para que las meseras puedan explicárselo al cliente..." className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+              <textarea value={platoForm.descripcion || ''} onChange={e => setPlatoForm(p => ({ ...p, descripcion: e.target.value }))} rows={2} placeholder="Describe el plato para que las meseras puedan explicárselo al cliente..." className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Precio público *</label>
-                <input type="number" value={platoForm.precio || ''} onChange={e => setPlatoForm(p => ({ ...p, precio: parseFloat(e.target.value) || 0 }))} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                <input type="number" value={platoForm.precio || ''} onChange={e => setPlatoForm(p => ({ ...p, precio: parseFloat(e.target.value) || 0 }))} className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
               </div>
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Costo (para utilidad)</label>
-                <input type="number" value={platoForm.costo || ''} onChange={e => setPlatoForm(p => ({ ...p, costo: parseFloat(e.target.value) || 0 }))} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                <input type="number" value={platoForm.costo || ''} onChange={e => setPlatoForm(p => ({ ...p, costo: parseFloat(e.target.value) || 0 }))} className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
               </div>
             </div>
             {platoForm.precio && platoForm.costo ? (
@@ -3315,13 +3444,13 @@ export default function GerenciaPage() {
             ) : null}
             <div>
               <label className="text-xs text-gray-500 block mb-1">Categoría *</label>
-              <select value={platoForm.categoria_id} onChange={e => setPlatoForm(p => ({ ...p, categoria_id: parseInt(e.target.value) }))} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">
+              <select value={platoForm.categoria_id} onChange={e => setPlatoForm(p => ({ ...p, categoria_id: parseInt(e.target.value) }))} className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50">
                 {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">URL de imagen (opcional)</label>
-              <input type="url" value={platoForm.imagen_url || ''} onChange={e => setPlatoForm(p => ({ ...p, imagen_url: e.target.value }))} placeholder="https://..." className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+              <input type="url" value={platoForm.imagen_url || ''} onChange={e => setPlatoForm(p => ({ ...p, imagen_url: e.target.value }))} placeholder="https://..." className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
             </div>
             <div className="flex items-center gap-3">
               <label className="text-sm text-gray-700 font-medium">Disponible en el menú</label>
@@ -3349,8 +3478,8 @@ export default function GerenciaPage() {
                   {pasoCaja === 'efectivo' ? 'Abrir turno' : '📦 Inventario inicial'}
                 </h3>
                 <div className="flex gap-2 mt-1">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${pasoCaja === 'efectivo' ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'}`}>1. Caja</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${pasoCaja === 'inventario' ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'}`}>2. Inventario</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${pasoCaja === 'efectivo' ? 'bg-green-500 text-white' : 'bg-white/14 text-gray-500'}`}>1. Caja</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${pasoCaja === 'inventario' ? 'bg-green-500 text-white' : 'bg-white/14 text-gray-500'}`}>2. Inventario</span>
                 </div>
               </div>
               <button onClick={() => { setModalCaja(null); setPasoCaja('efectivo') }}><X size={20} /></button>
@@ -3363,7 +3492,7 @@ export default function GerenciaPage() {
                   <label className="block text-sm text-gray-600 mb-1">Monto inicial en caja (efectivo)</label>
                   <input type="number" value={montoInicial} onChange={e => setMontoInicial(e.target.value)}
                     placeholder="0"
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-lg font-bold focus:outline-none focus:ring-2 focus:ring-green-400" />
+                    className="w-full border border-white/12 rounded-xl px-4 py-3 text-lg font-bold focus:outline-none focus:ring-2 focus:ring-green-400" />
                 </div>
                 <button onClick={irAInventario}
                   className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2">
@@ -3378,11 +3507,11 @@ export default function GerenciaPage() {
                   {/* Selector de modo */}
                   <div className="flex gap-2">
                     <button onClick={() => { setModoInventario('manual'); setMenuSeleccionadoId(null) }}
-                      className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${modoInventario === 'manual' ? 'bg-green-500 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                      className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${modoInventario === 'manual' ? 'bg-green-500 text-white shadow-sm' : 'bg-white/8 text-gray-600 hover:bg-white/14'}`}>
                       ✏️ Manual
                     </button>
                     <button onClick={() => setModoInventario('menu')}
-                      className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${modoInventario === 'menu' ? 'bg-orange-500 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                      className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${modoInventario === 'menu' ? 'bg-orange-500 text-white shadow-sm' : 'bg-white/8 text-gray-600 hover:bg-white/14'}`}>
                       <ClipboardList size={14} /> Desde menú
                     </button>
                   </div>
@@ -3399,8 +3528,8 @@ export default function GerenciaPage() {
                           <p className="text-xs text-gray-500 font-medium">Selecciona el menú para precargar cantidades:</p>
                           {menusTurno.map(menu => (
                             <button key={menu.id} onClick={() => aplicarMenuTurno(menu.id)}
-                              className={`w-full text-left p-3 rounded-xl border-2 transition-all ${menuSeleccionadoId === menu.id ? 'border-orange-500 bg-orange-50' : 'border-gray-200 bg-white hover:border-orange-300'}`}>
-                              <p className="font-bold text-gray-900">{menu.nombre}</p>
+                              className={`w-full text-left p-3 rounded-xl border-2 transition-all ${menuSeleccionadoId === menu.id ? 'border-orange-500 bg-orange-50' : 'border-white/12 bg-white hover:border-orange-300'}`}>
+                              <p className="font-bold text-white/90">{menu.nombre}</p>
                               <p className="text-xs text-gray-400 mt-0.5">
                                 {menu.items.filter(i => i.cantidad > 0).length} platos · {menu.items.reduce((a, i) => a + i.cantidad, 0)} unidades
                               </p>
@@ -3431,10 +3560,10 @@ export default function GerenciaPage() {
                         <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">{cat.nombre}</p>
                         <div className="space-y-2">
                           {platosCategoria.map(p => (
-                            <div key={p.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5">
+                            <div key={p.id} className="flex items-center justify-between bg-white/4 rounded-xl px-3 py-2.5">
                               <div className="flex-1 min-w-0 mr-3">
                                 <p className="text-sm font-medium text-gray-800 truncate">{p.nombre}</p>
-                                <p className="text-xs text-gray-400">${p.precio.toLocaleString('es-CO')}</p>
+                                <p className="text-xs text-white/35">${p.precio.toLocaleString('es-CO')}</p>
                               </div>
                               <input
                                 type="number" min="0"
@@ -3443,7 +3572,7 @@ export default function GerenciaPage() {
                                   ...prev, [p.id]: parseInt(e.target.value) || 0
                                 }))}
                                 placeholder="0"
-                                className="w-16 border border-gray-200 rounded-xl px-2 py-1.5 text-sm font-bold text-center focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
+                                className="w-16 border border-white/12 rounded-xl px-2 py-1.5 text-sm font-bold text-center focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
                               />
                             </div>
                           ))}
@@ -3503,25 +3632,25 @@ export default function GerenciaPage() {
               {/* Header */}
               <div className="flex justify-between items-center px-5 py-4 border-b shrink-0">
                 <div>
-                  <h3 className="font-bold text-lg text-gray-900">Cuadre de caja</h3>
-                  <p className="text-xs text-gray-400">Ingresa lo que tienes en cada medio</p>
+                  <h3 className="font-bold text-lg text-white/90">Cuadre de caja</h3>
+                  <p className="text-xs text-white/35">Ingresa lo que tienes en cada medio</p>
                 </div>
-                <button onClick={() => setModalCaja(null)} className="w-9 h-9 bg-gray-100 rounded-full flex items-center justify-center"><X size={18}/></button>
+                <button onClick={() => setModalCaja(null)} className="w-9 h-9 bg-white/8 rounded-full flex items-center justify-center"><X size={18}/></button>
               </div>
 
               <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
 
                 {/* Resumen ventas */}
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-gray-50 rounded-2xl p-3 text-center">
+                  <div className="bg-white/4 rounded-2xl p-3 text-center">
                     <p className="text-xs text-gray-500 mb-0.5">Ventas</p>
                     <p className="font-black text-gray-900 text-sm">${stats.ventas.toLocaleString('es-CO')}</p>
                   </div>
-                  <div className="bg-gray-50 rounded-2xl p-3 text-center">
+                  <div className="bg-white/4 rounded-2xl p-3 text-center">
                     <p className="text-xs text-gray-500 mb-0.5">Ingresos extra</p>
                     <p className="font-black text-green-700 text-sm">+${totalIngresos.toLocaleString('es-CO')}</p>
                   </div>
-                  <div className="bg-gray-50 rounded-2xl p-3 text-center">
+                  <div className="bg-white/4 rounded-2xl p-3 text-center">
                     <p className="text-xs text-gray-500 mb-0.5">Egresos</p>
                     <p className="font-black text-red-600 text-sm">-${totalEgresos.toLocaleString('es-CO')}</p>
                   </div>
@@ -3536,7 +3665,7 @@ export default function GerenciaPage() {
 
                   return (
                     <div key={m.id} className={`rounded-2xl border-2 p-4 space-y-3 transition-all ${
-                      diff === null ? 'bg-white border-gray-200' :
+                      diff === null ? 'bg-white border-white/12' :
                       diff === 0   ? 'bg-green-50 border-green-400' :
                       diff > 0     ? 'bg-blue-50 border-blue-300' :
                                      'bg-red-50 border-red-400'
@@ -3545,9 +3674,9 @@ export default function GerenciaPage() {
                         <div className="flex items-center gap-2">
                           <span className="text-2xl">{m.emoji}</span>
                           <div>
-                            <p className="font-bold text-gray-900">{m.label}</p>
+                            <p className="font-bold text-white/90">{m.label}</p>
                             {m.id === 'efectivo' && (
-                              <p className="text-xs text-gray-400">
+                              <p className="text-xs text-white/35">
                                 Base ${turnoActivo.monto_inicial.toLocaleString('es-CO')}
                                 {totalIngresos > 0 && ` + ingresos $${totalIngresos.toLocaleString('es-CO')}`}
                                 {totalEgresos  > 0 && ` − egresos $${totalEgresos.toLocaleString('es-CO')}`}
@@ -3556,8 +3685,8 @@ export default function GerenciaPage() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs text-gray-400">Sistema espera</p>
-                          <p className="font-black text-gray-900">${m.esperado.toLocaleString('es-CO')}</p>
+                          <p className="text-xs text-white/35">Sistema espera</p>
+                          <p className="font-black text-white/90">${m.esperado.toLocaleString('es-CO')}</p>
                         </div>
                       </div>
 
@@ -3572,7 +3701,7 @@ export default function GerenciaPage() {
                           onChange={e => setConteoFinal(p => ({ ...p, [m.id]: e.target.value }))}
                           placeholder={`$${m.esperado.toLocaleString('es-CO')}`}
                           className={`w-full border-2 rounded-xl px-3 py-2.5 text-base font-bold focus:outline-none transition-all ${
-                            diff === null   ? 'border-gray-200 focus:border-purple-400' :
+                            diff === null   ? 'border-white/12 focus:border-purple-400' :
                             diff === 0      ? 'border-green-400 bg-green-50' :
                             diff > 0        ? 'border-blue-300 bg-blue-50' :
                                               'border-red-400 bg-red-50'
@@ -3624,12 +3753,12 @@ export default function GerenciaPage() {
 
                 {/* ── Resumen de inventario del turno ── */}
                 {resumenInventario.length > 0 && (
-                  <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                    <div className="px-4 py-3 border-b bg-gray-50 flex items-center justify-between">
-                      <h3 className="font-bold text-gray-900 text-sm">📦 Inventario del turno</h3>
-                      <span className="text-xs text-gray-400">{resumenInventario.length} platos</span>
+                  <div className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm overflow-hidden">
+                    <div className="px-4 py-3 border-b bg-white/4 flex items-center justify-between">
+                      <h3 className="font-bold text-white/80 text-sm">📦 Inventario del turno</h3>
+                      <span className="text-xs text-white/35">{resumenInventario.length} platos</span>
                     </div>
-                    <div className="divide-y">
+                    <div className="divide-y divide-white/6">
                       {resumenInventario.map(item => {
                         const vendidos = item.cantidad_inicial - item.cantidad_restante
                         const valorVendido = vendidos * item.precio
@@ -3638,15 +3767,15 @@ export default function GerenciaPage() {
                             <div className="flex justify-between items-start gap-2">
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-semibold text-gray-800 truncate">{item.nombre}</p>
-                                <p className="text-xs text-gray-400">{item.categoria}</p>
+                                <p className="text-xs text-white/35">{item.categoria}</p>
                               </div>
                               <div className="text-right shrink-0">
                                 <p className="font-black text-gray-900 text-sm">{vendidos} vendidos</p>
                                 <p className="text-xs text-green-700 font-semibold">${valorVendido.toLocaleString('es-CO')}</p>
                               </div>
                             </div>
-                            <div className="flex gap-4 mt-1 text-xs text-gray-400">
-                              <span>Inicial: <span className="font-semibold text-gray-600">{item.cantidad_inicial}</span></span>
+                            <div className="flex gap-4 mt-1 text-xs text-white/35">
+                              <span>Inicial: <span className="font-semibold text-white/60">{item.cantidad_inicial}</span></span>
                               <span>Restante: <span className={`font-semibold ${item.cantidad_restante === 0 ? 'text-red-500' : 'text-gray-600'}`}>{item.cantidad_restante}</span></span>
                             </div>
                           </div>
@@ -3659,7 +3788,7 @@ export default function GerenciaPage() {
                       const totalValor    = resumenInventario.reduce((a, i) => a + (i.cantidad_inicial - i.cantidad_restante) * i.precio, 0)
                       return (
                         <div className="px-4 py-3 bg-purple-50 flex justify-between items-center">
-                          <span className="text-sm font-bold text-purple-700">{totalVendidos} unidades vendidas</span>
+                          <span className="text-sm font-bold text-violet-400">{totalVendidos} unidades vendidas</span>
                           <span className="font-black text-purple-900">${totalValor.toLocaleString('es-CO')}</span>
                         </div>
                       )
@@ -3691,16 +3820,16 @@ export default function GerenciaPage() {
               <div className="flex justify-between items-center">
                 <div>
                   <p className="font-bold text-gray-900 text-lg">Mesa {modalQR.numero}</p>
-                  {modalQR.zona && <p className="text-xs text-gray-400">{modalQR.zona}</p>}
+                  {modalQR.zona && <p className="text-xs text-white/35">{modalQR.zona}</p>}
                 </div>
                 <button onClick={() => setModalQR(null)}><X size={20} className="text-gray-400" /></button>
               </div>
-              <img src={qrSrc} alt={`QR Mesa ${modalQR.numero}`} className="mx-auto rounded-xl border border-gray-100 p-2" width={200} height={200} />
+              <img src={qrSrc} alt={`QR Mesa ${modalQR.numero}`} className="mx-auto rounded-xl border border-white/8 p-2" width={200} height={200} />
               <p className="text-xs text-gray-400 break-all font-mono">{urlMiniLanding}</p>
               <div className="flex gap-2">
                 <button
                   onClick={() => { navigator.clipboard.writeText(urlMiniLanding); toast.success('URL copiada') }}
-                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl text-sm transition-colors"
+                  className="flex-1 bg-white/8 hover:bg-white/14 text-gray-700 font-bold py-3 rounded-xl text-sm transition-colors"
                 >
                   📋 Copiar
                 </button>
@@ -3711,12 +3840,12 @@ export default function GerenciaPage() {
                     a.download = `QR-Mesa-${modalQR.numero}.png`
                     a.click()
                   }}
-                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl text-sm transition-colors"
+                  className="flex-1 bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 rounded-xl text-sm transition-colors"
                 >
                   ⬇️ Descargar
                 </button>
               </div>
-              <p className="text-[10px] text-gray-400">
+              <p className="text-[10px] text-white/35">
                 También funciona: <span className="font-mono break-all">/mesa/{modalQR.id}</span>
               </p>
             </div>
@@ -3736,13 +3865,13 @@ export default function GerenciaPage() {
               <label className="text-xs font-medium text-gray-500 block mb-1">Nombre de la zona</label>
               <input type="text" placeholder="Ej: Terraza, Salón VIP, Zona A..."
                 value={nuevaZonaNombre} onChange={e => setNuevaZonaNombre(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Número de la primera mesa</label>
               <input type="number" min="1" placeholder="Ej: 1"
                 value={nuevaMesaNumero} onChange={e => setNuevaMesaNumero(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
             </div>
             <button onClick={crearZonaConMesa} disabled={guardandoMesa}
               className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl">
@@ -3764,10 +3893,10 @@ export default function GerenciaPage() {
               <label className="text-xs font-medium text-gray-500 block mb-1">Nuevo nombre</label>
               <input type="text" placeholder="Nombre de la zona"
                 value={renombrarZonaValor} onChange={e => setRenombrarZonaValor(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
             </div>
             <button onClick={() => renombrarZona(modalRenombrarZona, renombrarZonaValor)}
-              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl">
+              className="w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 rounded-xl">
               Guardar nombre
             </button>
           </div>
@@ -3786,7 +3915,7 @@ export default function GerenciaPage() {
               <label className="text-xs font-medium text-gray-500 block mb-1">Número de mesa</label>
               <input type="number" min="1" placeholder="Ej: 5"
                 value={nuevaMesaNumero} onChange={e => setNuevaMesaNumero(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
             </div>
             <button onClick={() => agregarMesaEnZona(modalAgregarMesa)} disabled={guardandoMesa}
               className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl">
@@ -3800,10 +3929,10 @@ export default function GerenciaPage() {
         <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm fade-in space-y-3">
             <div className="flex justify-between items-center"><h3 className="font-bold text-lg">Nuevo usuario</h3><button onClick={() => setModalUsuario(false)}><X size={20} /></button></div>
-            <input type="text" placeholder="Nombre completo" value={nuevoUsuario.nombre} onChange={e => setNuevoUsuario(p => ({ ...p, nombre: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
-            <input type="email" placeholder="Correo electrónico" value={nuevoUsuario.email} onChange={e => setNuevoUsuario(p => ({ ...p, email: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
-            <input type="password" placeholder="Contraseña" value={nuevoUsuario.password} onChange={e => setNuevoUsuario(p => ({ ...p, password: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
-            <select value={nuevoUsuario.rol} onChange={e => setNuevoUsuario(p => ({ ...p, rol: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">
+            <input type="text" placeholder="Nombre completo" value={nuevoUsuario.nombre} onChange={e => setNuevoUsuario(p => ({ ...p, nombre: e.target.value }))} className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+            <input type="email" placeholder="Correo electrónico" value={nuevoUsuario.email} onChange={e => setNuevoUsuario(p => ({ ...p, email: e.target.value }))} className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+            <input type="password" placeholder="Contraseña" value={nuevoUsuario.password} onChange={e => setNuevoUsuario(p => ({ ...p, password: e.target.value }))} className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+            <select value={nuevoUsuario.rol} onChange={e => setNuevoUsuario(p => ({ ...p, rol: e.target.value }))} className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50">
               <option value="mesera">Mesera</option><option value="cocina">Cocina</option><option value="gerente">Gerente</option><option value="domi">Domi</option>
             </select>
             <button onClick={crearUsuario} disabled={creandoUsuario} className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl">
@@ -3823,7 +3952,7 @@ export default function GerenciaPage() {
               <div className="flex justify-between items-center">
                 <div className="text-left">
                   <p className="font-black text-gray-900 text-lg">📱 Página Pública</p>
-                  <p className="text-xs text-gray-400">Menú, domicilios, reseñas y reservas</p>
+                  <p className="text-xs text-white/35">Menú, domicilios, reseñas y reservas</p>
                 </div>
                 <button onClick={() => setModalQRDomi(false)}><X size={20} className="text-gray-400" /></button>
               </div>
@@ -3832,7 +3961,7 @@ export default function GerenciaPage() {
                 <img src={qrSrc} alt="QR Página Pública" className="mx-auto rounded-xl" width={210} height={210} />
               </div>
 
-              <div className="bg-gray-50 rounded-xl px-3 py-2 text-left space-y-1">
+              <div className="bg-white/4 rounded-xl px-3 py-2 text-left space-y-1">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">URL pública</p>
                 <p className="text-xs text-gray-700 break-all font-mono">{url}</p>
               </div>
@@ -3845,7 +3974,7 @@ export default function GerenciaPage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => { navigator.clipboard.writeText(url); toast.success('URL copiada') }}
-                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl text-sm transition-colors"
+                  className="flex-1 bg-white/8 hover:bg-white/14 text-gray-700 font-bold py-3 rounded-xl text-sm transition-colors"
                 >
                   📋 Copiar URL
                 </button>
@@ -3869,15 +3998,15 @@ export default function GerenciaPage() {
       {/* ══ MODAL CONFIGURACIÓN ⚙️ ══════════════════════════════════ */}
       {modalSettings && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center p-0">
-          <div className="bg-white w-full max-w-lg rounded-t-3xl max-h-[92vh] flex flex-col overflow-hidden fade-in">
+          <div className="bg-[#0f0f1e] border border-white/10 w-full max-w-lg rounded-t-3xl max-h-[92vh] flex flex-col overflow-hidden fade-in">
 
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
               <div className="flex items-center gap-2">
                 <Settings size={20} className="text-gray-700" />
-                <h2 className="text-lg font-black text-gray-900">Configuración</h2>
+                <h2 className="text-lg font-black text-white/90">Configuración</h2>
               </div>
-              <button onClick={() => setModalSettings(false)} className="w-9 h-9 bg-gray-100 rounded-full flex items-center justify-center"><X size={18} /></button>
+              <button onClick={() => setModalSettings(false)} className="w-9 h-9 bg-white/8 rounded-full flex items-center justify-center"><X size={18} /></button>
             </div>
 
             {/* Tabs */}
@@ -3886,14 +4015,15 @@ export default function GerenciaPage() {
                 ['cuenta',       '👤 Cuenta'],
                 ['facturacion',  '💳 Facturación'],
                 ['usuarios',     '👥 Usuarios'],
+                ['marketing',    '🌟 Marketing'],
                 ['permisos',     '🔒 Permisos'],
                 ['restablecer',  '⚠️ Restablecer'],
-              ] as ['cuenta'|'facturacion'|'usuarios'|'permisos'|'restablecer', string][]).map(([id, label]) => (
+              ] as ['cuenta'|'facturacion'|'usuarios'|'marketing'|'permisos'|'restablecer', string][]).map(([id, label]) => (
                 <button key={id} onClick={() => { setSeccionSettings(id); if (id === 'facturacion') cargarFacturacion() }}
                   className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                     seccionSettings === id
                       ? id === 'restablecer' ? 'bg-red-500 text-white' : 'bg-purple-600 text-white'
-                      : 'text-gray-500 hover:bg-gray-100'
+                      : 'text-gray-500 hover:bg-white/8'
                   }`}>
                   {label}
                 </button>
@@ -3908,8 +4038,8 @@ export default function GerenciaPage() {
                   <div className="bg-purple-50 rounded-2xl p-4 flex items-center gap-4">
                     <div className="w-14 h-14 bg-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-black">G</div>
                     <div>
-                      <p className="font-black text-gray-900">Gerencia</p>
-                      <p className="text-xs text-gray-400">Administrador del sistema</p>
+                      <p className="font-black text-white/90">Gerencia</p>
+                      <p className="text-xs text-white/35">Administrador del sistema</p>
                     </div>
                   </div>
                   <button onClick={cerrarSesion}
@@ -3939,7 +4069,7 @@ export default function GerenciaPage() {
                     return (
                       <>
                         {/* Tarjeta plan */}
-                        <div className={`rounded-2xl p-5 border-2 ${esPro ? 'bg-gray-900 border-gray-700' : esStarter ? 'bg-gray-50 border-gray-200' : 'bg-orange-50 border-orange-300'}`}>
+                        <div className={`rounded-2xl p-5 border-2 ${esPro ? 'bg-gray-900 border-gray-700' : esStarter ? 'bg-white/4 border-white/12' : 'bg-orange-50 border-orange-300'}`}>
                           <div className="flex items-start justify-between">
                             <div>
                               <p className={`text-xs font-bold uppercase tracking-widest mb-1 ${esPro ? 'text-gray-400' : 'text-gray-400'}`}>Plan actual</p>
@@ -3957,15 +4087,15 @@ export default function GerenciaPage() {
                         </div>
 
                         {/* Próximo pago */}
-                        <div className="bg-gray-50 rounded-2xl p-4 flex items-center gap-4">
+                        <div className="bg-white/4 rounded-2xl p-4 flex items-center gap-4">
                           <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center shrink-0">
-                            <CalendarDays size={20} className="text-purple-600" />
+                            <CalendarDays size={20} className="text-violet-400" />
                           </div>
                           <div>
                             <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">
                               {vencido ? 'Venció el' : 'Próximo pago / vence'}
                             </p>
-                            <p className="font-black text-gray-900">
+                            <p className="font-black text-white/90">
                               {hasta
                                 ? hasta.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })
                                 : 'No disponible'}
@@ -3994,7 +4124,7 @@ export default function GerenciaPage() {
                             </div>
                             <div className="space-y-2">
                               <a href="/checkout?plan=starter&tipo=nuevo"
-                                className="flex items-center justify-between w-full px-4 py-3 rounded-xl text-xs font-bold border-2 border-gray-200 hover:border-gray-300 text-gray-700 transition-colors">
+                                className="flex items-center justify-between w-full px-4 py-3 rounded-xl text-xs font-bold border-2 border-white/12 hover:border-gray-300 text-gray-700 transition-colors">
                                 <span>📦 Plan Básico</span>
                                 <span className="text-gray-500 font-normal">$19.000/mes</span>
                               </a>
@@ -4006,7 +4136,7 @@ export default function GerenciaPage() {
                               <a href="/checkout?plan=pro&tipo=nuevo"
                                 className="flex items-center justify-between w-full px-4 py-3 rounded-xl text-xs font-bold bg-gray-900 text-white hover:bg-gray-800 transition-colors">
                                 <span>🔥 Plan Pro</span>
-                                <span className="font-normal text-gray-400">$149.000/mes</span>
+                                <span className="font-normal text-white/35">$149.000/mes</span>
                               </a>
                             </div>
                           </div>
@@ -4015,7 +4145,7 @@ export default function GerenciaPage() {
                         {/* Renovar — vence pronto o ya venció */}
                         {facturacion.activa && (vencido || (diasRestantes !== null && diasRestantes <= 7)) && (
                           <a href={`/checkout?plan=${facturacion.plan}&tipo=renovar`}
-                            className="block text-center bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 rounded-2xl transition-colors text-sm">
+                            className="block text-center bg-violet-600 hover:bg-violet-700 text-white font-bold py-3.5 rounded-2xl transition-colors text-sm">
                             🔄 {vencido ? 'Reactivar — pagar ahora' : `Renovar (${diasRestantes} días restantes)`}
                           </a>
                         )}
@@ -4038,7 +4168,7 @@ export default function GerenciaPage() {
                               <a href="/checkout?plan=pro&tipo=upgrade"
                                 className="flex items-center justify-between w-full px-4 py-3 rounded-xl text-xs font-bold bg-gray-900 text-white hover:bg-gray-800 transition-colors">
                                 <span>🔥 Subir a Pro</span>
-                                <span className="font-normal text-gray-400">$149.000/mes</span>
+                                <span className="font-normal text-white/35">$149.000/mes</span>
                               </a>
                             </div>
                           </div>
@@ -4048,7 +4178,7 @@ export default function GerenciaPage() {
                         <a
                           href={`https://wa.me/573137335448?text=${encodeURIComponent('Hola, tengo una pregunta sobre mi suscripción de Restaurant Pix 🍽️')}`}
                           target="_blank" rel="noopener noreferrer"
-                          className="flex items-center justify-center gap-2 border-2 border-gray-200 text-gray-500 hover:bg-gray-50 font-semibold py-2.5 rounded-2xl text-xs transition-colors">
+                          className="flex items-center justify-center gap-2 border-2 border-white/12 text-gray-500 hover:bg-white/4 font-semibold py-2.5 rounded-2xl text-xs transition-colors">
                           💬 Ayuda por WhatsApp
                         </a>
                       </>
@@ -4063,18 +4193,18 @@ export default function GerenciaPage() {
               {seccionSettings === 'usuarios' && (
                 <div className="space-y-4">
                   <button onClick={() => setModalUsuario(true)}
-                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-colors">
+                    className="w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-colors">
                     <Plus size={18} /> Crear nuevo usuario
                   </button>
                   {listaUsuarios.length === 0 ? (
-                    <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center">
+                    <div className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm p-6 text-center">
                       <p className="text-gray-400 text-sm">No hay usuarios registrados.</p>
                     </div>
                   ) : (
-                    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                    <div className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm overflow-hidden">
                       {listaUsuarios.map((u, i) => {
                         const ROL_BADGE: Record<string, string> = {
-                          gerente: 'bg-purple-100 text-purple-700',
+                          gerente: 'bg-purple-100 text-violet-400',
                           mesera:  'bg-orange-100 text-orange-700',
                           cocina:  'bg-green-100 text-green-700',
                           domi:    'bg-blue-100 text-blue-700',
@@ -4085,7 +4215,7 @@ export default function GerenciaPage() {
                         return (
                           <div key={u.id} className={`flex items-center justify-between px-4 py-3.5 ${i !== 0 ? 'border-t border-gray-50' : ''} ${!u.activo ? 'opacity-50' : ''}`}>
                             <div className="flex items-center gap-3">
-                              <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${u.activo ? 'bg-gray-100 text-gray-500' : 'bg-red-100 text-red-400'}`}>
+                              <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${u.activo ? 'bg-white/8 text-gray-500' : 'bg-red-100 text-red-400'}`}>
                                 {u.nombre.charAt(0).toUpperCase()}
                               </div>
                               <div>
@@ -4094,11 +4224,11 @@ export default function GerenciaPage() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${ROL_BADGE[u.rol] || 'bg-gray-100 text-gray-600'}`}>
+                              <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${ROL_BADGE[u.rol] || 'bg-white/8 text-gray-600'}`}>
                                 {ROL_LABEL[u.rol] || u.rol}
                               </span>
                               <button onClick={() => setEditandoUsuario({ id: u.id, nombre: u.nombre, rol: u.rol, activo: u.activo ?? true, nuevaPassword: '' })}
-                                className="w-7 h-7 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center">
+                                className="w-7 h-7 bg-white/8 hover:bg-white/14 rounded-lg flex items-center justify-center">
                                 <Pencil size={13} className="text-gray-500" />
                               </button>
                             </div>
@@ -4107,20 +4237,177 @@ export default function GerenciaPage() {
                       })}
                     </div>
                   )}
+
+                  {/* ── Nombres de cocineros ── */}
+                  <div className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm p-5 space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-orange-500/10 border border-orange-500/20 rounded-xl flex items-center justify-center">
+                        <ChefHat size={20} className="text-orange-400" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white/90 text-sm">Nombres de cocineros/as</h3>
+                        <p className="text-xs text-white/35">Aparecen en el selector al entrar a cocina — sin crear usuario extra</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={nuevoNombreCocinero}
+                        onChange={e => setNuevoNombreCocinero(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') agregarNombreCocinero() }}
+                        placeholder="Ej: María, Pedro, Cocinera 1..."
+                        className="flex-1 bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                      />
+                      <button
+                        onClick={agregarNombreCocinero}
+                        disabled={!nuevoNombreCocinero.trim() || guardandoNombresCocineros}
+                        className="bg-orange-600 hover:bg-orange-500 disabled:opacity-40 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all flex items-center gap-1.5">
+                        <Plus size={14} /> Añadir
+                      </button>
+                    </div>
+                    {nombresCocineros.length === 0 ? (
+                      <p className="text-xs text-white/25 text-center py-2">Sin nombres configurados — los cocineros escribirán el suyo al entrar</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {nombresCocineros.map(nombre => (
+                          <div key={nombre} className="flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/25 rounded-xl px-3 py-1.5">
+                            <ChefHat size={12} className="text-orange-400" />
+                            <span className="text-orange-300 text-sm font-medium">{nombre}</span>
+                            <button
+                              onClick={() => eliminarNombreCocinero(nombre)}
+                              className="text-orange-500/60 hover:text-red-400 ml-1 transition-colors">
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── MARKETING ── */}
+              {seccionSettings === 'marketing' && (
+                <div className="space-y-4">
+                  {/* Sugerido del mes */}
+                  <div className={`bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm p-5 space-y-5 ${!puedeAcceder('pro') ? 'opacity-60' : ''}`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-orange-500/10 border border-orange-500/20 rounded-xl flex items-center justify-center text-xl">🌟</div>
+                        <div>
+                          <h3 className="font-bold text-white/90 text-sm">Sugerido del mes</h3>
+                          <p className="text-xs text-white/35">Popup que aparece cuando el cliente abre el menú QR</p>
+                        </div>
+                      </div>
+                      {!puedeAcceder('pro') && (
+                        <span className="text-[10px] bg-orange-100 text-orange-700 font-bold px-2 py-1 rounded-full shrink-0">Plan Pro</span>
+                      )}
+                    </div>
+                    {!puedeAcceder('pro') ? (
+                      <div className="bg-white/4 rounded-xl p-3">
+                        <p className="text-xs text-gray-400">🔒 El sugerido del mes está disponible en el Plan Pro.</p>
+                        <button onClick={abrirUpgrade} className="text-xs text-violet-400 hover:underline mt-1">Actualizar plan →</button>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Toggle activo/inactivo */}
+                        <div className="flex items-center justify-between gap-4 py-1">
+                          <div>
+                            <p className="font-semibold text-white/80 text-sm">Activar popup</p>
+                            <p className="text-xs text-white/35">Los clientes verán este popup al abrir el menú QR</p>
+                          </div>
+                          <button onClick={() => setSugeridoActivo(v => !v)}
+                            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${sugeridoActivo ? 'bg-orange-500' : 'bg-gray-600'}`}>
+                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${sugeridoActivo ? 'translate-x-6' : 'translate-x-1'}`} />
+                          </button>
+                        </div>
+                        {/* Nombre del plato */}
+                        <div>
+                          <label className="text-xs text-white/50 font-semibold uppercase tracking-wide block mb-1.5">Nombre del plato *</label>
+                          <input
+                            value={sugeridoNombre}
+                            onChange={e => setSugeridoNombre(e.target.value)}
+                            placeholder="Ej: Burger Master, Bandeja especial..."
+                            className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                          />
+                        </div>
+                        {/* Precio */}
+                        <div>
+                          <label className="text-xs text-white/50 font-semibold uppercase tracking-wide block mb-1.5">Precio (opcional)</label>
+                          <input
+                            type="number"
+                            value={sugeridoPrecio}
+                            onChange={e => setSugeridoPrecio(e.target.value)}
+                            placeholder="Ej: 28900"
+                            className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                          />
+                        </div>
+                        {/* Descripción */}
+                        <div>
+                          <label className="text-xs text-white/50 font-semibold uppercase tracking-wide block mb-1.5">Descripción corta (opcional)</label>
+                          <input
+                            value={sugeridoDescripcion}
+                            onChange={e => setSugeridoDescripcion(e.target.value)}
+                            placeholder="Ej: Carne angus, queso cheddar doble, bacon crocante"
+                            className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                          />
+                        </div>
+                        {/* URL imagen */}
+                        <div>
+                          <label className="text-xs text-white/50 font-semibold uppercase tracking-wide block mb-1.5">URL de imagen (opcional)</label>
+                          <input
+                            value={sugeridoImagenUrl}
+                            onChange={e => setSugeridoImagenUrl(e.target.value)}
+                            placeholder="https://... (deja vacío para mostrar emoji 🍽️)"
+                            className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                          />
+                          {sugeridoImagenUrl && (
+                            <img src={sugeridoImagenUrl} alt="preview" className="mt-2 h-20 w-full object-cover rounded-xl border border-white/10" onError={() => setSugeridoImagenUrl('')} />
+                          )}
+                        </div>
+                        {/* Preview miniatura */}
+                        {sugeridoNombre && (
+                          <div className="bg-white/4 border border-white/8 rounded-2xl p-4">
+                            <p className="text-xs text-white/40 mb-3 font-semibold uppercase tracking-wide">Preview popup</p>
+                            <div className="bg-white rounded-2xl overflow-hidden max-w-[220px] mx-auto shadow-xl">
+                              <div className={`h-24 flex items-center justify-center ${sugeridoImagenUrl ? '' : 'bg-gradient-to-br from-amber-400 to-orange-500 text-4xl'}`}>
+                                {sugeridoImagenUrl
+                                  ? <img src={sugeridoImagenUrl} alt={sugeridoNombre} className="w-full h-full object-cover" />
+                                  : '🍽️'
+                                }
+                              </div>
+                              <div className="p-3 text-center">
+                                <span className="inline-block bg-orange-100 text-orange-600 text-[9px] font-black px-2 py-0.5 rounded-full mb-1 uppercase">⭐ Sugerido del mes</span>
+                                <p className="font-black text-gray-900 text-sm leading-tight">{sugeridoNombre}</p>
+                                {sugeridoDescripcion && <p className="text-gray-500 text-[10px] mt-0.5 leading-snug">{sugeridoDescripcion}</p>}
+                                {sugeridoPrecio && <p className="text-orange-600 font-black text-base mt-1">${parseFloat(sugeridoPrecio).toLocaleString('es-CO')}</p>}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        <button
+                          onClick={guardarSugerido}
+                          disabled={guardandoSugerido || !sugeridoNombre.trim()}
+                          className="w-full bg-orange-600 hover:bg-orange-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-all">
+                          {guardandoSugerido ? 'Guardando...' : sugeridoActivo ? '🌟 Guardar y activar' : 'Guardar (inactivo)'}
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
 
               {/* ── PERMISOS ── */}
               {seccionSettings === 'permisos' && (
                 <div className="space-y-4">
-                  <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-5">
+                  <div className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm p-5 space-y-5">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-                        <Lock size={20} className="text-purple-600" />
+                        <Lock size={20} className="text-violet-400" />
                       </div>
                       <div>
-                        <h3 className="font-bold text-gray-900">Control de flujo — Cocina</h3>
-                        <p className="text-xs text-gray-400">Regula cuántos pedidos ve la cocina a la vez</p>
+                        <h3 className="font-bold text-white/90">Control de flujo — Cocina</h3>
+                        <p className="text-xs text-white/35">Regula cuántos pedidos ve la cocina a la vez</p>
                       </div>
                     </div>
                     <div className="flex items-center justify-between gap-4">
@@ -4139,7 +4426,7 @@ export default function GerenciaPage() {
                         <div className="flex gap-2">
                           {[2, 3, 4, 5].map(n => (
                             <button key={n} onClick={() => setBloqueoCantidad(n)}
-                              className={`flex-1 py-3 rounded-xl font-black text-lg transition-all border-2 ${bloqueoCantidad === n ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-700 border-gray-200 hover:border-purple-400'}`}>
+                              className={`flex-1 py-3 rounded-xl font-black text-lg transition-all border-2 ${bloqueoCantidad === n ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-700 border-white/12 hover:border-purple-400'}`}>
                               {n}
                             </button>
                           ))}
@@ -4149,15 +4436,15 @@ export default function GerenciaPage() {
                   </div>
 
                   {/* QR — solo basico/pro */}
-                  <div className={`bg-white rounded-2xl border border-gray-100 p-5 space-y-4 ${!puedeAcceder('basico') ? 'opacity-60' : ''}`}>
+                  <div className={`bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm p-5 space-y-4 ${!puedeAcceder('basico') ? 'opacity-60' : ''}`}>
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
                           <span className="text-xl">📱</span>
                         </div>
                         <div>
-                          <h3 className="font-bold text-gray-900">Pedidos por QR</h3>
-                          <p className="text-xs text-gray-400">Clientes piden desde su celular</p>
+                          <h3 className="font-bold text-white/90">Pedidos por QR</h3>
+                          <p className="text-xs text-white/35">Clientes piden desde su celular</p>
                         </div>
                       </div>
                       {!puedeAcceder('basico') && (
@@ -4165,7 +4452,7 @@ export default function GerenciaPage() {
                       )}
                     </div>
                     {!puedeAcceder('basico') ? (
-                      <p className="text-xs text-gray-400 bg-gray-50 rounded-xl p-3">🔒 Disponible desde el plan Profesional.</p>
+                      <p className="text-xs text-gray-400 bg-white/4 rounded-xl p-3">🔒 Disponible desde el plan Profesional.</p>
                     ) : (
                       <>
                         <div className="flex items-center justify-between gap-4">
@@ -4216,11 +4503,11 @@ export default function GerenciaPage() {
                         <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">¿Qué período eliminar?</p>
                         <div className="flex gap-2">
                           <button onClick={() => setRestablecerScope('todo')}
-                            className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all ${restablecerScope === 'todo' ? 'bg-red-500 text-white border-red-500' : 'border-gray-200 text-gray-600 hover:border-red-300'}`}>
+                            className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all ${restablecerScope === 'todo' ? 'bg-red-500 text-white border-red-500' : 'border-white/12 text-gray-600 hover:border-red-300'}`}>
                             Todo el historial
                           </button>
                           <button onClick={() => setRestablecerScope('desde_fecha')}
-                            className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all ${restablecerScope === 'desde_fecha' ? 'bg-red-500 text-white border-red-500' : 'border-gray-200 text-gray-600 hover:border-red-300'}`}>
+                            className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all ${restablecerScope === 'desde_fecha' ? 'bg-red-500 text-white border-red-500' : 'border-white/12 text-gray-600 hover:border-red-300'}`}>
                             Desde una fecha
                           </button>
                         </div>
@@ -4240,13 +4527,13 @@ export default function GerenciaPage() {
                             ['clientes',  '👥 Clientes',        'Base de datos de clientes registrados (sin filtro de fecha)'],
                             ['inventario','📦 Inventario',      'Reinicia todas las cantidades disponibles a 0'],
                           ] as [keyof typeof restablecerItems, string, string][]).map(([key, label, desc]) => (
-                            <label key={key} className={`flex items-start gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${restablecerItems[key] ? 'bg-red-50 border-red-300' : 'bg-white border-gray-200 hover:border-red-200'}`}>
+                            <label key={key} className={`flex items-start gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${restablecerItems[key] ? 'bg-red-50 border-red-300' : 'bg-white border-white/12 hover:border-red-200'}`}>
                               <input type="checkbox" checked={restablecerItems[key]}
                                 onChange={e => setRestablecerItems(prev => ({ ...prev, [key]: e.target.checked }))}
                                 className="mt-0.5 w-4 h-4 accent-red-500" />
                               <div>
-                                <p className="font-bold text-sm text-gray-900">{label}</p>
-                                <p className="text-xs text-gray-400">{desc}</p>
+                                <p className="font-bold text-sm text-white/90">{label}</p>
+                                <p className="text-xs text-white/35">{desc}</p>
                               </div>
                             </label>
                           ))}
@@ -4319,27 +4606,27 @@ export default function GerenciaPage() {
       {/* ══ MODAL: REEMPLAZAR PLATO ═══════════════════════════════════ */}
       {itemReemplazando && (
         <div className="fixed inset-0 bg-black/70 z-[60] flex items-end justify-center">
-          <div className="bg-white w-full max-h-[85vh] rounded-t-3xl flex flex-col overflow-hidden fade-in">
+          <div className="bg-[#0f0f1e] border border-white/10 w-full max-h-[85vh] rounded-t-3xl flex flex-col overflow-hidden fade-in">
             <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
               <div>
-                <h3 className="font-bold text-gray-900">Reemplazar plato</h3>
+                <h3 className="font-bold text-white/90">Reemplazar plato</h3>
                 <p className="text-xs text-gray-400 mt-0.5">
                   <span className="text-orange-600 font-semibold">"{itemReemplazando.nombre}"</span> → ¿por cuál lo cambiamos?
                 </p>
               </div>
-              <button onClick={() => setItemReemplazando(null)} className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center">
+              <button onClick={() => setItemReemplazando(null)} className="w-9 h-9 rounded-full bg-white/8 flex items-center justify-center">
                 <X size={18} />
               </button>
             </div>
             {/* Filtro por categoría */}
             <div className="flex gap-2 px-4 py-2 overflow-x-auto border-b shrink-0">
               <button onClick={() => setCategoriaReemplazo('todas')}
-                className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${categoriaReemplazo === 'todas' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${categoriaReemplazo === 'todas' ? 'bg-purple-600 text-white' : 'bg-white/8 text-gray-600'}`}>
                 Todas
               </button>
               {categorias.map(c => (
                 <button key={c.id} onClick={() => setCategoriaReemplazo(c.id)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${categoriaReemplazo === c.id ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                  className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${categoriaReemplazo === c.id ? 'bg-purple-600 text-white' : 'bg-white/8 text-gray-600'}`}>
                   {c.nombre}
                 </button>
               ))}
@@ -4351,19 +4638,19 @@ export default function GerenciaPage() {
                   <button key={p.id}
                     onClick={() => reemplazarItem(itemReemplazando.id, p.id)}
                     disabled={guardandoEdicion}
-                    className="w-full text-left bg-white border border-gray-200 hover:border-purple-400 hover:bg-purple-50 rounded-2xl px-4 py-3 transition-all disabled:opacity-50">
+                    className="w-full text-left bg-white/5 border border-white/10 hover:border-violet-500/40 hover:bg-violet-500/10 rounded-2xl px-4 py-3 transition-all disabled:opacity-50">
                     <div className="flex justify-between items-start gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900 truncate">{p.nombre}</p>
-                        {p.descripcion && <p className="text-xs text-gray-400 truncate mt-0.5">{p.descripcion}</p>}
-                        <p className="text-xs text-gray-400 mt-0.5">{categorias.find(c => c.id === p.categoria_id)?.nombre}</p>
+                        <p className="font-semibold text-white/80 truncate">{p.nombre}</p>
+                        {p.descripcion && <p className="text-xs text-white/35 truncate mt-0.5">{p.descripcion}</p>}
+                        <p className="text-xs text-white/30 mt-0.5">{categorias.find(c => c.id === p.categoria_id)?.nombre}</p>
                       </div>
-                      <span className="font-black text-purple-700 shrink-0">${p.precio.toLocaleString('es-CO')}</span>
+                      <span className="font-black text-violet-400 shrink-0">${p.precio.toLocaleString('es-CO')}</span>
                     </div>
                   </button>
                 ))}
               {platos.filter(p => p.activo).length === 0 && (
-                <p className="text-center text-gray-400 text-sm py-8">Sin platos activos en la carta</p>
+                <p className="text-center text-white/25 text-sm py-8">Sin platos activos en la carta</p>
               )}
             </div>
           </div>
@@ -4373,15 +4660,15 @@ export default function GerenciaPage() {
       {/* ══ MODAL: TOMAR PEDIDO DESDE GERENCIA ═══════════════════════ */}
       {modalNuevoPedido && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center">
-          <div className="bg-white w-full max-h-[95vh] rounded-t-3xl flex flex-col overflow-hidden fade-in">
+          <div className="bg-[#0f0f1e] border border-white/10 w-full max-h-[95vh] rounded-t-3xl flex flex-col overflow-hidden fade-in">
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
               <div>
-                <h2 className="text-lg font-black text-gray-900">Tomar pedido</h2>
-                <p className="text-xs text-gray-400">Gerencia</p>
+                <h2 className="text-lg font-black text-white/90">Tomar pedido</h2>
+                <p className="text-xs text-white/35">Gerencia</p>
               </div>
               <button onClick={() => { setModalNuevoPedido(false); setNuevoOrdenCarrito({}); setNuevoOrdenMesaId(null) }}
-                className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center"><X size={18} /></button>
+                className="w-9 h-9 rounded-full bg-white/8 flex items-center justify-center"><X size={18} /></button>
             </div>
 
             <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
@@ -4390,11 +4677,11 @@ export default function GerenciaPage() {
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Tipo de pedido</p>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => setNuevoOrdenTipo('mesa')}
-                    className={`py-3 rounded-2xl font-bold text-sm border-2 transition-all flex items-center justify-center gap-2 ${nuevoOrdenTipo === 'mesa' ? 'bg-purple-600 text-white border-purple-600' : 'border-gray-200 text-gray-600 hover:border-purple-300'}`}>
+                    className={`py-3 rounded-2xl font-bold text-sm border-2 transition-all flex items-center justify-center gap-2 ${nuevoOrdenTipo === 'mesa' ? 'bg-purple-600 text-white border-purple-600' : 'border-white/12 text-gray-600 hover:border-purple-300'}`}>
                     🍽️ Mesa
                   </button>
                   <button onClick={() => setNuevoOrdenTipo('domi')}
-                    className={`py-3 rounded-2xl font-bold text-sm border-2 transition-all flex items-center justify-center gap-2 ${nuevoOrdenTipo === 'domi' ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 text-gray-600 hover:border-blue-300'}`}>
+                    className={`py-3 rounded-2xl font-bold text-sm border-2 transition-all flex items-center justify-center gap-2 ${nuevoOrdenTipo === 'domi' ? 'bg-blue-600 text-white border-blue-600' : 'border-white/12 text-gray-600 hover:border-blue-300'}`}>
                     🛵 Domicilio
                   </button>
                 </div>
@@ -4414,7 +4701,7 @@ export default function GerenciaPage() {
                               nuevoOrdenMesaId === m.id
                                 ? 'bg-purple-600 text-white border-purple-600'
                                 : m.estado === 'libre'
-                                  ? 'bg-white border-gray-200 text-gray-600 hover:border-purple-300'
+                                  ? 'bg-white border-white/12 text-gray-600 hover:border-purple-300'
                                   : 'bg-orange-50 border-orange-400 text-orange-700'
                             }`}>
                             {m.numero}
@@ -4436,13 +4723,13 @@ export default function GerenciaPage() {
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Datos del domicilio</p>
                   <input type="text" placeholder="Nombre del cliente" value={nuevoOrdenDomi.nombre}
                     onChange={e => setNuevoOrdenDomi(p => ({ ...p, nombre: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                    className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                   <input type="tel" placeholder="Teléfono" value={nuevoOrdenDomi.telefono}
                     onChange={e => setNuevoOrdenDomi(p => ({ ...p, telefono: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                    className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                   <input type="text" placeholder="Dirección" value={nuevoOrdenDomi.direccion}
                     onChange={e => setNuevoOrdenDomi(p => ({ ...p, direccion: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                    className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                 </div>
               )}
 
@@ -4451,65 +4738,65 @@ export default function GerenciaPage() {
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Platos</p>
                 <div className="flex gap-2 overflow-x-auto mb-3 pb-1">
                   <button onClick={() => setNuevoOrdenCategoria('todas')}
-                    className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${nuevoOrdenCategoria === 'todas' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                    className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${nuevoOrdenCategoria === 'todas' ? 'bg-purple-600 text-white' : 'bg-white/8 text-gray-600'}`}>
                     Todas
                   </button>
                   {categorias.map(c => (
                     <button key={c.id} onClick={() => setNuevoOrdenCategoria(c.id)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${nuevoOrdenCategoria === c.id ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                      className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${nuevoOrdenCategoria === c.id ? 'bg-purple-600 text-white' : 'bg-white/8 text-gray-600'}`}>
                       {c.nombre}
                     </button>
                   ))}
                 </div>
                 <div className="space-y-2">
                   {platos.filter(p => p.activo && (nuevoOrdenCategoria === 'todas' || p.categoria_id === nuevoOrdenCategoria)).map(p => (
-                    <div key={p.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-2xl px-4 py-2.5 gap-3">
+                    <div key={p.id} className={`flex items-center justify-between bg-white/5 border rounded-2xl px-4 py-2.5 gap-3 transition-all ${(nuevoOrdenCarrito[p.id] ?? 0) > 0 ? 'border-violet-500/40 bg-violet-500/10' : 'border-white/10'}`}>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">{p.nombre}</p>
-                        <p className="text-xs font-bold text-purple-700">${p.precio.toLocaleString('es-CO')}</p>
+                        <p className="text-sm font-semibold text-white/80 truncate">{p.nombre}</p>
+                        <p className="text-xs font-bold text-violet-400">${p.precio.toLocaleString('es-CO')}</p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <button
                           onClick={() => setNuevoOrdenCarrito(prev => ({ ...prev, [p.id]: Math.max(0, (prev[p.id] ?? 0) - 1) }))}
-                          className="w-7 h-7 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center">
+                          className="w-7 h-7 bg-white/8 hover:bg-white/14 border border-white/10 rounded-full flex items-center justify-center text-white/60">
                           <Minus size={12} />
                         </button>
-                        <span className="w-6 text-center font-black text-gray-900 text-sm">{nuevoOrdenCarrito[p.id] ?? 0}</span>
+                        <span className="w-6 text-center font-black text-white text-sm">{nuevoOrdenCarrito[p.id] ?? 0}</span>
                         <button
                           onClick={() => setNuevoOrdenCarrito(prev => ({ ...prev, [p.id]: (prev[p.id] ?? 0) + 1 }))}
-                          className="w-7 h-7 bg-purple-600 hover:bg-purple-700 text-white rounded-full flex items-center justify-center">
+                          className="w-7 h-7 bg-violet-600 hover:bg-violet-700 text-white rounded-full flex items-center justify-center shadow-lg shadow-violet-900/40">
                           <Plus size={12} />
                         </button>
                       </div>
                     </div>
                   ))}
                   {platos.filter(p => p.activo).length === 0 && (
-                    <p className="text-center text-gray-400 text-sm py-6">Sin platos activos en la carta</p>
+                    <p className="text-center text-white/25 text-sm py-6">Sin platos activos en la carta</p>
                   )}
                 </div>
               </div>
 
               {/* Notas */}
               <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Notas (opcional)</p>
+                <p className="text-xs font-bold text-white/40 uppercase tracking-wide mb-2">Notas (opcional)</p>
                 <textarea value={nuevoOrdenNotas} onChange={e => setNuevoOrdenNotas(e.target.value)}
                   placeholder="Sin sal, alérgico a..."
                   rows={2}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 resize-none" />
+                  className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-none" />
               </div>
             </div>
 
             {/* Footer: resumen + botón enviar */}
             <div className="border-t px-5 py-4 shrink-0 bg-white space-y-3">
               {Object.values(nuevoOrdenCarrito).some(v => v > 0) && (
-                <div className="flex justify-between items-center text-sm bg-gray-50 rounded-xl px-4 py-2.5">
+                <div className="flex justify-between items-center text-sm bg-white/4 rounded-xl px-4 py-2.5">
                   <span className="text-gray-500 font-medium">
                     {Object.values(nuevoOrdenCarrito).reduce((a, v) => a + v, 0)} platos
                     {nuevoOrdenTipo === 'mesa' && nuevoOrdenMesaId && (
                       <span className="ml-1">· Mesa {mesas.find(m => m.id === nuevoOrdenMesaId)?.numero}</span>
                     )}
                   </span>
-                  <span className="font-black text-gray-900">
+                  <span className="font-black text-white/90">
                     ${Object.entries(nuevoOrdenCarrito).reduce((a, [id, qty]) => {
                       const p = platos.find(pl => pl.id === id)
                       return a + (p?.precio ?? 0) * qty
@@ -4546,7 +4833,7 @@ export default function GerenciaPage() {
                 type="text"
                 value={editandoUsuario.nombre}
                 onChange={e => setEditandoUsuario(p => p ? { ...p, nombre: e.target.value } : p)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50"
               />
             </div>
 
@@ -4556,7 +4843,7 @@ export default function GerenciaPage() {
               <select
                 value={editandoUsuario.rol}
                 onChange={e => setEditandoUsuario(p => p ? { ...p, rol: e.target.value } : p)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">
+                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50">
                 <option value="mesera">👩 Mesera — ve el panel de mesas y pedidos</option>
                 <option value="cocina">👨‍🍳 Cocina — ve el panel de preparación</option>
                 <option value="gerente">👔 Gerente — ve el panel completo</option>
@@ -4573,7 +4860,7 @@ export default function GerenciaPage() {
                 value={editandoUsuario.nuevaPassword}
                 onChange={e => setEditandoUsuario(p => p ? { ...p, nuevaPassword: e.target.value } : p)}
                 placeholder="••••••••"
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50"
               />
             </div>
 
@@ -4601,7 +4888,7 @@ export default function GerenciaPage() {
               <button
                 onClick={() => eliminarUsuario(editandoUsuario.id, editandoUsuario.nombre)}
                 disabled={eliminandoUsuario}
-                className="w-full bg-red-50 hover:bg-red-100 disabled:bg-gray-100 border-2 border-red-300 text-red-600 font-bold py-3 rounded-xl transition-colors">
+                className="w-full bg-red-50 hover:bg-red-100 disabled:bg-white/8 border-2 border-red-300 text-red-600 font-bold py-3 rounded-xl transition-colors">
                 {eliminandoUsuario ? 'Eliminando...' : '🗑️ Eliminar usuario definitivamente'}
               </button>
             </div>

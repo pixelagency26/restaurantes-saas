@@ -42,6 +42,7 @@ export default async function HomePage() {
           <div className="hidden md:flex items-center gap-6 text-sm font-semibold text-gray-500">
             <a href="#preview"   className="hover:text-gray-900 transition-colors">Demo</a>
             <a href="#casos"     className="hover:text-gray-900 transition-colors">Casos de uso</a>
+            <a href="#clientes"  className="hover:text-gray-900 transition-colors">Clientes</a>
             <a href="#precios"   className="hover:text-gray-900 transition-colors">Precios</a>
             <a href="#faq"       className="hover:text-gray-900 transition-colors">FAQ</a>
           </div>
@@ -317,6 +318,147 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* ══ CLIENTE INTELLIGENCE ════════════════════════════════════════════════ */}
+      <section id="clientes" className="relative overflow-hidden bg-gradient-to-br from-violet-950 via-indigo-950 to-gray-900 px-6 py-24">
+        {/* Glow decorativo */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-1/3 left-1/4 w-96 h-96 bg-violet-500/8 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-indigo-500/8 rounded-full blur-3xl" />
+        </div>
+        <div className="relative max-w-6xl mx-auto">
+          <div className="text-center mb-14">
+            <span className="inline-flex items-center gap-2 bg-violet-500/15 border border-violet-500/25 text-violet-300 text-xs font-black px-4 py-1.5 rounded-full mb-6 uppercase tracking-widest">
+              <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-pulse" />
+              Plan Pro · Clientes inteligentes
+            </span>
+            <h2 className="text-3xl md:text-4xl font-black text-white mb-4 tracking-tight leading-tight">
+              Tu restaurante tiene memoria.<br />
+              <span className="text-violet-300">Conoce a cada cliente.</span>
+            </h2>
+            <p className="text-gray-400 max-w-xl mx-auto text-base leading-relaxed">
+              Cada visita queda registrada. Sabes quién viene más, cuánto gasta, qué pide y cuándo volver a invitarlo.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+
+            {/* Columna izquierda: beneficios */}
+            <div className="space-y-5">
+              {[
+                {
+                  icon: '🔁',
+                  color: 'bg-violet-500/15 border-violet-500/25',
+                  iconBg: 'bg-violet-500/20',
+                  iconColor: 'text-violet-300',
+                  title: 'Recurrencia de visitas',
+                  desc: 'Mira con qué frecuencia regresa cada cliente. Identifica quiénes son tus fieles y quiénes llevan tiempo sin venir.',
+                },
+                {
+                  icon: '💰',
+                  color: 'bg-emerald-500/15 border-emerald-500/25',
+                  iconBg: 'bg-emerald-500/20',
+                  iconColor: 'text-emerald-300',
+                  title: 'Valor de compra acumulado',
+                  desc: 'Sabe exactamente cuánto ha gastado cada cliente en tu restaurante desde el primer día.',
+                },
+                {
+                  icon: '🛒',
+                  color: 'bg-sky-500/15 border-sky-500/25',
+                  iconBg: 'bg-sky-500/20',
+                  iconColor: 'text-sky-300',
+                  title: 'Historial completo de pedidos',
+                  desc: 'Qué pidió, cuándo lo pidió, cómo pagó. Hasta las notas especiales ("sin cebolla") quedan guardadas.',
+                },
+                {
+                  icon: '📊',
+                  color: 'bg-orange-500/15 border-orange-500/25',
+                  iconBg: 'bg-orange-500/20',
+                  iconColor: 'text-orange-300',
+                  title: 'Exporta tu base de datos',
+                  desc: 'Descarga en Excel toda tu base de clientes con emails, teléfonos, visitas y gasto. Lista para campañas de fidelización.',
+                },
+              ].map((item, i) => (
+                <div key={i} className={`flex items-start gap-4 bg-white/4 border rounded-2xl p-5 ${item.color} hover:bg-white/6 transition-all`}>
+                  <div className={`w-11 h-11 ${item.iconBg} rounded-xl flex items-center justify-center text-xl shrink-0`}>
+                    {item.icon}
+                  </div>
+                  <div>
+                    <h3 className={`font-black text-sm mb-1 ${item.iconColor}`}>{item.title}</h3>
+                    <p className="text-gray-400 text-sm leading-relaxed">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Columna derecha: mockup panel CRM */}
+            <div className="relative">
+              <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden backdrop-blur-sm shadow-2xl shadow-black/40">
+                {/* Barra título del panel */}
+                <div className="px-5 py-4 border-b border-white/8 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 bg-violet-500/20 border border-violet-500/30 rounded-lg flex items-center justify-center text-sm">👥</div>
+                    <div>
+                      <p className="text-white/90 font-black text-sm">Base de Clientes</p>
+                      <p className="text-white/30 text-xs">48 clientes · actualizado hace 2 min</p>
+                    </div>
+                  </div>
+                  <button className="bg-violet-600/80 text-white text-xs font-bold px-3 py-1.5 rounded-lg">📊 Exportar</button>
+                </div>
+                {/* Filtros */}
+                <div className="px-5 py-3 border-b border-white/5 flex gap-2">
+                  {['Todos', 'Frecuentes', 'Nuevos', 'Inactivos'].map((f, i) => (
+                    <span key={f} className={`text-xs font-semibold px-3 py-1 rounded-full ${i === 0 ? 'bg-violet-600 text-white' : 'bg-white/6 text-white/40 hover:bg-white/10'}`}>{f}</span>
+                  ))}
+                </div>
+                {/* Lista de clientes */}
+                <div className="divide-y divide-white/5">
+                  {[
+                    { initials: 'LM', color: 'bg-pink-600',   name: 'Laura Martínez',  visitas: 14, total: '$342.000', plato: '🍔 Burger Master',   badge: 'Frecuente',  badgeColor: 'bg-emerald-500/20 text-emerald-400' },
+                    { initials: 'CR', color: 'bg-blue-600',   name: 'Carlos Rodríguez',visitas: 8,  total: '$218.500', plato: '🍕 Pizza especial',   badge: 'Regular',    badgeColor: 'bg-sky-500/20 text-sky-400' },
+                    { initials: 'AP', color: 'bg-purple-600', name: 'Ana Peña',         visitas: 21, total: '$567.200', plato: '🥩 Bandeja paisa',    badge: 'VIP',        badgeColor: 'bg-violet-500/20 text-violet-300' },
+                    { initials: 'JG', color: 'bg-orange-600', name: 'Juan Gómez',       visitas: 2,  total: '$48.000',  plato: '🍜 Sopa del día',     badge: 'Nuevo',      badgeColor: 'bg-orange-500/20 text-orange-400' },
+                  ].map((c, i) => (
+                    <div key={i} className="flex items-center gap-3 px-5 py-3.5 hover:bg-white/3 transition-colors">
+                      <div className={`w-9 h-9 ${c.color} rounded-full flex items-center justify-center text-white text-xs font-black shrink-0`}>{c.initials}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-white/80 text-sm font-bold truncate">{c.name}</p>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${c.badgeColor}`}>{c.badge}</span>
+                        </div>
+                        <p className="text-white/30 text-xs truncate">{c.visitas} visitas · último: {c.plato}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-emerald-400 font-black text-sm">{c.total}</p>
+                        <p className="text-white/25 text-xs">acumulado</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Footer del panel */}
+                <div className="px-5 py-3 border-t border-white/5 flex items-center justify-between">
+                  <p className="text-white/25 text-xs">Mostrando 4 de 48 clientes</p>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="bg-emerald-500/20 text-emerald-400 font-bold px-2 py-1 rounded-lg">Total: $7.8M</span>
+                  </div>
+                </div>
+              </div>
+              {/* Badge "Plan Pro" flotante */}
+              <div className="absolute -top-3 -right-3 bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-full shadow-lg shadow-orange-500/30">
+                Plan Pro
+              </div>
+            </div>
+
+          </div>
+
+          <div className="text-center mt-12">
+            <Link href="/registro"
+              className="inline-block bg-violet-600 hover:bg-violet-500 text-white font-black px-10 py-4 rounded-2xl text-base transition-all shadow-xl shadow-violet-900/40 hover:scale-105">
+              🚀 Quiero conocer a mis clientes →
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* ══ PRICING ══════════════════════════════════════════════════════════════ */}
       <section id="precios" className="px-6 py-20 bg-gray-50">
         <div className="max-w-5xl mx-auto">
@@ -432,6 +574,7 @@ export default async function HomePage() {
                   'Comparativo establecimiento vs domicilios',
                   '📱 Domicilios con verificación de comprobante de pago',
                   '📊 Exportar base de datos de clientes a Excel',
+                  '🌟 Sugerido del mes — popup en menú QR',
                   '💬 Chat interno del equipo en tiempo real',
                   'Soporte 24/7 prioritario',
                 ].map((f, i) => (
@@ -540,6 +683,215 @@ export default async function HomePage() {
                 <p className="text-xs font-semibold text-gray-600 leading-snug">{m.label}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ══ SUGERIDO DEL MES ════════════════════════════════════════════════════ */}
+      <section className="px-6 py-20 bg-gray-50">
+        <div className="max-w-5xl mx-auto">
+          <div className="bg-gradient-to-br from-orange-50 to-amber-50 border-2 border-orange-200 rounded-3xl p-8 md:p-12">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
+              <div className="space-y-5">
+                <span className="inline-block bg-orange-100 text-orange-600 text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-widest">
+                  ⭐ Exclusivo Plan Pro
+                </span>
+                <h2 className="text-3xl font-black text-gray-900 leading-tight">
+                  🌟 Sugerido del mes
+                </h2>
+                <p className="text-gray-600 leading-relaxed">
+                  Configura el plato estrella del mes desde tu panel. Cuando el cliente escanee el QR de la mesa, aparece un popup con la foto, el nombre y la descripción — justo antes de que empiece a pedir.
+                </p>
+                <ul className="space-y-2.5">
+                  {[
+                    'Sube la foto y el nombre del plato en segundos',
+                    'Aparece como popup al abrir el menú QR',
+                    'Perfecto para promocionar especiales o inventario',
+                    'Activa y desactiva en cualquier momento',
+                  ].map((f, i) => (
+                    <li key={i} className="flex items-center gap-2.5 text-sm text-gray-700">
+                      <span className="w-5 h-5 bg-orange-200 text-orange-700 rounded-full flex items-center justify-center text-xs font-black shrink-0">✓</span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/registro"
+                  className="inline-block bg-orange-500 hover:bg-orange-600 text-white font-black px-8 py-3.5 rounded-2xl transition-colors shadow-lg shadow-orange-200 text-sm">
+                  Probar gratis 14 días →
+                </Link>
+              </div>
+              {/* Mockup del popup sugerido */}
+              <div className="flex justify-center">
+                <div className="relative w-64">
+                  {/* Phone frame */}
+                  <div className="bg-gray-900 rounded-[2.5rem] p-3 shadow-2xl shadow-gray-900/40">
+                    <div className="bg-gray-800 rounded-[2rem] overflow-hidden relative">
+                      {/* Status bar */}
+                      <div className="bg-gray-900 px-4 py-2 flex justify-between items-center">
+                        <span className="text-white text-[10px] font-bold">9:41</span>
+                        <div className="flex gap-1"><span className="text-white text-[10px]">●●●</span></div>
+                      </div>
+                      {/* Dimmed menu background */}
+                      <div className="bg-gray-700 px-3 py-4 relative">
+                        <div className="opacity-30 space-y-2 mb-2">
+                          <div className="bg-gray-600 h-6 rounded-lg w-3/4" />
+                          <div className="bg-gray-600 h-4 rounded-lg w-1/2" />
+                          <div className="flex gap-2">
+                            <div className="bg-gray-600 h-16 rounded-xl flex-1" />
+                            <div className="bg-gray-600 h-16 rounded-xl flex-1" />
+                          </div>
+                        </div>
+                        {/* Popup overlay */}
+                        <div className="absolute inset-3 bg-white rounded-2xl overflow-hidden shadow-2xl">
+                          {/* Imagen del plato */}
+                          <div className="h-28 bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-4xl">
+                            🍔
+                          </div>
+                          <div className="p-3 text-center">
+                            <span className="inline-block bg-orange-100 text-orange-600 text-[9px] font-black px-2 py-0.5 rounded-full mb-1.5 uppercase tracking-wider">⭐ Sugerido del mes</span>
+                            <p className="font-black text-gray-900 text-sm leading-tight">Burger Master</p>
+                            <p className="text-gray-500 text-[10px] mt-0.5 leading-snug">Carne angus, queso cheddar doble, bacon crocante</p>
+                            <p className="text-orange-600 font-black text-base mt-1.5">$28.900</p>
+                            <button className="w-full bg-orange-500 text-white text-[10px] font-black py-2 rounded-xl mt-2">
+                              ¡Lo quiero! →
+                            </button>
+                            <button className="text-[9px] text-gray-400 mt-1.5 w-full">Ver el menú completo</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ══ CRM PERSONALIZADO ═══════════════════════════════════════════════════ */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-teal-950 via-gray-900 to-green-950 px-6 py-24">
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-teal-500/6 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 left-1/4 w-80 h-80 bg-green-500/6 rounded-full blur-3xl" />
+          <div className="absolute inset-0 opacity-[0.025]"
+            style={{
+              backgroundImage: 'linear-gradient(rgba(20,184,166,1) 1px, transparent 1px), linear-gradient(to right, rgba(20,184,166,1) 1px, transparent 1px)',
+              backgroundSize: '48px 48px',
+            }} />
+        </div>
+        <div className="relative max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
+
+            {/* Texto izquierdo */}
+            <div className="space-y-7">
+              <span className="inline-flex items-center gap-2 bg-teal-500/12 border border-teal-500/25 text-teal-300 text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-widest">
+                💬 Servicio personalizado
+              </span>
+              <div>
+                <h2 className="text-3xl md:text-4xl font-black text-white leading-tight mb-4">
+                  ¿No encuentras<br />
+                  <span className="text-teal-300">lo que buscabas?</span>
+                </h2>
+                <p className="text-gray-400 text-base leading-relaxed">
+                  Contáctanos. Te personalizamos el sistema a lo que tu negocio necesita — sin importar qué tan diferente sea tu operación.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="text-white/70 text-sm font-bold uppercase tracking-widest">También tenemos CRM a medida</h3>
+                {[
+                  {
+                    icon: '💬',
+                    title: 'Pedidos por WhatsApp a un clic',
+                    desc: 'Tus clientes te mandan el pedido directo por WhatsApp desde el catálogo digital. Sin llamadas, sin malentendidos.',
+                  },
+                  {
+                    icon: '👥',
+                    title: 'Gestión de clientes integrada',
+                    desc: 'Historial de pedidos, notas del cliente, preferencias y frecuencia — todo desde un panel centralizado.',
+                  },
+                  {
+                    icon: '🔔',
+                    title: 'Seguimiento y fidelización',
+                    desc: 'Campañas de cumpleaños, mensajes de reactivación y ofertas personalizadas para traer de vuelta a tus clientes.',
+                  },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-start gap-4">
+                    <div className="w-10 h-10 bg-teal-500/15 border border-teal-500/20 rounded-xl flex items-center justify-center text-lg shrink-0">
+                      {item.icon}
+                    </div>
+                    <div>
+                      <p className="text-white/80 font-bold text-sm">{item.title}</p>
+                      <p className="text-gray-500 text-sm leading-relaxed mt-0.5">{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <a href={WA_ASESOR} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-2.5 bg-teal-600 hover:bg-teal-500 text-white font-black px-8 py-4 rounded-2xl transition-all shadow-xl shadow-teal-900/40 hover:scale-105 text-sm">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                  <path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.116 1.523 5.845L.057 23.514a.5.5 0 0 0 .609.61l5.757-1.51A11.943 11.943 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.9a9.9 9.9 0 0 1-5.031-1.371l-.36-.214-3.733.979.995-3.637-.235-.374A9.861 9.861 0 0 1 2.1 12C2.1 6.533 6.533 2.1 12 2.1S21.9 6.533 21.9 12 17.467 21.9 12 21.9z"/>
+                </svg>
+                Cuéntanos qué necesitas →
+              </a>
+            </div>
+
+            {/* Mockup CRM panel */}
+            <div className="relative">
+              <div className="bg-white/5 border border-white/8 rounded-3xl overflow-hidden backdrop-blur-sm shadow-2xl shadow-black/50">
+                {/* Header del CRM */}
+                <div className="bg-teal-600/20 border-b border-teal-500/20 px-5 py-4 flex items-center gap-3">
+                  <div className="w-8 h-8 bg-teal-500/20 border border-teal-500/30 rounded-lg flex items-center justify-center text-sm">💬</div>
+                  <div>
+                    <p className="text-white/90 font-black text-sm">CRM — Bandeja WhatsApp</p>
+                    <p className="text-teal-400/60 text-xs">3 conversaciones activas</p>
+                  </div>
+                  <div className="ml-auto flex items-center gap-1.5">
+                    <span className="w-2 h-2 bg-teal-400 rounded-full animate-pulse" />
+                    <span className="text-teal-400 text-xs font-bold">En vivo</span>
+                  </div>
+                </div>
+                {/* Conversaciones */}
+                {[
+                  { initials: 'MP', color: 'bg-pink-600', name: 'María P.', msg: 'Quiero 2 hamburguesas y una Coca-Cola', time: '2m', badge: '📦 Nuevo pedido', badgeColor: 'bg-orange-500/20 text-orange-300' },
+                  { initials: 'JC', color: 'bg-blue-600', name: 'Juan C.', msg: '¿Hacen domicilios al norte? 🛵', time: '5m', badge: '❓ Consulta', badgeColor: 'bg-sky-500/20 text-sky-300' },
+                  { initials: 'LP', color: 'bg-purple-600', name: 'Laura P.', msg: 'Para el sábado, mesa para 8 👨‍👩‍👧‍👦', time: '12m', badge: '📅 Reserva', badgeColor: 'bg-violet-500/20 text-violet-300' },
+                ].map((c, i) => (
+                  <div key={i} className={`flex items-start gap-3 px-5 py-4 hover:bg-white/3 transition-colors ${i !== 2 ? 'border-b border-white/5' : ''}`}>
+                    <div className={`w-10 h-10 ${c.color} rounded-full flex items-center justify-center text-white text-xs font-black shrink-0`}>{c.initials}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <p className="text-white/80 font-bold text-sm">{c.name}</p>
+                        <span className="text-white/25 text-[10px]">{c.time}</span>
+                      </div>
+                      <p className="text-white/40 text-xs truncate">{c.msg}</p>
+                      <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 ${c.badgeColor}`}>{c.badge}</span>
+                    </div>
+                  </div>
+                ))}
+                {/* Acción rápida */}
+                <div className="px-5 py-4 border-t border-white/5 bg-teal-600/5">
+                  <div className="flex gap-2">
+                    <div className="flex-1 bg-white/6 border border-white/10 rounded-xl px-3 py-2">
+                      <p className="text-white/25 text-xs">Responder a María P…</p>
+                    </div>
+                    <button className="bg-teal-600 text-white text-xs font-bold px-4 py-2 rounded-xl">Enviar</button>
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <button className="text-xs bg-white/6 border border-white/8 text-white/40 px-3 py-1.5 rounded-lg">📦 Crear pedido</button>
+                    <button className="text-xs bg-white/6 border border-white/8 text-white/40 px-3 py-1.5 rounded-lg">👤 Ver perfil</button>
+                    <button className="text-xs bg-white/6 border border-white/8 text-white/40 px-3 py-1.5 rounded-lg">📅 Reservar</button>
+                  </div>
+                </div>
+              </div>
+              {/* Tooltip */}
+              <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-teal-600 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg whitespace-nowrap">
+                Desarrollado a medida para tu negocio
+              </div>
+            </div>
+
           </div>
         </div>
       </section>

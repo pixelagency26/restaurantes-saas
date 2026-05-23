@@ -4,9 +4,10 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Pedido, ItemPedido } from '@/types'
 import toast from 'react-hot-toast'
-import { Clock, ChefHat, CheckCircle, AlertTriangle, UtensilsCrossed, Lock, Flame, Zap } from 'lucide-react'
+import { Clock, ChefHat, CheckCircle, AlertTriangle, UtensilsCrossed, Lock, Flame, Zap, User, LogOut } from 'lucide-react'
 
 const MINUTOS_LIMITE = 20
+const LS_KEY = 'cocina_mi_nombre'
 
 function tiempoTranscurrido(fecha: string, ahora: number) {
   return Math.floor((ahora - new Date(fecha).getTime()) / 1000 / 60)
@@ -74,21 +75,98 @@ function BarraProgreso({ fecha, ahora }: { fecha: string; ahora: number }) {
   )
 }
 
-interface ItemPlato extends Omit<ItemPedido, 'plato'> {
+interface ItemPlatoExtended extends Omit<ItemPedido, 'plato'> {
   plato: { nombre: string }
+  cocinero?: string | null
+  pedido_por_usuario?: { nombre: string } | null
+}
+
+// ── Pantalla de selección de cocinero ─────────────────────────────────────────
+function SelectorCocinero({
+  nombres,
+  onSeleccionar,
+}: {
+  nombres: string[]
+  onSeleccionar: (nombre: string) => void
+}) {
+  const [nombreManual, setNombreManual] = useState('')
+  const [modoManual, setModoManual]     = useState(false)
+
+  return (
+    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-6">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-8">
+          <div className="w-20 h-20 bg-orange-500/10 border border-orange-500/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
+            <ChefHat size={40} className="text-orange-400" />
+          </div>
+          <h1 className="text-2xl font-black text-white mb-1">¿Quién eres?</h1>
+          <p className="text-gray-500 text-sm">Selecciona tu nombre para comenzar</p>
+        </div>
+
+        {nombres.length > 0 && !modoManual ? (
+          <div className="space-y-2 mb-4">
+            {nombres.map(nombre => (
+              <button
+                key={nombre}
+                onClick={() => onSeleccionar(nombre)}
+                className="w-full bg-gray-800/60 hover:bg-orange-500/10 active:scale-95 border border-gray-700 hover:border-orange-500/40 rounded-2xl px-5 py-4 text-left transition-all group">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-orange-500/10 border border-orange-500/20 rounded-xl flex items-center justify-center group-hover:bg-orange-500/20 transition-all">
+                    <User size={18} className="text-orange-400" />
+                  </div>
+                  <span className="text-white font-bold">{nombre}</span>
+                </div>
+              </button>
+            ))}
+            <button
+              onClick={() => setModoManual(true)}
+              className="w-full text-center text-xs text-gray-600 hover:text-gray-400 py-2 transition-colors">
+              Escribir nombre manualmente
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <input
+              type="text"
+              value={nombreManual}
+              onChange={e => setNombreManual(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && nombreManual.trim()) onSeleccionar(nombreManual.trim()) }}
+              placeholder="Tu nombre..."
+              autoFocus
+              className="w-full bg-gray-800/60 border border-gray-700 focus:border-orange-500/50 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none text-sm"
+            />
+            <button
+              onClick={() => { if (nombreManual.trim()) onSeleccionar(nombreManual.trim()) }}
+              disabled={!nombreManual.trim()}
+              className="w-full bg-orange-600 hover:bg-orange-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-all">
+              Entrar a cocina
+            </button>
+            {nombres.length > 0 && (
+              <button onClick={() => setModoManual(false)} className="w-full text-center text-xs text-gray-600 hover:text-gray-400 py-1 transition-colors">
+                ← Volver a la lista
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export default function CocinaPage() {
-  const [pedidos, setPedidos]       = useState<Pedido[]>([])
-  const [cargando, setCargando]     = useState(true)
-  const [ahora, setAhora]           = useState(Date.now())
+  const [pedidos, setPedidos]           = useState<Pedido[]>([])
+  const [cargando, setCargando]         = useState(true)
+  const [ahora, setAhora]               = useState(Date.now())
   const [bloqueoConfig, setBloqueoConfig] = useState<{ activo: boolean; cantidad: number }>({ activo: false, cantidad: 3 })
+  const [miNombre, setMiNombre]         = useState<string | null>(null)
+  const [nombresConfig, setNombresConfig] = useState<string[]>([])
+  const [nombresCargados, setNombresCargados] = useState(false)
 
   const supabase = createClient()
 
   const cargarConfig = useCallback(async () => {
     const { data } = await supabase.from('configuracion').select('clave, valor')
-      .in('clave', ['bloqueo_cocina_activo', 'bloqueo_cocina_cantidad'])
+      .in('clave', ['bloqueo_cocina_activo', 'bloqueo_cocina_cantidad', 'nombres_cocineros'])
     if (data) {
       const cfg: Record<string, string> = {}
       data.forEach((r: { clave: string; valor: string }) => { cfg[r.clave] = r.valor })
@@ -96,13 +174,34 @@ export default function CocinaPage() {
         activo:   cfg['bloqueo_cocina_activo'] === 'true',
         cantidad: parseInt(cfg['bloqueo_cocina_cantidad'] || '3') || 3,
       })
+      try {
+        const nombres = cfg['nombres_cocineros'] ? JSON.parse(cfg['nombres_cocineros']) as string[] : []
+        setNombresConfig(nombres)
+      } catch { setNombresConfig([]) }
     }
+    setNombresCargados(true)
   }, [supabase])
+
+  // Cargar nombre desde localStorage al montar
+  useEffect(() => {
+    const guardado = typeof window !== 'undefined' ? localStorage.getItem(LS_KEY) : null
+    if (guardado) setMiNombre(guardado)
+  }, [])
+
+  const seleccionarNombre = (nombre: string) => {
+    setMiNombre(nombre)
+    if (typeof window !== 'undefined') localStorage.setItem(LS_KEY, nombre)
+  }
+
+  const salirDeNombre = () => {
+    setMiNombre(null)
+    if (typeof window !== 'undefined') localStorage.removeItem(LS_KEY)
+  }
 
   const cargarPedidos = useCallback(async () => {
     const { data } = await supabase
       .from('pedidos')
-      .select(`*, mesa:mesas(numero), items:items_pedido(*, plato:platos(nombre))`)
+      .select(`*, mesa:mesas(numero), items:items_pedido(*, plato:platos(nombre), pedido_por_usuario:usuarios!pedido_por(nombre))`)
       .in('estado', ['pendiente', 'en_preparacion'])
       .order('created_at', { ascending: true })
     if (data) setPedidos(data as unknown as Pedido[])
@@ -122,7 +221,11 @@ export default function CocinaPage() {
   }, [cargarPedidos, cargarConfig, supabase])
 
   async function marcarPreparando(itemId: string, pedidoId: string) {
-    await supabase.from('items_pedido').update({ estado: 'en_preparacion', tiempo_inicio_prep: new Date().toISOString() }).eq('id', itemId)
+    await supabase.from('items_pedido').update({
+      estado: 'en_preparacion',
+      tiempo_inicio_prep: new Date().toISOString(),
+      cocinero: miNombre || 'Cocina',
+    }).eq('id', itemId)
     await supabase.from('pedidos').update({ estado: 'en_preparacion' }).eq('id', pedidoId).eq('estado', 'pendiente')
     toast.success('🔥 En preparación')
     cargarPedidos()
@@ -142,7 +245,7 @@ export default function CocinaPage() {
   }
 
   // ── Loading ────────────────────────────────────────────────────────────────
-  if (cargando) return (
+  if (cargando || !nombresCargados) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-950">
       <div className="text-center space-y-4">
         <div className="w-20 h-20 rounded-2xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center mx-auto">
@@ -153,10 +256,15 @@ export default function CocinaPage() {
     </div>
   )
 
+  // ── Selector de nombre si no hay nombre aún ───────────────────────────────
+  if (!miNombre) return (
+    <SelectorCocinero nombres={nombresConfig} onSeleccionar={seleccionarNombre} />
+  )
+
   const pedidosMostrados  = bloqueoConfig.activo ? pedidos.slice(0, bloqueoConfig.cantidad) : pedidos
   const pedidosBloqueados = bloqueoConfig.activo ? Math.max(0, pedidos.length - bloqueoConfig.cantidad) : 0
   const demorados         = pedidosMostrados.filter(p => {
-    const items  = (p.items as unknown as ItemPlato[]) ?? []
+    const items  = (p.items as unknown as ItemPlatoExtended[]) ?? []
     const fechas = items.map(i => new Date(i.created_at).getTime())
     const ref    = fechas.length > 0 ? new Date(Math.max(...fechas)).toISOString() : p.created_at
     return tiempoTranscurrido(ref, ahora) >= MINUTOS_LIMITE
@@ -181,9 +289,19 @@ export default function CocinaPage() {
                 </div>
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-[10px] text-gray-500 uppercase tracking-widest">Límite</p>
-              <p className="text-red-400 font-black text-lg">{MINUTOS_LIMITE} min</p>
+            <div className="flex items-center gap-2">
+              {/* Chip de cocinero activo */}
+              <div className="flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/30 rounded-xl px-3 py-1.5">
+                <User size={12} className="text-orange-400" />
+                <span className="text-orange-300 font-bold text-xs">{miNombre}</span>
+                <button onClick={salirDeNombre} title="Cambiar cocinero" className="ml-1 text-gray-600 hover:text-gray-400 transition-colors">
+                  <LogOut size={11} />
+                </button>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-gray-500 uppercase tracking-widest">Límite</p>
+                <p className="text-red-400 font-black text-lg">{MINUTOS_LIMITE} min</p>
+              </div>
             </div>
           </div>
 
@@ -237,7 +355,7 @@ export default function CocinaPage() {
         {/* ── CARDS DE PEDIDOS ──────────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {pedidosMostrados.map(pedido => {
-            const itemsPedido = (pedido.items as unknown as ItemPlato[]) ?? []
+            const itemsPedido = (pedido.items as unknown as ItemPlatoExtended[]) ?? []
             const fechas      = itemsPedido.map(i => new Date(i.created_at).getTime())
             const fechaRef    = fechas.length > 0
               ? new Date(Math.max(...fechas)).toISOString()
@@ -246,6 +364,9 @@ export default function CocinaPage() {
             const esDemorado  = minutos >= MINUTOS_LIMITE
             const mesa        = (pedido.mesa as unknown as { numero: number } | null)
             const UMBRAL_ADICIONAL_MS = 2 * 60 * 1000
+
+            // Quién tomó el pedido (del primer ítem con pedido_por_usuario)
+            const tomadoPor = itemsPedido.find(i => i.pedido_por_usuario)?.pedido_por_usuario?.nombre || null
 
             return (
               <div key={pedido.id}
@@ -274,9 +395,9 @@ export default function CocinaPage() {
                           </div>
                           <div>
                             <span className={`font-black text-lg ${esDemorado ? 'text-red-400' : 'text-orange-400'}`}>Mesa {mesa?.numero}</span>
-                            {pedido.tipo !== 'domi' && (
-                              <p className="text-[10px] text-gray-500 leading-none">{pedido.tipo === 'cliente_qr' ? '📱 Pedido QR' : '👩 Mesera'}</p>
-                            )}
+                            <p className="text-[10px] text-gray-500 leading-none">
+                              {pedido.tipo === 'cliente_qr' ? '📱 Pedido QR' : tomadoPor ? `👩 ${tomadoPor}` : '👩 Mesera'}
+                            </p>
                           </div>
                         </div>
                       )}
@@ -297,12 +418,17 @@ export default function CocinaPage() {
                 {/* Items */}
                 <div className="p-3 space-y-2">
                   {itemsPedido.map(item => {
-                    const esAdicional = (new Date(item.created_at).getTime() - new Date(pedido.created_at).getTime()) > UMBRAL_ADICIONAL_MS
+                    const esAdicional    = (new Date(item.created_at).getTime() - new Date(pedido.created_at).getTime()) > UMBRAL_ADICIONAL_MS
+                    const bloqueadoPorOtro = item.cocinero && item.cocinero !== miNombre && item.estado === 'en_preparacion'
+                    const esMio          = item.cocinero === miNombre
+
                     return (
                       <div key={item.id}
                         className={`rounded-xl border p-3 transition-all ${
                           item.estado === 'listo'
                             ? 'bg-green-950/40 border-green-500/25'
+                            : bloqueadoPorOtro
+                            ? 'bg-gray-900/60 border-gray-700/40 opacity-70'
                             : item.estado === 'en_preparacion'
                             ? 'bg-blue-950/40 border-blue-500/25'
                             : esAdicional
@@ -324,7 +450,7 @@ export default function CocinaPage() {
                             {item.notas && (
                               <p className="text-xs text-amber-400 mt-0.5">⚠️ {item.notas}</p>
                             )}
-                            <div className="flex items-center gap-1.5 mt-1.5">
+                            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                               {item.estado === 'pendiente' && (
                                 <span className="flex items-center gap-1 text-[10px] text-gray-500 font-semibold">
                                   <span className="w-1.5 h-1.5 bg-gray-500 rounded-full" /> Pendiente
@@ -340,6 +466,21 @@ export default function CocinaPage() {
                                   <CheckCircle size={10} /> Listo
                                 </span>
                               )}
+                              {/* Nombre del cocinero asignado */}
+                              {item.cocinero && item.estado !== 'listo' && (
+                                <span className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                                  esMio
+                                    ? 'bg-orange-500/20 border border-orange-500/30 text-orange-300'
+                                    : 'bg-gray-700/40 border border-gray-600/40 text-gray-400'
+                                }`}>
+                                  <ChefHat size={9} /> {item.cocinero}
+                                </span>
+                              )}
+                              {item.cocinero && item.estado === 'listo' && (
+                                <span className="flex items-center gap-1 text-[10px] text-gray-600">
+                                  <ChefHat size={9} /> {item.cocinero}
+                                </span>
+                              )}
                             </div>
                           </div>
 
@@ -350,11 +491,16 @@ export default function CocinaPage() {
                                 <Flame size={12} /> Preparar
                               </button>
                             )}
-                            {item.estado === 'en_preparacion' && (
+                            {item.estado === 'en_preparacion' && !bloqueadoPorOtro && (
                               <button onClick={() => marcarListo(item.id, pedido.id)}
                                 className="bg-green-600 hover:bg-green-500 active:scale-95 text-white text-xs px-3 py-2 rounded-lg font-bold transition-all shadow-md shadow-green-900/30 flex items-center gap-1.5">
                                 <Zap size={12} /> Listo
                               </button>
+                            )}
+                            {item.estado === 'en_preparacion' && bloqueadoPorOtro && (
+                              <span className="flex items-center gap-1 text-[10px] text-gray-500 px-2 py-1.5 bg-gray-800 rounded-lg border border-gray-700">
+                                <Lock size={10} /> {item.cocinero}
+                              </span>
                             )}
                             {item.estado === 'listo' && (
                               <span className="text-green-400 text-xs font-black flex items-center gap-1">

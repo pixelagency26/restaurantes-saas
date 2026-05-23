@@ -4,7 +4,30 @@ import { createClient } from '@/lib/supabase/client'
 import toast from 'react-hot-toast'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-const PASOS = ['Bienvenida', 'Zonas y mesas', 'Tu equipo', 'Tu carta', '¡Listo!']
+const PASOS = ['Bienvenida', 'Zonas y mesas', 'Tu equipo', 'Tu carta', 'Horarios', '¡Listo!']
+
+const DIAS = [
+  { key: 'lunes',     label: 'Lun', full: 'Lunes'     },
+  { key: 'martes',    label: 'Mar', full: 'Martes'    },
+  { key: 'miercoles', label: 'Mié', full: 'Miércoles' },
+  { key: 'jueves',    label: 'Jue', full: 'Jueves'    },
+  { key: 'viernes',   label: 'Vie', full: 'Viernes'   },
+  { key: 'sabado',    label: 'Sáb', full: 'Sábado'    },
+  { key: 'domingo',   label: 'Dom', full: 'Domingo'   },
+]
+
+interface DiaHorario { activo: boolean; apertura: string; cierre: string }
+type HorariosMap = Record<string, DiaHorario>
+
+function horariosDefault(): HorariosMap {
+  return Object.fromEntries(
+    DIAS.map(d => [d.key, {
+      activo:   ['lunes','martes','miercoles','jueves','viernes','sabado'].includes(d.key),
+      apertura: '10:00',
+      cierre:   '22:00',
+    }])
+  )
+}
 
 function OnboardingForm() {
   const supabase = createClient()
@@ -28,6 +51,9 @@ function OnboardingForm() {
   // Carta
   const [categorias, setCategorias] = useState<{ id: number; nombre: string }[]>([])
   const [platos, setPlatos] = useState([{ nombre: '', precio: '', categoria_id: '' }])
+
+  // Horarios
+  const [horarios, setHorarios] = useState<HorariosMap>(horariosDefault())
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -106,6 +132,17 @@ function OnboardingForm() {
     setPaso(4)
   }
 
+  async function guardarHorarios() {
+    if (!negocioId) { setPaso(5); return }
+    setGuardando(true)
+    await supabase.from('configuracion').upsert(
+      [{ negocio_id: negocioId, clave: 'horarios_negocio', valor: JSON.stringify(horarios) }],
+      { onConflict: 'negocio_id,clave' }
+    )
+    setGuardando(false)
+    setPaso(5)
+  }
+
   async function finalizarOnboarding() {
     if (!negocioId) return
     await supabase.from('negocios').update({ onboarding_completo: true }).eq('id', negocioId)
@@ -115,6 +152,14 @@ function OnboardingForm() {
     } else {
       router.push('/gerencia')
     }
+  }
+
+  function toggleDia(key: string) {
+    setHorarios(prev => ({ ...prev, [key]: { ...prev[key], activo: !prev[key].activo } }))
+  }
+
+  function setHora(key: string, campo: 'apertura' | 'cierre', valor: string) {
+    setHorarios(prev => ({ ...prev, [key]: { ...prev[key], [campo]: valor } }))
   }
 
   const progreso = Math.round((paso / (PASOS.length - 1)) * 100)
@@ -154,7 +199,7 @@ function OnboardingForm() {
                 <div className="text-6xl mb-4">🎉</div>
                 <h1 className="text-2xl font-black text-gray-900 mb-2">¡Bienvenido a RestaurantOS!</h1>
                 <p className="text-gray-500 text-sm leading-relaxed">
-                  Vamos a configurar tu restaurante en 4 pasos rápidos. Puedes cambiar todo esto después.
+                  Vamos a configurar tu restaurante en unos pasos rápidos. Puedes cambiar todo esto después.
                 </p>
               </div>
               <div>
@@ -199,7 +244,7 @@ function OnboardingForm() {
               ) : (
                 <div className="space-y-3">
                   <div className="bg-green-50 border border-green-200 rounded-2xl p-4 text-center">
-                    <p className="text-green-700 font-bold text-sm">✅ {mesas} mesas creadas en "{zona}"</p>
+                    <p className="text-green-700 font-bold text-sm">✅ {mesas} mesas creadas en &quot;{zona}&quot;</p>
                     <p className="text-xs text-green-600 mt-1">Puedes agregar más zonas desde el panel de gerencia</p>
                   </div>
                   <button onClick={() => setPaso(2)}
@@ -303,8 +348,80 @@ function OnboardingForm() {
             </div>
           )}
 
-          {/* ── PASO 4: Listo ── */}
+          {/* ── PASO 4: Horarios ── */}
           {paso === 4 && (
+            <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 space-y-5">
+              <div>
+                <h2 className="text-xl font-black text-gray-900 mb-1">🕐 Horario de atención</h2>
+                <p className="text-gray-500 text-sm leading-relaxed">
+                  Dinos qué días y en qué horarios atiendes. Así el sistema organiza mejor tu agenda de reservas.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                {DIAS.map(({ key, full }) => {
+                  const dia = horarios[key]
+                  return (
+                    <div key={key}
+                      className={`rounded-2xl border-2 transition-all overflow-hidden ${dia.activo ? 'border-purple-200 bg-purple-50' : 'border-gray-100 bg-gray-50'}`}>
+                      <div className="flex items-center justify-between px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => toggleDia(key)}
+                            className={`relative inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors ${dia.activo ? 'bg-purple-600' : 'bg-gray-300'}`}>
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${dia.activo ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </button>
+                          <span className={`font-bold text-sm ${dia.activo ? 'text-gray-900' : 'text-gray-400'}`}>{full}</span>
+                        </div>
+                        {dia.activo && (
+                          <span className="text-xs text-purple-600 font-semibold">
+                            {dia.apertura} – {dia.cierre}
+                          </span>
+                        )}
+                        {!dia.activo && (
+                          <span className="text-xs text-gray-400">Cerrado</span>
+                        )}
+                      </div>
+                      {dia.activo && (
+                        <div className="px-4 pb-3 flex items-center gap-3">
+                          <div className="flex-1">
+                            <label className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide block mb-1">Abre</label>
+                            <input
+                              type="time"
+                              value={dia.apertura}
+                              onChange={e => setHora(key, 'apertura', e.target.value)}
+                              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white font-bold"
+                            />
+                          </div>
+                          <div className="text-gray-300 font-bold mt-5">–</div>
+                          <div className="flex-1">
+                            <label className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide block mb-1">Cierra</label>
+                            <input
+                              type="time"
+                              value={dia.cierre}
+                              onChange={e => setHora(key, 'cierre', e.target.value)}
+                              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white font-bold"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              <button onClick={guardarHorarios} disabled={guardando}
+                className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-black py-4 rounded-2xl transition-colors flex items-center justify-center gap-2">
+                {guardando ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Guardando...</> : '✓ Guardar horarios →'}
+              </button>
+              <button onClick={() => setPaso(5)} className="w-full text-gray-400 text-sm py-1 hover:text-gray-600">
+                Saltar — configurar horarios después →
+              </button>
+            </div>
+          )}
+
+          {/* ── PASO 5: Listo ── */}
+          {paso === 5 && (
             <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 space-y-6 text-center">
               <div>
                 <div className="text-7xl mb-4">🎉</div>
