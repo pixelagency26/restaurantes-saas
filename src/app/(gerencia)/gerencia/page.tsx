@@ -4016,7 +4016,7 @@ export default function GerenciaPage() {
       )}
 
       {modalUsuario && (
-        <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-[60] p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm fade-in space-y-3">
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-lg text-gray-900">Nuevo usuario</h3>
