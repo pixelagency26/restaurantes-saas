@@ -1182,11 +1182,19 @@ export default function GerenciaPage() {
       await Promise.all([
         // Un solo insert con todas las filas de inventario del turno
         supabase.from('turnos_inventario').insert(
-          entries.map(([platoId, qty]) => ({ turno_id: nuevoTurno.id, plato_id: platoId, cantidad_inicial: qty }))
+          entries.map(([platoId, qty]) => ({
+            turno_id: nuevoTurno.id,
+            plato_id: platoId,
+            cantidad_inicial: qty,
+            ...(myNegocioId ? { negocio_id: myNegocioId } : {}),
+          }))
         ),
-        // Actualizar inventario en paralelo (una petición por plato simultánea)
+        // Upsert inventario: actualiza cantidad Y repara filas sin negocio_id (problema de RLS)
         ...entries.map(([platoId, qty]) =>
-          supabase.from('inventario').update({ cantidad_disponible: qty }).eq('plato_id', platoId)
+          supabase.from('inventario').upsert(
+            { plato_id: platoId, cantidad_disponible: qty, ...(myNegocioId ? { negocio_id: myNegocioId } : {}) },
+            { onConflict: 'plato_id' }
+          )
         ),
       ])
     }

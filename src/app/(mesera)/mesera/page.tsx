@@ -41,6 +41,8 @@ export default function MeseraPage() {
   const [negocioPlan, setNegocioPlan] = useState<'starter' | 'basico' | 'pro'>('pro')
   // Inventario de turno activo
   const [turnoConInventario, setTurnoConInventario] = useState(false)
+  // IDs de platos que tienen inventario configurado para el turno actual
+  const [turnoInventarioIds, setTurnoInventarioIds] = useState<Set<string>>(new Set())
 
   const supabase = createClient()
 
@@ -52,14 +54,16 @@ export default function MeseraPage() {
       supabase.from('inventario').select('*'),
       supabase.from('turnos').select('id').is('cerrado_en', null).order('abierto_en', { ascending: false }).limit(1).maybeSingle(),
     ])
-    // Verificar si el turno activo tiene inventario configurado
-    let tieneInv = false
+    // Cargar IDs de platos con inventario en el turno activo (para restricción por plato)
+    let platoIdsConInv = new Set<string>()
     if (turnoData?.id) {
-      const { count } = await supabase.from('turnos_inventario')
-        .select('*', { count: 'exact', head: true }).eq('turno_id', turnoData.id)
-      tieneInv = (count ?? 0) > 0
+      const { data: tiData } = await supabase.from('turnos_inventario')
+        .select('plato_id').eq('turno_id', turnoData.id)
+      if (tiData && tiData.length > 0)
+        platoIdsConInv = new Set(tiData.map((r: { plato_id: string }) => r.plato_id))
     }
-    setTurnoConInventario(tieneInv)
+    setTurnoConInventario(platoIdsConInv.size > 0)
+    setTurnoInventarioIds(platoIdsConInv)
     if (mesasData) setMesas(mesasData)
     if (catData) { setCategorias(catData); if (!categoriaActiva && catData[0]) setCategoriaActiva(catData[0].id) }
     if (platosData) {
@@ -98,6 +102,7 @@ export default function MeseraPage() {
     const canal = supabase.channel('mesera-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => { cargarPedidosListos(); cargarDatos() })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inventario' }, cargarDatos)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'turnos_inventario' }, cargarDatos)
       .subscribe()
 
     // Escuchar llamadas de clientes vía tabla DB (confiable)
@@ -217,7 +222,7 @@ export default function MeseraPage() {
   }
 
   function agregarAlCarrito(plato: Plato) {
-    if (turnoConInventario) {
+    if (turnoInventarioIds.has(plato.id)) {
       const disp = stockDisponible(plato.id)
       if (disp === 0) { toast.error(`${plato.nombre} no está disponible`); return }
       const enCarrito = carrito.find(i => i.plato.id === plato.id)?.cantidad ?? 0
@@ -232,7 +237,7 @@ export default function MeseraPage() {
   }
 
   function cambiarCantidad(platoId: string, delta: number) {
-    if (delta > 0 && turnoConInventario) {
+    if (delta > 0 && turnoInventarioIds.has(platoId)) {
       const disp = stockDisponible(platoId)
       if (disp > 0) {
         const enCarrito = carrito.find(i => i.plato.id === platoId)?.cantidad ?? 0
@@ -617,9 +622,13 @@ export default function MeseraPage() {
 
       <div className="flex-1 p-4 space-y-2.5">
         {platosFiltrados.map(plato => {
-          const disp      = disponibilidadPlato(plato)
-          const sinStock  = turnoConInventario && disp === 0
-          const stockBajo = turnoConInventario && disp > 0 && disp <= (plato.inventario?.[0]?.alerta_minima ?? 3)
+          const disp        = disponibilidadPlato(plato)
+          // Solo restringir si este plato específico está en el inventario del turno
+          // Y tiene un registro visible de inventario (si RLS lo oculta, no bloqueamos)
+          const enTurnoInv  = turnoInventarioIds.has(plato.id)
+          const hasInvRec   = (plato.inventario?.length ?? 0) > 0
+          const sinStock    = enTurnoInv && hasInvRec && disp === 0
+          const stockBajo   = enTurnoInv && hasInvRec && disp > 0 && disp <= (plato.inventario?.[0]?.alerta_minima ?? 3)
           const enCarrito = carrito.find(i => i.plato.id === plato.id)
           return (
             <div key={plato.id}
@@ -696,7 +705,8 @@ export default function MeseraPage() {
 
       <div className="flex-1 p-4 space-y-3">
         {carrito.map(item => {
-          const dispCarrito = stockDisponible(item.plato.id)
+          // Solo limitar el + si este plato está en inventario de turno y tiene stock conocido
+          const dispCarrito = turnoInventarioIds.has(item.plato.id) ? stockDisponible(item.plato.id) : Infinity
           return (
           <div key={item.plato.id} className="bg-white rounded-2xl p-4 border border-gray-100">
             <div className="flex items-center justify-between mb-2">
