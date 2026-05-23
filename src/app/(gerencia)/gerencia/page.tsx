@@ -3496,50 +3496,50 @@ export default function GerenciaPage() {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center p-4">
           <div className="bg-white rounded-2xl p-5 w-full max-w-md fade-in max-h-[90vh] overflow-y-auto space-y-3">
             <div className="flex justify-between items-center">
-              <h3 className="font-bold text-lg">{modalPlato === 'nuevo' ? 'Nuevo plato' : 'Editar plato'}</h3>
-              <button onClick={() => setModalPlato(null)}><X size={20} /></button>
+              <h3 className="font-bold text-lg text-gray-900">{modalPlato === 'nuevo' ? 'Nuevo plato' : 'Editar plato'}</h3>
+              <button onClick={() => setModalPlato(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
             </div>
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Nombre del plato *</label>
-              <input type="text" value={platoForm.nombre} onChange={e => setPlatoForm(p => ({ ...p, nombre: e.target.value }))} className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+              <label className="text-xs text-gray-500 font-medium block mb-1">Nombre del plato *</label>
+              <input type="text" value={platoForm.nombre} onChange={e => setPlatoForm(p => ({ ...p, nombre: e.target.value }))} className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-400" />
             </div>
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Descripción (visible para meseras y clientes)</label>
-              <textarea value={platoForm.descripcion || ''} onChange={e => setPlatoForm(p => ({ ...p, descripcion: e.target.value }))} rows={2} placeholder="Describe el plato para que las meseras puedan explicárselo al cliente..." className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+              <label className="text-xs text-gray-500 font-medium block mb-1">Descripción (visible para meseras y clientes)</label>
+              <textarea value={platoForm.descripcion || ''} onChange={e => setPlatoForm(p => ({ ...p, descripcion: e.target.value }))} rows={2} placeholder="Describe el plato..." className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-400 resize-none" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Precio público *</label>
-                <input type="number" value={platoForm.precio || ''} onChange={e => setPlatoForm(p => ({ ...p, precio: parseFloat(e.target.value) || 0 }))} className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+                <label className="text-xs text-gray-500 font-medium block mb-1">Precio público *</label>
+                <input type="number" value={platoForm.precio || ''} onChange={e => setPlatoForm(p => ({ ...p, precio: parseFloat(e.target.value) || 0 }))} className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-400" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Costo (para utilidad)</label>
-                <input type="number" value={platoForm.costo || ''} onChange={e => setPlatoForm(p => ({ ...p, costo: parseFloat(e.target.value) || 0 }))} className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+                <label className="text-xs text-gray-500 font-medium block mb-1">Costo (para utilidad)</label>
+                <input type="number" value={platoForm.costo || ''} onChange={e => setPlatoForm(p => ({ ...p, costo: parseFloat(e.target.value) || 0 }))} className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-400" />
               </div>
             </div>
             {platoForm.precio && platoForm.costo ? (
-              <div className="bg-green-50 rounded-xl px-3 py-2 text-sm">
+              <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2 text-sm">
                 <span className="text-green-700 font-semibold">Utilidad: ${(platoForm.precio - (platoForm.costo || 0)).toLocaleString('es-CO')} ({Math.round((platoForm.precio - (platoForm.costo || 0)) / platoForm.precio * 100)}% margen)</span>
               </div>
             ) : null}
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Categoría *</label>
-              <select value={platoForm.categoria_id} onChange={e => setPlatoForm(p => ({ ...p, categoria_id: parseInt(e.target.value) }))} className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40">
+              <label className="text-xs text-gray-500 font-medium block mb-1">Categoría *</label>
+              <select value={platoForm.categoria_id} onChange={e => setPlatoForm(p => ({ ...p, categoria_id: parseInt(e.target.value) }))} className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-400">
                 {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs text-gray-500 block mb-1">URL de imagen (opcional)</label>
-              <input type="url" value={platoForm.imagen_url || ''} onChange={e => setPlatoForm(p => ({ ...p, imagen_url: e.target.value }))} placeholder="https://..." className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+              <label className="text-xs text-gray-500 font-medium block mb-1">URL de imagen (opcional)</label>
+              <input type="url" value={platoForm.imagen_url || ''} onChange={e => setPlatoForm(p => ({ ...p, imagen_url: e.target.value }))} placeholder="https://..." className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-400" />
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 border border-gray-200">
               <label className="text-sm text-gray-700 font-medium">Disponible en el menú</label>
               <button onClick={() => setPlatoForm(p => ({ ...p, activo: !p.activo }))}
                 className={`w-12 h-6 rounded-full transition-colors ${platoForm.activo ? 'bg-green-500' : 'bg-gray-300'}`}>
                 <span className={`block w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${platoForm.activo ? 'translate-x-6' : 'translate-x-0'}`} />
               </button>
             </div>
-            <button onClick={guardarPlato} disabled={guardandoPlato} className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded-xl">
+            <button onClick={guardarPlato} disabled={guardandoPlato} className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl shadow-md shadow-orange-100 transition-all">
               {guardandoPlato ? 'Guardando...' : modalPlato === 'nuevo' ? 'Crear plato' : 'Guardar cambios'}
             </button>
           </div>
@@ -3572,7 +3572,7 @@ export default function GerenciaPage() {
                   <label className="block text-sm text-gray-600 mb-1">Monto inicial en caja (efectivo)</label>
                   <input type="number" value={montoInicial} onChange={e => setMontoInicial(e.target.value)}
                     placeholder="0"
-                    className="w-full border border-white/12 rounded-xl px-4 py-3 text-lg font-bold focus:outline-none focus:ring-2 focus:ring-green-400" />
+                    className="w-full border border-gray-300 rounded-xl px-4 py-3 text-gray-900 text-lg font-bold focus:outline-none focus:ring-2 focus:ring-green-400 bg-gray-50" />
                 </div>
                 <button onClick={irAInventario}
                   className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2">
@@ -3608,7 +3608,7 @@ export default function GerenciaPage() {
                           <p className="text-xs text-gray-500 font-medium">Selecciona el menú para precargar cantidades:</p>
                           {menusTurno.map(menu => (
                             <button key={menu.id} onClick={() => aplicarMenuTurno(menu.id)}
-                              className={`w-full text-left p-3 rounded-xl border-2 transition-all ${menuSeleccionadoId === menu.id ? 'border-orange-500 bg-orange-50' : 'border-white/12 bg-white hover:border-orange-300'}`}>
+                              className={`w-full text-left p-3 rounded-xl border-2 transition-all ${menuSeleccionadoId === menu.id ? 'border-orange-500 bg-orange-50' : 'border-gray-200 bg-white hover:border-orange-400'}`}>
                               <p className="font-bold text-white/90">{menu.nombre}</p>
                               <p className="text-xs text-gray-400 mt-0.5">
                                 {menu.items.filter(i => i.cantidad > 0).length} platos · {menu.items.reduce((a, i) => a + i.cantidad, 0)} unidades
@@ -3652,7 +3652,7 @@ export default function GerenciaPage() {
                                   ...prev, [p.id]: parseInt(e.target.value) || 0
                                 }))}
                                 placeholder="0"
-                                className="w-16 border border-white/12 rounded-xl px-2 py-1.5 text-sm font-bold text-center focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
+                                className="w-16 border border-gray-300 rounded-xl px-2 py-1.5 text-sm font-bold text-gray-900 text-center focus:outline-none focus:ring-2 focus:ring-green-400 bg-gray-50"
                               />
                             </div>
                           ))}
@@ -3781,19 +3781,19 @@ export default function GerenciaPage() {
                           onChange={e => setConteoFinal(p => ({ ...p, [m.id]: e.target.value }))}
                           placeholder={`$${m.esperado.toLocaleString('es-CO')}`}
                           className={`w-full border-2 rounded-xl px-3 py-2.5 text-base font-bold focus:outline-none transition-all ${
-                            diff === null   ? 'border-white/12 focus:border-orange-400 bg-white/5 text-white' :
-                            diff === 0      ? 'border-green-500/50 bg-green-500/10 text-white' :
-                            diff > 0        ? 'border-orange-500/50 bg-orange-500/10 text-white' :
-                                              'border-red-500/50 bg-red-500/10 text-white'
+                            diff === null   ? 'border-gray-300 focus:border-orange-400 bg-gray-50 text-gray-900' :
+                            diff === 0      ? 'border-green-400 bg-green-50 text-green-800' :
+                            diff > 0        ? 'border-orange-400 bg-orange-50 text-orange-800' :
+                                              'border-red-400 bg-red-50 text-red-800'
                           }`}
                         />
                       </div>
 
                       {diff !== null && (
                         <div className={`rounded-xl px-3 py-2 text-sm font-bold flex items-center justify-between ${
-                          diff === 0 ? 'bg-green-500/20 text-green-400' :
-                          diff > 0   ? 'bg-orange-500/20 text-orange-400' :
-                                       'bg-red-500/20 text-red-400'
+                          diff === 0 ? 'bg-green-50 text-green-700 border border-green-200' :
+                          diff > 0   ? 'bg-orange-50 text-orange-700 border border-orange-200' :
+                                       'bg-red-50 text-red-700 border border-red-200'
                         }`}>
                           <span>
                             {diff === 0 ? '✅ Cuadrado perfecto' :
@@ -3818,8 +3818,8 @@ export default function GerenciaPage() {
                   }`}>
                     <p className="text-xs font-bold uppercase text-gray-500 mb-1">Descuadre total</p>
                     <p className={`text-2xl font-black ${
-                      descuadreTotal === 0 ? 'text-green-400' :
-                      descuadreTotal > 0   ? 'text-orange-400' : 'text-red-400'
+                      descuadreTotal === 0 ? 'text-green-600' :
+                      descuadreTotal > 0   ? 'text-orange-600' : 'text-red-600'
                     }`}>
                       {descuadreTotal === 0 ? '✅ Todo cuadrado' :
                        descuadreTotal > 0   ? `+$${descuadreTotal.toLocaleString('es-CO')} sobrante` :
@@ -3833,12 +3833,12 @@ export default function GerenciaPage() {
 
                 {/* ── Resumen de inventario del turno ── */}
                 {resumenInventario.length > 0 && (
-                  <div className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm overflow-hidden">
-                    <div className="px-4 py-3 border-b bg-white/4 flex items-center justify-between">
-                      <h3 className="font-bold text-white/80 text-sm">📦 Inventario del turno</h3>
-                      <span className="text-xs text-white/35">{resumenInventario.length} platos</span>
+                  <div className="bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-200 bg-white flex items-center justify-between">
+                      <h3 className="font-bold text-gray-800 text-sm">📦 Inventario del turno</h3>
+                      <span className="text-xs text-gray-400">{resumenInventario.length} platos</span>
                     </div>
-                    <div className="divide-y divide-white/6">
+                    <div className="divide-y divide-gray-100">
                       {resumenInventario.map(item => {
                         const vendidos = item.cantidad_inicial - item.cantidad_restante
                         const valorVendido = vendidos * item.precio
@@ -3847,15 +3847,15 @@ export default function GerenciaPage() {
                             <div className="flex justify-between items-start gap-2">
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-semibold text-gray-800 truncate">{item.nombre}</p>
-                                <p className="text-xs text-white/35">{item.categoria}</p>
+                                <p className="text-xs text-gray-400">{item.categoria}</p>
                               </div>
                               <div className="text-right shrink-0">
                                 <p className="font-black text-gray-900 text-sm">{vendidos} vendidos</p>
                                 <p className="text-xs text-green-700 font-semibold">${valorVendido.toLocaleString('es-CO')}</p>
                               </div>
                             </div>
-                            <div className="flex gap-4 mt-1 text-xs text-white/35">
-                              <span>Inicial: <span className="font-semibold text-white/60">{item.cantidad_inicial}</span></span>
+                            <div className="flex gap-4 mt-1 text-xs text-gray-400">
+                              <span>Inicial: <span className="font-semibold text-gray-600">{item.cantidad_inicial}</span></span>
                               <span>Restante: <span className={`font-semibold ${item.cantidad_restante === 0 ? 'text-red-500' : 'text-gray-600'}`}>{item.cantidad_restante}</span></span>
                             </div>
                           </div>
@@ -3867,9 +3867,9 @@ export default function GerenciaPage() {
                       const totalVendidos = resumenInventario.reduce((a, i) => a + (i.cantidad_inicial - i.cantidad_restante), 0)
                       const totalValor    = resumenInventario.reduce((a, i) => a + (i.cantidad_inicial - i.cantidad_restante) * i.precio, 0)
                       return (
-                        <div className="px-4 py-3 bg-gray-800/60 flex justify-between items-center">
-                          <span className="text-sm font-bold text-orange-400">{totalVendidos} unidades vendidas</span>
-                          <span className="font-black text-orange-300">${totalValor.toLocaleString('es-CO')}</span>
+                        <div className="px-4 py-3 bg-orange-50 border-t border-orange-100 flex justify-between items-center">
+                          <span className="text-sm font-bold text-orange-600">{totalVendidos} unidades vendidas</span>
+                          <span className="font-black text-orange-600">${totalValor.toLocaleString('es-CO')}</span>
                         </div>
                       )
                     })()}
@@ -3900,16 +3900,16 @@ export default function GerenciaPage() {
               <div className="flex justify-between items-center">
                 <div>
                   <p className="font-bold text-gray-900 text-lg">Mesa {modalQR.numero}</p>
-                  {modalQR.zona && <p className="text-xs text-white/35">{modalQR.zona}</p>}
+                  {modalQR.zona && <p className="text-xs text-gray-500">{modalQR.zona}</p>}
                 </div>
                 <button onClick={() => setModalQR(null)}><X size={20} className="text-gray-400" /></button>
               </div>
-              <img src={qrSrc} alt={`QR Mesa ${modalQR.numero}`} className="mx-auto rounded-xl border border-white/8 p-2" width={200} height={200} />
+              <img src={qrSrc} alt={`QR Mesa ${modalQR.numero}`} className="mx-auto rounded-xl border border-gray-200 p-2" width={200} height={200} />
               <p className="text-xs text-gray-400 break-all font-mono">{urlMiniLanding}</p>
               <div className="flex gap-2">
                 <button
                   onClick={() => { navigator.clipboard.writeText(urlMiniLanding); toast.success('URL copiada') }}
-                  className="flex-1 bg-white/8 hover:bg-white/14 text-gray-700 font-bold py-3 rounded-xl text-sm transition-colors"
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl text-sm transition-colors"
                 >
                   📋 Copiar
                 </button>
@@ -3925,7 +3925,7 @@ export default function GerenciaPage() {
                   ⬇️ Descargar
                 </button>
               </div>
-              <p className="text-[10px] text-white/35">
+              <p className="text-[10px] text-gray-400">
                 También funciona: <span className="font-mono break-all">/mesa/{modalQR.id}</span>
               </p>
             </div>
@@ -3945,13 +3945,13 @@ export default function GerenciaPage() {
               <label className="text-xs font-medium text-gray-500 block mb-1">Nombre de la zona</label>
               <input type="text" placeholder="Ej: Terraza, Salón VIP, Zona A..."
                 value={nuevaZonaNombre} onChange={e => setNuevaZonaNombre(e.target.value)}
-                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 bg-gray-50" />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Número de la primera mesa</label>
               <input type="number" min="1" placeholder="Ej: 1"
                 value={nuevaMesaNumero} onChange={e => setNuevaMesaNumero(e.target.value)}
-                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 bg-gray-50" />
             </div>
             <button onClick={crearZonaConMesa} disabled={guardandoMesa}
               className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded-xl">
@@ -3973,7 +3973,7 @@ export default function GerenciaPage() {
               <label className="text-xs font-medium text-gray-500 block mb-1">Nuevo nombre</label>
               <input type="text" placeholder="Nombre de la zona"
                 value={renombrarZonaValor} onChange={e => setRenombrarZonaValor(e.target.value)}
-                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 bg-gray-50" />
             </div>
             <button onClick={() => renombrarZona(modalRenombrarZona, renombrarZonaValor)}
               className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl">
@@ -3995,7 +3995,7 @@ export default function GerenciaPage() {
               <label className="text-xs font-medium text-gray-500 block mb-1">Número de mesa</label>
               <input type="number" min="1" placeholder="Ej: 5"
                 value={nuevaMesaNumero} onChange={e => setNuevaMesaNumero(e.target.value)}
-                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 bg-gray-50" />
             </div>
             <button onClick={() => agregarMesaEnZona(modalAgregarMesa)} disabled={guardandoMesa}
               className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded-xl">
@@ -4009,10 +4009,10 @@ export default function GerenciaPage() {
         <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm fade-in space-y-3">
             <div className="flex justify-between items-center"><h3 className="font-bold text-lg">Nuevo usuario</h3><button onClick={() => setModalUsuario(false)}><X size={20} /></button></div>
-            <input type="text" placeholder="Nombre completo" value={nuevoUsuario.nombre} onChange={e => setNuevoUsuario(p => ({ ...p, nombre: e.target.value }))} className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
-            <input type="email" placeholder="Correo electrónico" value={nuevoUsuario.email} onChange={e => setNuevoUsuario(p => ({ ...p, email: e.target.value }))} className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
-            <input type="password" placeholder="Contraseña" value={nuevoUsuario.password} onChange={e => setNuevoUsuario(p => ({ ...p, password: e.target.value }))} className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
-            <select value={nuevoUsuario.rol} onChange={e => setNuevoUsuario(p => ({ ...p, rol: e.target.value }))} className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40">
+            <input type="text" placeholder="Nombre completo" value={nuevoUsuario.nombre} onChange={e => setNuevoUsuario(p => ({ ...p, nombre: e.target.value }))} className="w-full border border-gray-300 rounded-xl px-4 py-3 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 bg-gray-50" />
+            <input type="email" placeholder="Correo electrónico" value={nuevoUsuario.email} onChange={e => setNuevoUsuario(p => ({ ...p, email: e.target.value }))} className="w-full border border-gray-300 rounded-xl px-4 py-3 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 bg-gray-50" />
+            <input type="password" placeholder="Contraseña" value={nuevoUsuario.password} onChange={e => setNuevoUsuario(p => ({ ...p, password: e.target.value }))} className="w-full border border-gray-300 rounded-xl px-4 py-3 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 bg-gray-50" />
+            <select value={nuevoUsuario.rol} onChange={e => setNuevoUsuario(p => ({ ...p, rol: e.target.value }))} className="w-full border border-gray-300 rounded-xl px-4 py-3 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 bg-gray-50">
               <option value="mesera">Mesera</option><option value="cocina">Cocina</option><option value="gerente">Gerente</option><option value="domi">Domi</option>
             </select>
             <button onClick={crearUsuario} disabled={creandoUsuario} className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded-xl">
@@ -4032,7 +4032,7 @@ export default function GerenciaPage() {
               <div className="flex justify-between items-center">
                 <div className="text-left">
                   <p className="font-black text-gray-900 text-lg">📱 Página Pública</p>
-                  <p className="text-xs text-white/35">Menú, domicilios, reseñas y reservas</p>
+                  <p className="text-xs text-gray-500">Menú, domicilios, reseñas y reservas</p>
                 </div>
                 <button onClick={() => setModalQRDomi(false)}><X size={20} className="text-gray-400" /></button>
               </div>
@@ -4041,7 +4041,7 @@ export default function GerenciaPage() {
                 <img src={qrSrc} alt="QR Página Pública" className="mx-auto rounded-xl" width={210} height={210} />
               </div>
 
-              <div className="bg-white/4 rounded-xl px-3 py-2 text-left space-y-1">
+              <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-left space-y-1">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">URL pública</p>
                 <p className="text-xs text-gray-700 break-all font-mono">{url}</p>
               </div>
@@ -4054,7 +4054,7 @@ export default function GerenciaPage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => { navigator.clipboard.writeText(url); toast.success('URL copiada') }}
-                  className="flex-1 bg-white/8 hover:bg-white/14 text-gray-700 font-bold py-3 rounded-xl text-sm transition-colors"
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl text-sm transition-colors"
                 >
                   📋 Copiar URL
                 </button>
@@ -4930,7 +4930,7 @@ export default function GerenciaPage() {
                 type="text"
                 value={editandoUsuario.nombre}
                 onChange={e => setEditandoUsuario(p => p ? { ...p, nombre: e.target.value } : p)}
-                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 bg-gray-50"
               />
             </div>
 
@@ -4940,7 +4940,7 @@ export default function GerenciaPage() {
               <select
                 value={editandoUsuario.rol}
                 onChange={e => setEditandoUsuario(p => p ? { ...p, rol: e.target.value } : p)}
-                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40">
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 bg-gray-50">
                 <option value="mesera">👩 Mesera — ve el panel de mesas y pedidos</option>
                 <option value="cocina">👨‍🍳 Cocina — ve el panel de preparación</option>
                 <option value="gerente">👔 Gerente — ve el panel completo</option>
@@ -4957,7 +4957,7 @@ export default function GerenciaPage() {
                 value={editandoUsuario.nuevaPassword}
                 onChange={e => setEditandoUsuario(p => p ? { ...p, nuevaPassword: e.target.value } : p)}
                 placeholder="••••••••"
-                className="w-full border border-white/12 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 bg-gray-50"
               />
             </div>
 
