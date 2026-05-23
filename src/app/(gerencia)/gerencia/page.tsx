@@ -4078,19 +4078,19 @@ export default function GerenciaPage() {
       {/* ══ MODAL CONFIGURACIÓN ⚙️ ══════════════════════════════════ */}
       {modalSettings && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center p-0">
-          <div className="bg-[#0f0f1e] border border-white/10 w-full max-w-lg rounded-t-3xl max-h-[92vh] flex flex-col overflow-hidden fade-in">
+          <div className="bg-white border border-gray-200 w-full max-w-lg rounded-t-3xl max-h-[92vh] flex flex-col overflow-hidden fade-in">
 
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
               <div className="flex items-center gap-2">
-                <Settings size={20} className="text-gray-700" />
-                <h2 className="text-lg font-black text-white/90">Configuración</h2>
+                <Settings size={20} className="text-gray-600" />
+                <h2 className="text-lg font-black text-gray-900">Configuración</h2>
               </div>
-              <button onClick={() => setModalSettings(false)} className="w-9 h-9 bg-white/8 rounded-full flex items-center justify-center"><X size={18} /></button>
+              <button onClick={() => setModalSettings(false)} className="w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center"><X size={18} className="text-gray-500" /></button>
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1 px-4 py-2 border-b shrink-0 overflow-x-auto">
+            <div className="flex gap-1 px-4 py-2 border-b border-gray-100 shrink-0 overflow-x-auto">
               {([
                 ['cuenta',       '👤 Cuenta'],
                 ['facturacion',  '💳 Facturación'],
@@ -4103,7 +4103,7 @@ export default function GerenciaPage() {
                   className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                     seccionSettings === id
                       ? id === 'restablecer' ? 'bg-red-500 text-white' : 'bg-orange-500 text-white'
-                      : 'text-gray-500 hover:bg-white/8'
+                      : 'text-gray-500 hover:bg-gray-100'
                   }`}>
                   {label}
                 </button>
@@ -4115,11 +4115,11 @@ export default function GerenciaPage() {
               {/* ── CUENTA ── */}
               {seccionSettings === 'cuenta' && (
                 <div className="space-y-4">
-                  <div className="bg-gray-800/60 rounded-2xl p-4 flex items-center gap-4 border border-orange-500/20">
+                  <div className="bg-orange-50 rounded-2xl p-4 flex items-center gap-4 border border-orange-200">
                     <div className="w-14 h-14 bg-orange-500 rounded-full flex items-center justify-center text-white text-2xl font-black">G</div>
                     <div>
-                      <p className="font-black text-white/90">Gerencia</p>
-                      <p className="text-xs text-white/35">Administrador del sistema</p>
+                      <p className="font-black text-gray-900">Gerencia</p>
+                      <p className="text-xs text-gray-400">Administrador del sistema</p>
                     </div>
                   </div>
                   <button onClick={cerrarSesion}
@@ -4149,10 +4149,10 @@ export default function GerenciaPage() {
                     return (
                       <>
                         {/* Tarjeta plan */}
-                        <div className={`rounded-2xl p-5 border-2 ${esPro ? 'bg-gray-900 border-gray-700' : esStarter ? 'bg-white/4 border-white/12' : 'bg-orange-50 border-orange-300'}`}>
+                        <div className={`rounded-2xl p-5 border-2 ${esPro ? 'bg-gray-950 border-gray-800' : esStarter ? 'bg-gray-50 border-gray-200' : 'bg-orange-50 border-orange-300'}`}>
                           <div className="flex items-start justify-between">
                             <div>
-                              <p className={`text-xs font-bold uppercase tracking-widest mb-1 ${esPro ? 'text-gray-400' : 'text-gray-400'}`}>Plan actual</p>
+                              <p className={`text-xs font-bold uppercase tracking-widest mb-1 ${esPro ? 'text-gray-400' : 'text-gray-500'}`}>Plan actual</p>
                               <p className={`text-2xl font-black ${esPro ? 'text-white' : 'text-gray-900'}`}>{planLabel}</p>
                               <p className={`text-sm mt-1 ${esPro ? 'text-gray-400' : 'text-gray-500'}`}>{planPrecio}</p>
                             </div>
@@ -4167,15 +4167,15 @@ export default function GerenciaPage() {
                         </div>
 
                         {/* Próximo pago */}
-                        <div className="bg-white/4 rounded-2xl p-4 flex items-center gap-4">
-                          <div className="w-10 h-10 bg-orange-500/15 rounded-xl flex items-center justify-center shrink-0">
-                            <CalendarDays size={20} className="text-orange-400" />
+                        <div className="bg-gray-50 rounded-2xl p-4 flex items-center gap-4 border border-gray-200">
+                          <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center shrink-0">
+                            <CalendarDays size={20} className="text-orange-500" />
                           </div>
                           <div>
-                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">
+                            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
                               {vencido ? 'Venció el' : 'Próximo pago / vence'}
                             </p>
-                            <p className="font-black text-white/90">
+                            <p className="font-black text-gray-900">
                               {hasta
                                 ? hasta.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })
                                 : 'No disponible'}
@@ -4195,16 +4195,16 @@ export default function GerenciaPage() {
 
                         {/* Pagar ahora — usuario en prueba */}
                         {!facturacion.activa && !vencido && (
-                          <div className="bg-orange-500/10 border-2 border-orange-500/30 rounded-2xl p-4 space-y-3">
+                          <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl p-4 space-y-3">
                             <div>
-                              <p className="font-black text-white mb-0.5">💳 Adquirir plan ahora</p>
+                              <p className="font-black text-gray-900 mb-0.5">💳 Adquirir plan ahora</p>
                               <p className="text-xs text-gray-400 leading-relaxed">
                                 Paga hoy y no pierdes tus días de prueba — la suscripción empieza cuando termine tu período gratis.
                               </p>
                             </div>
                             <div className="space-y-2">
                               <a href="/checkout?plan=starter&tipo=nuevo"
-                                className="flex items-center justify-between w-full px-4 py-3 rounded-xl text-xs font-bold border-2 border-white/12 hover:border-gray-300 text-gray-700 transition-colors">
+                                className="flex items-center justify-between w-full px-4 py-3 rounded-xl text-xs font-bold border-2 border-gray-200 hover:border-gray-300 text-gray-700 transition-colors">
                                 <span>📦 Plan Básico</span>
                                 <span className="text-gray-500 font-normal">$19.000/mes</span>
                               </a>
@@ -4258,7 +4258,7 @@ export default function GerenciaPage() {
                         <a
                           href={`https://wa.me/573137335448?text=${encodeURIComponent('Hola, tengo una pregunta sobre mi suscripción de Restaurant Pix 🍽️')}`}
                           target="_blank" rel="noopener noreferrer"
-                          className="flex items-center justify-center gap-2 border-2 border-white/12 text-gray-500 hover:bg-white/4 font-semibold py-2.5 rounded-2xl text-xs transition-colors">
+                          className="flex items-center justify-center gap-2 border-2 border-gray-200 text-gray-500 hover:bg-gray-50 font-semibold py-2.5 rounded-2xl text-xs transition-colors">
                           💬 Ayuda por WhatsApp
                         </a>
                       </>
@@ -4277,25 +4277,25 @@ export default function GerenciaPage() {
                     <Plus size={18} /> Crear nuevo usuario
                   </button>
                   {listaUsuarios.length === 0 ? (
-                    <div className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm p-6 text-center">
+                    <div className="bg-gray-50 rounded-2xl border border-gray-200 p-6 text-center">
                       <p className="text-gray-400 text-sm">No hay usuarios registrados.</p>
                     </div>
                   ) : (
-                    <div className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm overflow-hidden">
+                    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                       {listaUsuarios.map((u, i) => {
                         const ROL_BADGE: Record<string, string> = {
-                          gerente: 'bg-orange-500/20 text-orange-300 border border-orange-500/30',
-                          mesera:  'bg-gray-700 text-gray-300 border border-gray-600',
-                          cocina:  'bg-green-500/20 text-green-400 border border-green-500/30',
-                          domi:    'bg-gray-700 text-gray-300 border border-gray-600',
+                          gerente: 'bg-orange-50 text-orange-600 border border-orange-200',
+                          mesera:  'bg-gray-100 text-gray-600 border border-gray-200',
+                          cocina:  'bg-emerald-50 text-emerald-700 border border-emerald-200',
+                          domi:    'bg-gray-100 text-gray-600 border border-gray-200',
                         }
                         const ROL_LABEL: Record<string, string> = {
                           gerente: 'Gerente', mesera: 'Mesera', cocina: 'Cocina', domi: 'Domi',
                         }
                         return (
-                          <div key={u.id} className={`flex items-center justify-between px-4 py-3.5 ${i !== 0 ? 'border-t border-gray-50' : ''} ${!u.activo ? 'opacity-50' : ''}`}>
+                          <div key={u.id} className={`flex items-center justify-between px-4 py-3.5 ${i !== 0 ? 'border-t border-gray-100' : ''} ${!u.activo ? 'opacity-50' : ''}`}>
                             <div className="flex items-center gap-3">
-                              <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${u.activo ? 'bg-white/8 text-gray-500' : 'bg-red-100 text-red-400'}`}>
+                              <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${u.activo ? 'bg-orange-100 text-orange-600' : 'bg-red-50 text-red-500'}`}>
                                 {u.nombre.charAt(0).toUpperCase()}
                               </div>
                               <div>
@@ -4304,11 +4304,11 @@ export default function GerenciaPage() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${ROL_BADGE[u.rol] || 'bg-white/8 text-gray-600'}`}>
+                              <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${ROL_BADGE[u.rol] || 'bg-gray-100 text-gray-600 border border-gray-200'}`}>
                                 {ROL_LABEL[u.rol] || u.rol}
                               </span>
                               <button onClick={() => setEditandoUsuario({ id: u.id, nombre: u.nombre, rol: u.rol, activo: u.activo ?? true, nuevaPassword: '' })}
-                                className="w-7 h-7 bg-white/8 hover:bg-white/14 rounded-lg flex items-center justify-center">
+                                className="w-7 h-7 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center">
                                 <Pencil size={13} className="text-gray-500" />
                               </button>
                             </div>
@@ -4319,14 +4319,14 @@ export default function GerenciaPage() {
                   )}
 
                   {/* ── Nombres de cocineros ── */}
-                  <div className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm p-5 space-y-4">
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-orange-500/10 border border-orange-500/20 rounded-xl flex items-center justify-center">
-                        <ChefHat size={20} className="text-orange-400" />
+                      <div className="w-10 h-10 bg-orange-100 border border-orange-200 rounded-xl flex items-center justify-center">
+                        <ChefHat size={20} className="text-orange-500" />
                       </div>
                       <div>
-                        <h3 className="font-bold text-white/90 text-sm">Nombres de cocineros/as</h3>
-                        <p className="text-xs text-white/35">Aparecen en el selector al entrar a cocina — sin crear usuario extra</p>
+                        <h3 className="font-bold text-gray-900 text-sm">Nombres de cocineros/as</h3>
+                        <p className="text-xs text-gray-400">Aparecen en el selector al entrar a cocina — sin crear usuario extra</p>
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -4336,7 +4336,7 @@ export default function GerenciaPage() {
                         onChange={e => setNuevoNombreCocinero(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') agregarNombreCocinero() }}
                         placeholder="Ej: María, Pedro, Cocinera 1..."
-                        className="flex-1 bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                        className="flex-1 bg-gray-50 border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
                       />
                       <button
                         onClick={agregarNombreCocinero}
@@ -4346,13 +4346,13 @@ export default function GerenciaPage() {
                       </button>
                     </div>
                     {nombresCocineros.length === 0 ? (
-                      <p className="text-xs text-white/25 text-center py-2">Sin nombres configurados — los cocineros escribirán el suyo al entrar</p>
+                      <p className="text-xs text-gray-400 text-center py-2">Sin nombres configurados — los cocineros escribirán el suyo al entrar</p>
                     ) : (
                       <div className="flex flex-wrap gap-2">
                         {nombresCocineros.map(nombre => (
-                          <div key={nombre} className="flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/25 rounded-xl px-3 py-1.5">
-                            <ChefHat size={12} className="text-orange-400" />
-                            <span className="text-orange-300 text-sm font-medium">{nombre}</span>
+                          <div key={nombre} className="flex items-center gap-1.5 bg-orange-50 border border-orange-200 rounded-xl px-3 py-1.5">
+                            <ChefHat size={12} className="text-orange-500" />
+                            <span className="text-orange-600 text-sm font-medium">{nombre}</span>
                             <button
                               onClick={() => eliminarNombreCocinero(nombre)}
                               className="text-orange-500/60 hover:text-red-400 ml-1 transition-colors">
@@ -4370,13 +4370,13 @@ export default function GerenciaPage() {
               {seccionSettings === 'marketing' && (
                 <div className="space-y-4">
                   {/* Sugerido del mes */}
-                  <div className={`bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm p-5 space-y-5 ${!puedeAcceder('pro') ? 'opacity-60' : ''}`}>
+                  <div className={`bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-5 ${!puedeAcceder('pro') ? 'opacity-60' : ''}`}>
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-orange-500/10 border border-orange-500/20 rounded-xl flex items-center justify-center text-xl">🌟</div>
+                        <div className="w-10 h-10 bg-orange-100 border border-orange-200 rounded-xl flex items-center justify-center text-xl">🌟</div>
                         <div>
-                          <h3 className="font-bold text-white/90 text-sm">Sugerido del mes</h3>
-                          <p className="text-xs text-white/35">Popup que aparece cuando el cliente abre el menú QR</p>
+                          <h3 className="font-bold text-gray-900 text-sm">Sugerido del mes</h3>
+                          <p className="text-xs text-gray-400">Popup que aparece cuando el cliente abre el menú QR</p>
                         </div>
                       </div>
                       {!puedeAcceder('pro') && (
@@ -4384,8 +4384,8 @@ export default function GerenciaPage() {
                       )}
                     </div>
                     {!puedeAcceder('pro') ? (
-                      <div className="bg-white/4 rounded-xl p-3">
-                        <p className="text-xs text-gray-400">🔒 El sugerido del mes está disponible en el Plan Pro.</p>
+                      <div className="bg-gray-50 rounded-xl p-3">
+                        <p className="text-xs text-gray-500">🔒 El sugerido del mes está disponible en el Plan Pro.</p>
                         <button onClick={abrirUpgrade} className="text-xs text-orange-400 hover:underline mt-1">Actualizar plan →</button>
                       </div>
                     ) : (
@@ -4393,62 +4393,62 @@ export default function GerenciaPage() {
                         {/* Toggle activo/inactivo */}
                         <div className="flex items-center justify-between gap-4 py-1">
                           <div>
-                            <p className="font-semibold text-white/80 text-sm">Activar popup</p>
-                            <p className="text-xs text-white/35">Los clientes verán este popup al abrir el menú QR</p>
+                            <p className="font-semibold text-gray-800 text-sm">Activar popup</p>
+                            <p className="text-xs text-gray-400">Los clientes verán este popup al abrir el menú QR</p>
                           </div>
                           <button onClick={() => setSugeridoActivo(v => !v)}
-                            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${sugeridoActivo ? 'bg-orange-500' : 'bg-gray-600'}`}>
+                            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${sugeridoActivo ? 'bg-orange-500' : 'bg-gray-300'}`}>
                             <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${sugeridoActivo ? 'translate-x-6' : 'translate-x-1'}`} />
                           </button>
                         </div>
                         {/* Nombre del plato */}
                         <div>
-                          <label className="text-xs text-white/50 font-semibold uppercase tracking-wide block mb-1.5">Nombre del plato *</label>
+                          <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-1.5">Nombre del plato *</label>
                           <input
                             value={sugeridoNombre}
                             onChange={e => setSugeridoNombre(e.target.value)}
                             placeholder="Ej: Burger Master, Bandeja especial..."
-                            className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                            className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
                           />
                         </div>
                         {/* Precio */}
                         <div>
-                          <label className="text-xs text-white/50 font-semibold uppercase tracking-wide block mb-1.5">Precio (opcional)</label>
+                          <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-1.5">Precio (opcional)</label>
                           <input
                             type="number"
                             value={sugeridoPrecio}
                             onChange={e => setSugeridoPrecio(e.target.value)}
                             placeholder="Ej: 28900"
-                            className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                            className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
                           />
                         </div>
                         {/* Descripción */}
                         <div>
-                          <label className="text-xs text-white/50 font-semibold uppercase tracking-wide block mb-1.5">Descripción corta (opcional)</label>
+                          <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-1.5">Descripción corta (opcional)</label>
                           <input
                             value={sugeridoDescripcion}
                             onChange={e => setSugeridoDescripcion(e.target.value)}
                             placeholder="Ej: Carne angus, queso cheddar doble, bacon crocante"
-                            className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                            className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
                           />
                         </div>
                         {/* URL imagen */}
                         <div>
-                          <label className="text-xs text-white/50 font-semibold uppercase tracking-wide block mb-1.5">URL de imagen (opcional)</label>
+                          <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-1.5">URL de imagen (opcional)</label>
                           <input
                             value={sugeridoImagenUrl}
                             onChange={e => setSugeridoImagenUrl(e.target.value)}
                             placeholder="https://... (deja vacío para mostrar emoji 🍽️)"
-                            className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                            className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
                           />
                           {sugeridoImagenUrl && (
-                            <img src={sugeridoImagenUrl} alt="preview" className="mt-2 h-20 w-full object-cover rounded-xl border border-white/10" onError={() => setSugeridoImagenUrl('')} />
+                            <img src={sugeridoImagenUrl} alt="preview" className="mt-2 h-20 w-full object-cover rounded-xl border border-gray-200" onError={() => setSugeridoImagenUrl('')} />
                           )}
                         </div>
                         {/* Preview miniatura */}
                         {sugeridoNombre && (
-                          <div className="bg-white/4 border border-white/8 rounded-2xl p-4">
-                            <p className="text-xs text-white/40 mb-3 font-semibold uppercase tracking-wide">Preview popup</p>
+                          <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4">
+                            <p className="text-xs text-gray-400 mb-3 font-semibold uppercase tracking-wide">Preview popup</p>
                             <div className="bg-white rounded-2xl overflow-hidden max-w-[220px] mx-auto shadow-xl">
                               <div className={`h-24 flex items-center justify-center ${sugeridoImagenUrl ? '' : 'bg-gradient-to-br from-amber-400 to-orange-500 text-4xl'}`}>
                                 {sugeridoImagenUrl
@@ -4480,14 +4480,14 @@ export default function GerenciaPage() {
               {/* ── PERMISOS ── */}
               {seccionSettings === 'permisos' && (
                 <div className="space-y-4">
-                  <div className="bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm p-5 space-y-5">
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-5">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-orange-500/15 rounded-xl flex items-center justify-center">
-                        <Lock size={20} className="text-orange-400" />
+                      <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+                        <Lock size={20} className="text-orange-500" />
                       </div>
                       <div>
-                        <h3 className="font-bold text-white/90">Control de flujo — Cocina</h3>
-                        <p className="text-xs text-white/35">Regula cuántos pedidos ve la cocina a la vez</p>
+                        <h3 className="font-bold text-gray-900">Control de flujo — Cocina</h3>
+                        <p className="text-xs text-gray-400">Regula cuántos pedidos ve la cocina a la vez</p>
                       </div>
                     </div>
                     <div className="flex items-center justify-between gap-4">
@@ -4506,7 +4506,7 @@ export default function GerenciaPage() {
                         <div className="flex gap-2">
                           {[2, 3, 4, 5].map(n => (
                             <button key={n} onClick={() => setBloqueoCantidad(n)}
-                              className={`flex-1 py-3 rounded-xl font-black text-lg transition-all border-2 ${bloqueoCantidad === n ? 'bg-orange-500 text-white border-orange-500' : 'bg-white/5 text-gray-300 border-white/12 hover:border-orange-500/40'}`}>
+                              className={`flex-1 py-3 rounded-xl font-black text-lg transition-all border-2 ${bloqueoCantidad === n ? 'bg-orange-500 text-white border-orange-500' : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-orange-400'}`}>
                               {n}
                             </button>
                           ))}
@@ -4516,23 +4516,23 @@ export default function GerenciaPage() {
                   </div>
 
                   {/* QR — solo basico/pro */}
-                  <div className={`bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm p-5 space-y-4 ${!puedeAcceder('basico') ? 'opacity-60' : ''}`}>
+                  <div className={`bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-4 ${!puedeAcceder('basico') ? 'opacity-60' : ''}`}>
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
                           <span className="text-xl">📱</span>
                         </div>
                         <div>
-                          <h3 className="font-bold text-white/90">Pedidos por QR</h3>
-                          <p className="text-xs text-white/35">Clientes piden desde su celular</p>
+                          <h3 className="font-bold text-gray-900">Pedidos por QR</h3>
+                          <p className="text-xs text-gray-400">Clientes piden desde su celular</p>
                         </div>
                       </div>
                       {!puedeAcceder('basico') && (
-                        <span className="text-[10px] bg-orange-500/20 text-orange-300 font-bold px-2 py-1 rounded-full shrink-0">Plan Profesional</span>
+                        <span className="text-[10px] bg-orange-100 text-orange-600 font-bold px-2 py-1 rounded-full shrink-0">Plan Profesional</span>
                       )}
                     </div>
                     {!puedeAcceder('basico') ? (
-                      <p className="text-xs text-gray-400 bg-white/4 rounded-xl p-3">🔒 Disponible desde el plan Profesional.</p>
+                      <p className="text-xs text-gray-500 bg-gray-50 rounded-xl p-3">🔒 Disponible desde el plan Profesional.</p>
                     ) : (
                       <>
                         <div className="flex items-center justify-between gap-4">
@@ -4583,11 +4583,11 @@ export default function GerenciaPage() {
                         <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">¿Qué período eliminar?</p>
                         <div className="flex gap-2">
                           <button onClick={() => setRestablecerScope('todo')}
-                            className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all ${restablecerScope === 'todo' ? 'bg-red-500 text-white border-red-500' : 'border-white/12 text-gray-600 hover:border-red-300'}`}>
+                            className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all ${restablecerScope === 'todo' ? 'bg-red-500 text-white border-red-500' : 'border-gray-200 text-gray-600 hover:border-red-300'}`}>
                             Todo el historial
                           </button>
                           <button onClick={() => setRestablecerScope('desde_fecha')}
-                            className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all ${restablecerScope === 'desde_fecha' ? 'bg-red-500 text-white border-red-500' : 'border-white/12 text-gray-600 hover:border-red-300'}`}>
+                            className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all ${restablecerScope === 'desde_fecha' ? 'bg-red-500 text-white border-red-500' : 'border-gray-200 text-gray-600 hover:border-red-300'}`}>
                             Desde una fecha
                           </button>
                         </div>
@@ -4607,13 +4607,13 @@ export default function GerenciaPage() {
                             ['clientes',  '👥 Clientes',        'Base de datos de clientes registrados (sin filtro de fecha)'],
                             ['inventario','📦 Inventario',      'Reinicia todas las cantidades disponibles a 0'],
                           ] as [keyof typeof restablecerItems, string, string][]).map(([key, label, desc]) => (
-                            <label key={key} className={`flex items-start gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${restablecerItems[key] ? 'bg-red-50 border-red-300' : 'bg-white border-white/12 hover:border-red-200'}`}>
+                            <label key={key} className={`flex items-start gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${restablecerItems[key] ? 'bg-red-50 border-red-300' : 'bg-white border-gray-200 hover:border-red-200'}`}>
                               <input type="checkbox" checked={restablecerItems[key]}
                                 onChange={e => setRestablecerItems(prev => ({ ...prev, [key]: e.target.checked }))}
                                 className="mt-0.5 w-4 h-4 accent-red-500" />
                               <div>
-                                <p className="font-bold text-sm text-white/90">{label}</p>
-                                <p className="text-xs text-white/35">{desc}</p>
+                                <p className="font-bold text-sm text-gray-900">{label}</p>
+                                <p className="text-xs text-gray-400">{desc}</p>
                               </div>
                             </label>
                           ))}
