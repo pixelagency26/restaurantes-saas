@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { MessageCircle, X, Send, ArrowLeft, Plus, ChevronRight, LogOut, Lock } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 interface Mensaje {
@@ -80,10 +81,14 @@ export default function ChatFlotante() {
 
   // ── Cargar grupos ─────────────────────────────────────────────────────────
   const cargarGrupos = useCallback(async (userId: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('chat_miembros')
       .select('grupo_id, grupo:chat_grupos(id, nombre, tipo)')
       .eq('usuario_id', userId)
+
+    if (error) {
+      console.error('Error cargando grupos de chat:', error.message)
+    }
 
     setGrupos(prev => {
       const noLeidosMap: Record<string, number> = {}
@@ -128,9 +133,11 @@ export default function ChatFlotante() {
           setEsPro(plan === 'pro')
           if (plan !== 'pro') return  // no inicializar chat si no es Pro
         } else {
-          // Sin negocio_id: intentar query sin filtro
-          const { data: negDB } = await supabase.from('negocios').select('plan').single()
+          // Sin negocio_id en perfil: buscar por el negocio del auth user
+          const { data: negDB } = await supabase.from('negocios').select('id, plan').single()
           const plan = negDB?.plan ?? 'starter'
+          // ← guardar el id del negocio aunque no estuviera en usuarios
+          if (negDB?.id) setMiNegocioId(negDB.id)
           setEsPro(plan === 'pro')
           if (plan !== 'pro') return
         }
@@ -190,7 +197,7 @@ export default function ChatFlotante() {
     const msg = texto.trim()
     if (!msg || !miPerfil || !grupoActivo) return
     setTexto('')
-    await supabase.from('mensajes_internos').insert({
+    const { error } = await supabase.from('mensajes_internos').insert({
       usuario_id:     miId,
       usuario_nombre: miPerfil.nombre,
       rol:            miPerfil.rol,
@@ -198,14 +205,19 @@ export default function ChatFlotante() {
       grupo_id:       grupoActivo.id === 'general' ? null : grupoActivo.id,
       ...(miNegocioId ? { negocio_id: miNegocioId } : {}),
     })
+    if (error) {
+      setTexto(msg) // restaurar si falló
+      toast.error('No se pudo enviar: ' + error.message, { duration: 5000 })
+    }
   }
 
   // ── Nuevo chat ────────────────────────────────────────────────────────────
   async function abrirNuevo() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('usuarios').select('id, nombre, rol')
       .eq('activo', true).neq('id', miId ?? '').order('nombre')
-    if (data) setUsuarios(data as UsuarioItem[])
+    if (error) toast.error('Error al cargar usuarios: ' + error.message, { duration: 5000 })
+    setUsuarios((data as UsuarioItem[]) || [])
     setSeleccion([])
     setNombreGrupo('')
     setVista('nuevo')
@@ -215,6 +227,13 @@ export default function ChatFlotante() {
   async function crearChat() {
     if (!seleccion.length || !miId) return
     setCreando(true)
+
+    // Asegurar que tenemos negocio_id antes de crear
+    let nid = miNegocioId
+    if (!nid) {
+      const { data: negDB } = await supabase.from('negocios').select('id, plan').single()
+      if (negDB?.id) { nid = negDB.id; setMiNegocioId(negDB.id) }
+    }
 
     const esDM = seleccion.length === 1
 
@@ -244,20 +263,29 @@ export default function ChatFlotante() {
     const targetUser = esDM ? usuarios.find(u => u.id === seleccion[0]) : null
     const nombre     = esDM ? (targetUser?.nombre ?? 'Chat directo') : (nombreGrupo.trim() || 'Grupo nuevo')
 
-    const { data: nuevoG } = await supabase
+    const { data: nuevoG, error: errGrupo } = await supabase
       .from('chat_grupos')
-      .insert({ nombre, tipo: esDM ? 'directo' : 'grupo', creado_por: miId, ...(miNegocioId ? { negocio_id: miNegocioId } : {}) })
+      .insert({ nombre, tipo: esDM ? 'directo' : 'grupo', creado_por: miId, ...(nid ? { negocio_id: nid } : {}) })
       .select().single()
 
-    if (!nuevoG) { setCreando(false); return }
+    if (errGrupo || !nuevoG) {
+      toast.error('Error al crear chat: ' + (errGrupo?.message ?? 'Sin respuesta del servidor'), { duration: 6000 })
+      setCreando(false)
+      return
+    }
 
-    await supabase.from('chat_miembros').insert(
+    const { error: errMiembros } = await supabase.from('chat_miembros').insert(
       [miId, ...seleccion].map(uid => ({
-        grupo_id: nuevoG.id,
+        grupo_id:   nuevoG.id,
         usuario_id: uid,
-        ...(miNegocioId ? { negocio_id: miNegocioId } : {}),
+        ...(nid ? { negocio_id: nid } : {}),
       }))
     )
+
+    if (errMiembros) {
+      toast.error('Chat creado pero error al agregar miembros: ' + errMiembros.message, { duration: 6000 })
+      // igual intentamos abrir el grupo
+    }
 
     const nuevoChat: GrupoChat = { id: nuevoG.id, nombre, tipo: esDM ? 'directo' : 'grupo', noLeidos: 0 }
     setGrupos(prev => [...prev, nuevoChat])
