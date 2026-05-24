@@ -1183,27 +1183,18 @@ export default function GerenciaPage() {
 
     const entries = Object.entries(inventarioTurno).filter(([, qty]) => qty > 0)
     if (entries.length > 0) {
-      // Todas las actualizaciones en paralelo — mucho más rápido que loop secuencial
-      // turnos_inventario e inventario NO tienen columna negocio_id en el schema SaaS.
-      // La RLS funciona vía turno_id→turnos.negocio_id y plato_id→platos.negocio_id.
-      const [tiResult] = await Promise.all([
-        supabase.from('turnos_inventario').insert(
-          entries.map(([platoId, qty]) => ({
-            turno_id: nuevoTurno.id,
-            plato_id: platoId,
-            cantidad_inicial: qty,
-          }))
-        ),
-        ...entries.map(([platoId, qty]) =>
-          supabase.from('inventario').upsert(
-            { plato_id: platoId, cantidad_disponible: qty, updated_at: new Date().toISOString(), ...(myNegocioId ? { negocio_id: myNegocioId } : {}) },
-            { onConflict: 'plato_id' }
-          )
-        ),
-      ])
-      if (tiResult?.error) {
-        console.error('Error al guardar inventario de turno:', tiResult.error)
-        toast.error('Error al guardar inventario del turno: ' + tiResult.error.message, { duration: 8000 })
+      // Insertar en turnos_inventario — el trigger sync_inventario_desde_turno()
+      // actualiza la tabla inventario automáticamente (SECURITY DEFINER, bypassa RLS).
+      const { error: tiError } = await supabase.from('turnos_inventario').insert(
+        entries.map(([platoId, qty]) => ({
+          turno_id: nuevoTurno.id,
+          plato_id: platoId,
+          cantidad_inicial: qty,
+        }))
+      )
+      if (tiError) {
+        console.error('Error al guardar inventario de turno:', tiError)
+        toast.error('Error al guardar inventario del turno: ' + tiError.message, { duration: 8000 })
       }
     }
     cargarCaja(nuevoTurno.id)
