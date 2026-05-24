@@ -111,42 +111,45 @@ export default function MeseraPage() {
     cargarPedidosListos()
     const canal = supabase.channel('mesera-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'mesas' }, cargarDatos)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pedidos' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
         cargarPedidosListos(); cargarDatos()
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pedidos' }, (payload) => {
-        cargarPedidosListos(); cargarDatos()
-
-        const p = payload.new as {
-          id: string; estado: string
-          mesera_id: string | null; tipo: string; mesa_id: string | null
-        }
-        // Notificar solo cuando el pedido completo queda listo (tabla pedidos ya está en realtime)
-        if (p.estado !== 'listo') return
-        if (!p.mesa_id) return // domicilio → va al panel domi
-
-        // Solo a la mesera que tomó el pedido (ref evita stale closure)
-        if (p.mesera_id && usuarioIdRef.current && p.mesera_id !== usuarioIdRef.current) return
+      // Notificación plato a plato cuando cocina marca listo (items_pedido ya está en realtime pub)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'items_pedido' }, (payload) => {
+        const item = payload.new as { id: string; estado: string; pedido_id: string }
+        if (item.estado !== 'listo') return
 
         supabase
           .from('pedidos')
-          .select('mesa:mesas(numero), items:items_pedido(plato:platos(nombre))')
-          .eq('id', p.id)
+          .select('mesera_id, tipo, mesa:mesas(numero), items:items_pedido(id, estado, plato:platos(nombre))')
+          .eq('id', item.pedido_id)
           .maybeSingle()
-          .then(({ data: detalle }) => {
-            if (!detalle) return
-            const d = detalle as unknown as {
+          .then(({ data: pedido }) => {
+            if (!pedido) return
+            const p = pedido as unknown as {
+              mesera_id: string | null; tipo: string
               mesa: { numero: number } | null
-              items: { plato: { nombre: string } }[]
+              items: { id: string; estado: string; plato: { nombre: string } }[]
             }
-            if (!d.mesa) return
+            if (!p.mesa || p.tipo === 'domi') return
+            // Solo a la mesera que tomó el pedido (ref evita stale closure)
+            if (p.mesera_id && usuarioIdRef.current && p.mesera_id !== usuarioIdRef.current) return
+
+            // Plato que acaba de quedar listo
+            const itemListo = p.items.find(i => i.id === item.id)
+            const platoNombre = itemListo?.plato?.nombre ?? 'Plato'
+
+            // Platos que SIGUEN pendientes (excluir el que acaba de quedar listo)
+            const pendientes = p.items
+              .filter(i => i.id !== item.id && (i.estado === 'pendiente' || i.estado === 'en_preparacion'))
+              .map(i => i.plato.nombre)
 
             const notifId = Date.now()
             setNotifsCocina(prev => [...prev, {
               id: notifId,
-              mesa_numero: d.mesa!.numero,
-              plato_nombre: '¡Pedido listo! 🔔',
-              pendientes: d.items.map(i => i.plato.nombre),
+              mesa_numero: p.mesa!.numero,
+              plato_nombre: platoNombre,
+              pendientes,
             }])
             setTimeout(() => setNotifsCocina(prev => prev.filter(n => n.id !== notifId)), 30000)
           })
@@ -155,8 +158,12 @@ export default function MeseraPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'turnos_inventario' }, cargarDatos)
       .subscribe()
 
+    // Polling de respaldo cada 20 s (por si algún evento realtime no llega)
+    const intervalo = setInterval(() => { cargarDatos(); cargarPedidosListos() }, 20000)
+
     return () => {
       supabase.removeChannel(canal)
+      clearInterval(intervalo)
     }
   }, [cargarDatos, cargarPedidosListos, supabase])
 

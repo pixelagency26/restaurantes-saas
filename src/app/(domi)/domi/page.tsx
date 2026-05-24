@@ -141,10 +141,7 @@ export default function DomiPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, cargarPedidos)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inventario' }, cargarMenu)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'turnos_inventario' }, cargarMenu)
-      .subscribe()
-
-    // Notificaciones cuando cocina termina un ítem de pedido domi
-    const canalItems = supabase.channel('domi-items-rt')
+      // Notificaciones plato a plato cuando cocina marca listo
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'items_pedido' }, (payload) => {
         const item = payload.new as { id: string; estado: string; pedido_id: string }
         if (item.estado !== 'listo') return
@@ -163,8 +160,9 @@ export default function DomiPage() {
 
             const itemListo = p.items.find(i => i.id === item.id)
             const platoNombre = itemListo?.plato?.nombre ?? 'Plato'
+            // Platos que SIGUEN pendientes (excluir el que acaba de quedar listo)
             const pendientes = p.items
-              .filter(i => i.estado === 'pendiente' || i.estado === 'en_preparacion')
+              .filter(i => i.id !== item.id && (i.estado === 'pendiente' || i.estado === 'en_preparacion'))
               .map(i => i.plato.nombre)
 
             const notifId = Date.now()
@@ -178,7 +176,10 @@ export default function DomiPage() {
       })
       .subscribe()
 
-    return () => { supabase.removeChannel(canal); supabase.removeChannel(canalItems) }
+    // Polling de respaldo cada 20 s (por si algún evento realtime no llega)
+    const intervalo = setInterval(cargarPedidos, 20000)
+
+    return () => { supabase.removeChannel(canal); clearInterval(intervalo) }
   }, [cargarPedidos, cargarMenu, supabase])
 
   // ── REGISTRAR COBRO ──────────────────────────────────────────

@@ -927,7 +927,10 @@ export default function GerenciaPage() {
       })
       .subscribe()
 
-    return () => { supabase.removeChannel(canal); supabase.removeChannel(canalDomiListo) }
+    // Polling de respaldo cada 20 s para mesas (por si el evento realtime no llega)
+    const intervalMesas = setInterval(cargarMesas, 20000)
+
+    return () => { supabase.removeChannel(canal); supabase.removeChannel(canalDomiListo); clearInterval(intervalMesas) }
   }, [cargarDatos, cargarMesas, cargarCarta, cargarResumen, cargarConfiguracion, cargarMenusTurno, cargarReservas, cargarInventarioModal, supabase, hoyStr])
 
   // Cargar resumen de inventario al abrir modal cerrar turno

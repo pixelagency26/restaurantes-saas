@@ -322,7 +322,7 @@ export default function CocinaPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'items_pedido' }, cargarPedidos)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'configuracion' }, cargarConfig)
       .subscribe()
-    const intervalo = setInterval(cargarPedidos, 60000)
+    const intervalo = setInterval(cargarPedidos, 15000)
     const tick      = setInterval(() => setAhora(Date.now()), 1000)
     return () => { supabase.removeChannel(canal); clearInterval(intervalo); clearInterval(tick) }
   }, [cargarPedidos, cargarConfig, supabase])
