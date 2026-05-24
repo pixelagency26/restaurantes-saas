@@ -25,7 +25,18 @@
       "Bash(git commit *)",
       "Bash(gh auth *)",
       "Bash(git config *)",
-      "Bash(git -c credential.helper=\"\" push)"
+      "Bash(git -c credential.helper=\"\" push)",
+      "Bash(curl -s -X POST https://api.mercadopago.com/preapproval_plan -H 'Authorization: Bearer APP_USR-830340990212945-052210-933a5b7e1b55d88891e81d5730b53aa2-309910636' -H 'Content-Type: application/json' -d '{ *)",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -v -X POST https://api.mercadopago.com/preapproval_plan -H 'Authorization: Bearer APP_USR-830340990212945-052210-933a5b7e1b55d88891e81d5730b53aa2-309910636' -H 'Content-Type: application/json' -d '{\"reason\":\"Plan Basico Restaurant Pix\",\"auto_recurring\":{\"frequency\":1,\"frequency_type\":\"months\",\"transaction_amount\":89900,\"currency_id\":\"COP\"},\"back_url\":\"https://restaurantes-saas.vercel.app/gerencia\",\"status\":\"active\"}')",
+      "Bash(curl -s -X POST https://api.mercadopago.com/preapproval_plan -H 'Authorization: Bearer APP_USR-830340990212945-052210-933a5b7e1b55d88891e81d5730b53aa2-309910636' -H 'Content-Type: application/json' -d '{\"reason\":\"Plan Pro Restaurant Pix\",\"auto_recurring\":{\"frequency\":1,\"frequency_type\":\"months\",\"transaction_amount\":149900,\"currency_id\":\"COP\"},\"back_url\":\"https://restaurantes-saas.vercel.app/gerencia\",\"status\":\"active\"}')",
+      "Bash(npx tsc *)",
+      "Bash(cmd /c \"npx tsc --noEmit 2>&1\")",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(cd /mnt/c/Users/USUARIO/Downloads/software-mirella && node_modules/.bin/tsc --noEmit 2>&1 | head -80)",
+      "Bash(dir \"C:\\\\Users\\\\USUARIO\\\\Documents\\\\COPIAS SOFTWARE RESTAURANTES\\\\21 MAYO 10 PM\" /s /b)",
+      "Bash(find \"C:\\\\Users\\\\USUARIO\\\\Documents\\\\COPIAS SOFTWARE RESTAURANTES\" -name \"*.sql\" 2>/dev/null | head -20)",
+      "Bash(git checkout *)"
     ]
   }
 }

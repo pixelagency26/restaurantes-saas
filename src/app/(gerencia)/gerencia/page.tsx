@@ -1761,20 +1761,27 @@ export default function GerenciaPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <div className="bg-gray-950 border-b border-gray-800 px-4 py-3.5 flex items-center justify-between sticky top-0 z-40">
+    <div className="min-h-screen bg-[#FAFAFA]">
+
+      {/* ── HEADER premium light ──────────────────────────────────── */}
+      <div className="bg-white/95 backdrop-blur-sm border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-40 shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
         <div className="flex items-center gap-3">
-          <div className="bg-gradient-to-br from-orange-500 to-orange-700 p-2 rounded-xl shadow-lg shadow-orange-900/30">
+          <div className="bg-gradient-to-br from-[#FF7A00] to-orange-600 p-2 rounded-xl shadow-md shadow-orange-200">
             <BarChart3 size={20} className="text-white" />
           </div>
           <div>
-            <h1 className="font-bold text-white tracking-tight">Panel Gerencia</h1>
-            <p className="text-[11px] text-gray-500 capitalize">{new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+            <h1 className="font-bold text-gray-900 tracking-tight text-[15px]">Panel Gerencia</h1>
+            <p className="text-[11px] text-gray-400 capitalize leading-none mt-0.5">
+              {new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className={`px-3 py-1 rounded-full text-xs font-bold border ${turnoActivo ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-red-500/15 text-red-400 border-red-500/30'}`}>
+          <div className={`px-3 py-1.5 rounded-full text-xs font-bold border ${
+            turnoActivo
+              ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+              : 'bg-red-50 text-red-500 border-red-200'
+          }`}>
             {turnoActivo ? '● Turno abierto' : '○ Sin turno'}
           </div>
           <button onClick={() => {
@@ -1785,14 +1792,14 @@ export default function GerenciaPage() {
               })
               cargarFacturacion()
             }}
-            className="w-9 h-9 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl flex items-center justify-center transition-colors">
-            <Settings size={18} className="text-gray-300" />
+            className="w-9 h-9 bg-gray-50 hover:bg-orange-50 border border-gray-200 hover:border-orange-200 rounded-xl flex items-center justify-center transition-all group">
+            <Settings size={17} className="text-gray-400 group-hover:text-orange-500 transition-colors" />
           </button>
         </div>
       </div>
 
-      {/* Navegación */}
-      <div className="flex gap-1 px-3 py-2 bg-gray-950 border-b border-gray-800 overflow-x-auto scrollbar-none">
+      {/* ── NAVEGACIÓN light ─────────────────────────────────────── */}
+      <div className="flex gap-1 px-3 py-2.5 bg-white border-b border-gray-100 overflow-x-auto scrollbar-none shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
         {nav.map(n => {
           const bloqueado = !puedeAcceder(n.planReq)
           return (
@@ -1801,14 +1808,14 @@ export default function GerenciaPage() {
                 if (bloqueado) { abrirUpgrade(); toast(`🔒 Plan ${n.planReq === 'pro' ? 'Pro' : 'Profesional'} requerido`, { icon: '⬆️' }); return }
                 setSeccion(n.id as Seccion)
               }}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all
                 ${seccion === n.id && !bloqueado
-                  ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/40'
+                  ? 'bg-[#FF7A00] text-white shadow-md shadow-orange-200'
                   : bloqueado
-                  ? 'text-gray-600 cursor-default'
-                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}>
+                  ? 'text-gray-300 cursor-default'
+                  : 'text-gray-500 hover:bg-orange-50 hover:text-orange-600'}`}>
               {n.icon} {n.label}
-              {bloqueado && <Lock size={12} className="text-gray-600 ml-0.5" />}
+              {bloqueado && <Lock size={12} className="text-gray-300 ml-0.5" />}
             </button>
           )
         })}
@@ -1819,16 +1826,51 @@ export default function GerenciaPage() {
         {/* ══ MESAS ══════════════════════════════════════════════ */}
         {seccion === 'mesas' && (
           <div>
-            {/* Header: leyenda + botón gestionar */}
-            <div className="flex items-center justify-between mb-4 gap-2">
+
+            {/* ── Notificaciones domi listo (top, llamativas) ── */}
+            {notifsListoDomi.length > 0 && (
+              <div className="mb-4 space-y-2">
+                {notifsListoDomi.map(n => (
+                  <div key={n.id} className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 flex items-center justify-between gap-3 shadow-sm shadow-emerald-100">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 bg-emerald-100 rounded-xl flex items-center justify-center text-lg shrink-0">🛵</div>
+                      <div>
+                        <p className="text-emerald-700 font-black text-sm">¡Domi listo! — {n.clienteNombre}</p>
+                        <p className="text-emerald-500 text-xs">Cocina terminó. El domiciliario puede recoger.</p>
+                      </div>
+                    </div>
+                    <button onClick={() => setNotifsListoDomi(prev => prev.filter(x => x.id !== n.id))}
+                      className="text-emerald-400 hover:text-emerald-600 shrink-0 transition-colors">
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── Barra de acciones ── */}
+            <div className="flex items-center justify-between mb-5 gap-2">
               {!modoGestionMesas ? (
-                <div className="flex gap-3 text-xs flex-wrap">
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-gray-300 inline-block" /><span className="text-gray-500">Libre</span></span>
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-orange-500 inline-block" /><span className="text-gray-600">Ocupada</span></span>
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-400 inline-block" /><span className="text-gray-600">Cobrando</span></span>
+                /* Leyenda de estados */
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-gray-200 ring-1 ring-gray-300 inline-block" />
+                    <span className="text-xs text-gray-400 font-medium">Libre</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#FF7A00] inline-block" />
+                    <span className="text-xs text-gray-500 font-medium">Ocupada</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />
+                    <span className="text-xs text-gray-500 font-medium">Cobrando</span>
+                  </div>
                 </div>
               ) : (
-                <p className="text-sm font-bold text-orange-500">Modo gestión de mesas</p>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+                  <p className="text-sm font-bold text-orange-600">Modo gestión</p>
+                </div>
               )}
               <div className="flex gap-2 shrink-0">
                 <button onClick={() => {
@@ -1838,15 +1880,19 @@ export default function GerenciaPage() {
                   setNuevoOrdenCategoria('todas')
                   setNuevoOrdenDomi({ nombre: '', telefono: '', direccion: '' })
                 }}
-                  className="text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 bg-orange-500 text-white hover:bg-orange-600 shadow-lg shadow-orange-900/30 transition-all">
+                  className="text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 bg-[#FF7A00] text-white hover:bg-orange-600 shadow-md shadow-orange-200 transition-all">
                   <Plus size={13} /> Pedido
                 </button>
                 <button onClick={() => setModalQRDomi(true)}
-                  className="text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 bg-orange-500/90 text-white hover:bg-orange-500 shadow-lg shadow-orange-900/30 transition-all">
+                  className="text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 bg-white border border-gray-200 text-gray-600 hover:border-orange-300 hover:text-orange-600 hover:bg-orange-50 shadow-sm transition-all">
                   🌐 Mi Página
                 </button>
                 <button onClick={() => setModoGestionMesas(g => !g)}
-                  className={`text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all ${modoGestionMesas ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'}`}>
+                  className={`text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all border ${
+                    modoGestionMesas
+                      ? 'bg-orange-50 text-orange-600 border-orange-200 shadow-sm'
+                      : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 shadow-sm'
+                  }`}>
                   <Settings size={13} /> {modoGestionMesas ? 'Salir' : 'Gestionar'}
                 </button>
               </div>
@@ -1856,23 +1902,23 @@ export default function GerenciaPage() {
               /* ── MODO GESTIÓN ── */
               <div className="space-y-4">
                 <button onClick={() => { setModalNuevaZona(true); setNuevaZonaNombre(''); setNuevaMesaNumero('') }}
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-orange-900/30 transition-all">
+                  className="w-full bg-[#FF7A00] hover:bg-orange-600 text-white font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-orange-200 transition-all active:scale-[0.98]">
                   <Plus size={18} /> Nueva zona
                 </button>
                 {zonasLista.length === 0 && (
-                  <p className="text-center text-gray-400 text-sm py-8">No hay zonas. Crea la primera.</p>
+                  <div className="text-center py-12 text-gray-400 text-sm">No hay zonas. Crea la primera.</div>
                 )}
                 {zonasLista.map(zona => (
-                  <div key={zona} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
+                  <div key={zona} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
                     <div className="flex items-center justify-between mb-3 gap-2">
-                      <span className="font-bold text-gray-900 text-base">{zona}</span>
+                      <span className="font-bold text-gray-800 text-base">{zona}</span>
                       <div className="flex gap-2 shrink-0">
                         <button onClick={() => { setModalRenombrarZona(zona); setRenombrarZonaValor(zona) }}
-                          className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1.5 rounded-lg flex items-center gap-1 font-medium border border-gray-200 transition-all">
+                          className="text-xs bg-gray-50 hover:bg-gray-100 text-gray-500 px-2.5 py-1.5 rounded-lg flex items-center gap-1 font-medium border border-gray-200 transition-all">
                           <Pencil size={12} /> Renombrar
                         </button>
                         <button onClick={() => { setModalAgregarMesa(zona); setNuevaMesaNumero('') }}
-                          className="text-xs bg-orange-50 hover:bg-orange-100 text-orange-600 px-2 py-1.5 rounded-lg flex items-center gap-1 font-medium border border-orange-200 transition-all">
+                          className="text-xs bg-orange-50 hover:bg-orange-100 text-orange-600 px-2.5 py-1.5 rounded-lg flex items-center gap-1 font-medium border border-orange-200 transition-all">
                           <Plus size={12} /> Mesa
                         </button>
                       </div>
@@ -1882,24 +1928,22 @@ export default function GerenciaPage() {
                         .filter(m => (m.zona || 'Sin zona') === zona)
                         .sort((a, b) => a.numero - b.numero)
                         .map(m => (
-                          <div key={m.id} className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
-                            <span className="font-bold text-gray-800 text-sm">Mesa {m.numero}</span>
-                            <button onClick={() => setModalQR(m)} className="text-gray-400 hover:text-orange-500 ml-0.5 transition-colors" title="Ver QR">
-                              <span className="text-xs">QR</span>
-                            </button>
+                          <div key={m.id} className="flex items-center gap-1.5 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 shadow-sm">
+                            <span className="font-bold text-gray-700 text-sm">Mesa {m.numero}</span>
+                            <button onClick={() => setModalQR(m)} className="text-gray-300 hover:text-orange-500 ml-1 transition-colors text-xs font-bold" title="Ver QR">QR</button>
                             {m.estado === 'libre' ? (
-                              <button onClick={() => eliminarMesa(m.id)} className="text-red-400 hover:text-red-600 ml-0.5 transition-colors" title="Eliminar">
+                              <button onClick={() => eliminarMesa(m.id)} className="text-red-300 hover:text-red-500 ml-0.5 transition-colors" title="Eliminar">
                                 <X size={14} />
                               </button>
                             ) : (
-                              <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${m.estado === 'ocupada' ? 'bg-orange-100 text-orange-600' : 'bg-yellow-100 text-yellow-700'}`}>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${m.estado === 'ocupada' ? 'bg-orange-100 text-orange-600' : 'bg-amber-100 text-amber-700'}`}>
                                 {m.estado === 'ocupada' ? 'ocupada' : 'cobrando'}
                               </span>
                             )}
                           </div>
                         ))}
                       {mesas.filter(m => (m.zona || 'Sin zona') === zona).length === 0 && (
-                        <p className="text-sm text-gray-400 italic">Sin mesas</p>
+                        <p className="text-sm text-gray-300 italic">Sin mesas</p>
                       )}
                     </div>
                   </div>
@@ -1907,10 +1951,19 @@ export default function GerenciaPage() {
               </div>
             ) : (
               /* ── MODO NORMAL: agrupado por zona ── */
-              <div className="space-y-5">
+              <div className="space-y-6">
                 {zonasLista.map(zona => (
                   <div key={zona}>
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500 mb-2.5">{zona}</h3>
+                    {/* Zona header */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="w-1 h-4 bg-[#FF7A00] rounded-full opacity-60" />
+                      <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-400">{zona}</h3>
+                      <div className="flex-1 h-px bg-gray-100" />
+                      <span className="text-[11px] text-gray-300 font-medium">
+                        {mesas.filter(m => (m.zona || 'Sin zona') === zona && m.estado !== 'libre').length} /
+                        {mesas.filter(m => (m.zona || 'Sin zona') === zona).length}
+                      </span>
+                    </div>
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                       {mesas
                         .filter(m => (m.zona || 'Sin zona') === zona)
@@ -1918,22 +1971,28 @@ export default function GerenciaPage() {
                         .map(mesa => (
                           <div key={mesa.id} className="relative group">
                             <button onClick={() => abrirDetalleMesa(mesa)}
-                              className={`w-full rounded-2xl p-4 text-center font-bold transition-all border-2 ${
+                              className={`w-full rounded-2xl p-4 text-center font-bold transition-all duration-200 ${
                                 mesa.estado === 'libre'
-                                  ? 'bg-white border-gray-200 text-gray-400 hover:border-orange-300 hover:shadow-md shadow-sm'
+                                  ? 'bg-white border border-gray-100 shadow-sm text-gray-300 hover:border-orange-200 hover:shadow-[0_4px_16px_rgba(255,122,0,0.12)] hover:bg-orange-50/40 active:scale-[0.97]'
                                   : mesa.estado === 'ocupada'
-                                  ? 'bg-orange-500 border-orange-400 text-white shadow-lg shadow-orange-200 hover:bg-orange-600'
-                                  : 'bg-yellow-400 border-yellow-300 text-yellow-900 shadow-lg shadow-yellow-100 hover:bg-yellow-500'
+                                  ? 'bg-gradient-to-br from-[#FF7A00] to-orange-600 text-white shadow-lg shadow-orange-200 hover:shadow-xl hover:shadow-orange-200 active:scale-[0.97] border border-orange-400/20'
+                                  : 'bg-gradient-to-br from-amber-400 to-amber-500 text-white shadow-lg shadow-amber-200 hover:shadow-xl hover:shadow-amber-200 active:scale-[0.97] border border-amber-300/20'
                               }`}>
-                              <p className="text-3xl font-black">{mesa.numero}</p>
-                              <p className="text-xs mt-1 capitalize opacity-80">{mesa.estado.replace('_', ' ')}</p>
+                              <p className={`text-3xl font-black leading-none ${mesa.estado === 'libre' ? 'text-gray-300' : 'text-white'}`}>
+                                {mesa.numero}
+                              </p>
+                              <p className={`text-[10px] mt-1.5 font-bold uppercase tracking-wide ${
+                                mesa.estado === 'libre' ? 'text-gray-300' : 'text-white/80'
+                              }`}>
+                                {mesa.estado === 'libre' ? 'Libre' : mesa.estado === 'ocupada' ? 'Ocupada' : 'Cobrando'}
+                              </p>
                             </button>
-                            {/* QR icon — visible on hover */}
+                            {/* QR badge — visible on hover */}
                             <button
                               onClick={e => { e.stopPropagation(); setModalQR(mesa) }}
                               title="Ver QR de mesa"
-                              className="absolute top-1.5 right-1.5 w-6 h-6 bg-white border border-gray-200 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm hover:bg-orange-50 hover:border-orange-300">
-                              <span className="text-[10px] font-black text-gray-400">QR</span>
+                              className="absolute top-1.5 right-1.5 w-6 h-6 bg-white/90 border border-gray-200 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm hover:bg-orange-50 hover:border-orange-200 backdrop-blur-sm">
+                              <span className="text-[9px] font-black text-gray-400">QR</span>
                             </button>
                           </div>
                         ))}
@@ -1941,34 +2000,17 @@ export default function GerenciaPage() {
                   </div>
                 ))}
                 {mesas.length === 0 && (
-                  <div className="text-center py-12">
-                    <p className="text-gray-400 text-sm mb-3">No hay mesas configuradas.</p>
-                    <button onClick={() => setModoGestionMesas(true)} className="text-orange-400 font-bold text-sm hover:text-orange-300 transition-colors">
+                  <div className="text-center py-16 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                    <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <MapPin size={28} className="text-gray-300" />
+                    </div>
+                    <p className="text-gray-400 text-sm font-medium mb-4">No hay mesas configuradas</p>
+                    <button onClick={() => setModoGestionMesas(true)}
+                      className="text-sm font-bold text-orange-500 hover:text-orange-600 transition-colors">
                       Crear primera zona →
                     </button>
                   </div>
                 )}
-              </div>
-            )}
-
-            {/* Notificaciones domi listo */}
-            {notifsListoDomi.length > 0 && (
-              <div className="mt-4 space-y-2">
-                {notifsListoDomi.map(n => (
-                  <div key={n.id} className="bg-green-500/15 border-2 border-green-500/50 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">🛵</span>
-                      <div>
-                        <p className="text-green-300 font-black text-sm">¡Domi listo! — {n.clienteNombre}</p>
-                        <p className="text-green-400/70 text-xs">Cocina terminó. El domiciliario puede recoger.</p>
-                      </div>
-                    </div>
-                    <button onClick={() => setNotifsListoDomi(prev => prev.filter(x => x.id !== n.id))}
-                      className="text-green-400/50 hover:text-green-300 shrink-0">
-                      <X size={16} />
-                    </button>
-                  </div>
-                ))}
               </div>
             )}
 
@@ -3280,35 +3322,35 @@ export default function GerenciaPage() {
 
       {/* ══ MODAL DETALLE MESA ══════════════════════════════════════ */}
       {mesaDetalle && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
-          <div className="bg-[#0f0f1e] border border-white/10 w-full md:max-w-lg md:rounded-3xl rounded-t-3xl max-h-[92vh] flex flex-col overflow-hidden fade-in">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-end md:items-center justify-center p-0 md:p-4">
+          <div className="bg-white border border-gray-100 w-full md:max-w-lg md:rounded-3xl rounded-t-3xl max-h-[92vh] flex flex-col overflow-hidden fade-in shadow-2xl shadow-black/10">
 
             {/* ── Paso: captura de cliente (aparece después de pago) ── */}
             {vistaModal === 'cliente' && (
               <>
-                <div className="flex items-center justify-between px-5 py-4 border-b border-white/8">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                   <div>
-                    <h2 className="text-xl font-black text-white/90">Datos del cliente</h2>
-                    <p className="text-xs text-green-600 font-medium">✅ Mesa pagada y liberada</p>
+                    <h2 className="text-xl font-black text-gray-900">Datos del cliente</h2>
+                    <p className="text-xs text-emerald-600 font-medium">✅ Mesa pagada y liberada</p>
                   </div>
-                  <button onClick={saltarCliente} className="w-9 h-9 rounded-full bg-white/8 flex items-center justify-center"><X size={18} /></button>
+                  <button onClick={saltarCliente} className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"><X size={18} className="text-gray-500" /></button>
                 </div>
                 <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
-                  <p className="text-sm text-white/50">Opcional — para la base de datos de clientes y marketing</p>
+                  <p className="text-sm text-gray-400">Opcional — para la base de datos de clientes y marketing</p>
                   <div className="flex gap-2">
                     <input type="text" value={cedulaCliente} onChange={e => setCedulaCliente(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && buscarCliente()}
                       placeholder="Cédula del cliente"
-                      className="flex-1 bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+                      className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/40 focus:border-orange-300" />
                     <button onClick={buscarCliente} disabled={buscandoCl || !cedulaCliente.trim()}
-                      className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-white px-4 py-2.5 rounded-xl text-sm font-bold">
+                      className="bg-[#FF7A00] hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors">
                       {buscandoCl ? '...' : 'Buscar'}
                     </button>
                   </div>
                   {cedulaCliente && !buscandoCl && (
-                    <div className={`rounded-xl p-3 text-sm ${clienteEncontrado ? 'bg-green-50 border border-green-200' : 'bg-white/4 border border-white/12'}`}>
+                    <div className={`rounded-xl p-3 text-sm ${clienteEncontrado ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50 border border-gray-200'}`}>
                       {clienteEncontrado
-                        ? <p className="text-green-700 font-semibold">✓ Cliente frecuente: {clienteEncontrado.nombre}</p>
+                        ? <p className="text-emerald-700 font-semibold">✓ Cliente frecuente: {clienteEncontrado.nombre}</p>
                         : <p className="text-gray-500">Cliente nuevo — completa los datos:</p>
                       }
                     </div>
@@ -3317,19 +3359,19 @@ export default function GerenciaPage() {
                     <div className="space-y-2">
                       <input type="text" placeholder="Nombre completo *" value={clienteForm.nombre}
                         onChange={e => setClienteForm(p => ({ ...p, nombre: e.target.value }))}
-                        className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/40 focus:border-orange-300" />
                       <input type="tel" placeholder="Teléfono" value={clienteForm.telefono}
                         onChange={e => setClienteForm(p => ({ ...p, telefono: e.target.value }))}
-                        className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/40 focus:border-orange-300" />
                       <div>
-                        <label className="text-xs text-gray-400 block mb-1">🎂 Cumpleaños (opcional)</label>
+                        <label className="text-xs text-gray-500 block mb-1">🎂 Cumpleaños (opcional)</label>
                         <div className="grid grid-cols-3 gap-2">
                           <select value={clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-')[2] : ''}
                             onChange={e => {
                               const parts = clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-') : ['2000', '01', '01']
                               setClienteForm(p => ({ ...p, fecha_cumpleanos: `${parts[0]}-${parts[1]}-${e.target.value.padStart(2,'0')}` }))
                             }}
-                            className="border border-white/12 rounded-xl px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40">
+                            className="bg-gray-50 border border-gray-200 rounded-xl px-2 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400/40">
                             <option value="">Día</option>
                             {Array.from({length:31},(_,i)=>i+1).map(d=><option key={d} value={String(d).padStart(2,'0')}>{d}</option>)}
                           </select>
@@ -3338,7 +3380,7 @@ export default function GerenciaPage() {
                               const parts = clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-') : ['2000', '01', '01']
                               setClienteForm(p => ({ ...p, fecha_cumpleanos: `${parts[0]}-${e.target.value}-${parts[2]}` }))
                             }}
-                            className="border border-white/12 rounded-xl px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40">
+                            className="bg-gray-50 border border-gray-200 rounded-xl px-2 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400/40">
                             <option value="">Mes</option>
                             {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((m,i)=><option key={m} value={String(i+1).padStart(2,'0')}>{m}</option>)}
                           </select>
@@ -3347,7 +3389,7 @@ export default function GerenciaPage() {
                               const parts = clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-') : ['2000', '01', '01']
                               setClienteForm(p => ({ ...p, fecha_cumpleanos: `${e.target.value}-${parts[1]}-${parts[2]}` }))
                             }}
-                            className="border border-white/12 rounded-xl px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40">
+                            className="bg-gray-50 border border-gray-200 rounded-xl px-2 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400/40">
                             <option value="">Año</option>
                             {Array.from({length:80},(_,i)=>new Date().getFullYear()-i).map(y=><option key={y} value={y}>{y}</option>)}
                           </select>
@@ -3356,14 +3398,14 @@ export default function GerenciaPage() {
                     </div>
                   )}
                 </div>
-                <div className="px-5 py-4 border-t space-y-2">
+                <div className="px-5 py-4 border-t border-gray-100 space-y-2">
                   {cedulaCliente && (clienteEncontrado || clienteForm.nombre) && (
                     <button onClick={guardarCliente} disabled={guardandoCl}
-                      className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded-xl">
+                      className="w-full bg-[#FF7A00] hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold py-3 rounded-xl transition-colors">
                       {guardandoCl ? 'Guardando...' : clienteEncontrado ? 'Registrar en este pedido' : 'Guardar cliente'}
                     </button>
                   )}
-                  <button onClick={saltarCliente} className="w-full bg-white/8 hover:bg-white/14 text-gray-600 font-medium py-3 rounded-xl text-sm">
+                  <button onClick={saltarCliente} className="w-full bg-gray-50 hover:bg-gray-100 text-gray-500 font-medium py-3 rounded-xl text-sm transition-colors">
                     Saltar — cerrar sin guardar
                   </button>
                 </div>
@@ -3372,35 +3414,35 @@ export default function GerenciaPage() {
 
             {/* ── Paso: detalle + pago ── */}
             {vistaModal === 'pago' && (<>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/8">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
                 {mesaDetalle.isDomi ? (
                   <div>
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="bg-orange-500 text-white text-xs font-black px-2 py-0.5 rounded-full">🛵 DOMI</span>
-                      <span className="text-lg font-black text-white/90">{mesaDetalle.pedido.cliente_nombre || 'Sin nombre'}</span>
+                      <span className="bg-[#FF7A00] text-white text-xs font-black px-2.5 py-1 rounded-full shadow-sm shadow-orange-200">🛵 DOMI</span>
+                      <span className="text-lg font-black text-gray-900">{mesaDetalle.pedido.cliente_nombre || 'Sin nombre'}</span>
                     </div>
-                    {mesaDetalle.pedido.cliente_cedula && <p className="text-xs text-white/35">🪪 C.C. {mesaDetalle.pedido.cliente_cedula}</p>}
-                    {mesaDetalle.pedido.cliente_telefono && <p className="text-xs text-white/35">📞 {mesaDetalle.pedido.cliente_telefono}</p>}
-                    {mesaDetalle.pedido.cliente_direccion && <p className="text-xs text-white/35">📍 {mesaDetalle.pedido.cliente_direccion}</p>}
+                    {mesaDetalle.pedido.cliente_cedula && <p className="text-xs text-gray-400">🪪 C.C. {mesaDetalle.pedido.cliente_cedula}</p>}
+                    {mesaDetalle.pedido.cliente_telefono && <p className="text-xs text-gray-400">📞 {mesaDetalle.pedido.cliente_telefono}</p>}
+                    {mesaDetalle.pedido.cliente_direccion && <p className="text-xs text-gray-400">📍 {mesaDetalle.pedido.cliente_direccion}</p>}
                     {mesaDetalle.pedido.metodo_pago_cliente && (
-                      <p className="text-xs font-bold mt-1">
-                        💳 Pago: <span className="capitalize text-orange-400">{mesaDetalle.pedido.metodo_pago_cliente}</span>
+                      <p className="text-xs font-bold mt-1 text-gray-500">
+                        💳 Pago: <span className="capitalize text-[#FF7A00]">{mesaDetalle.pedido.metodo_pago_cliente}</span>
                       </p>
                     )}
                   </div>
                 ) : (
                   <div>
-                    <h2 className="text-xl font-black text-white/90">Mesa {mesaDetalle.mesa?.numero}</h2>
+                    <h2 className="text-xl font-black text-gray-900">Mesa {mesaDetalle.mesa?.numero}</h2>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       {mesaDetalle.pedido.mesera ? (
-                        <span className="inline-flex items-center gap-1 bg-orange-500/20 text-orange-300 text-xs font-bold px-2.5 py-1 rounded-full">
+                        <span className="inline-flex items-center gap-1 bg-orange-50 text-[#FF7A00] text-xs font-bold px-2.5 py-1 rounded-full border border-orange-200">
                           👩‍🍳 {mesaDetalle.pedido.mesera.nombre}
                         </span>
                       ) : (
-                        <span className="text-xs text-white/35">📱 Pedido QR</span>
+                        <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full border border-gray-200">📱 Pedido QR</span>
                       )}
-                      <span className="text-xs text-white/35">{new Date(mesaDetalle.pedido.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span className="text-xs text-gray-400">{new Date(mesaDetalle.pedido.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                   </div>
                 )}
@@ -3412,31 +3454,31 @@ export default function GerenciaPage() {
                 {!mesaDetalle.isDomi && (
                   <button
                     onClick={() => { setModoEdicionPedido(v => !v); setItemReemplazando(null) }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${modoEdicionPedido ? 'bg-orange-500 text-white' : 'bg-orange-500/20 text-orange-300 hover:bg-orange-200'}`}>
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${modoEdicionPedido ? 'bg-[#FF7A00] text-white shadow-sm shadow-orange-200' : 'bg-orange-50 text-[#FF7A00] border border-orange-200 hover:bg-orange-100'}`}>
                     {modoEdicionPedido ? '✓ Listo' : '✏️ Editar'}
                   </button>
                 )}
-                <button onClick={() => { setMesaDetalle(null); setVistaModal('pago'); setModoEdicionPedido(false); setItemReemplazando(null) }} className="w-9 h-9 rounded-full bg-white/8 flex items-center justify-center"><X size={18} /></button>
+                <button onClick={() => { setMesaDetalle(null); setVistaModal('pago'); setModoEdicionPedido(false); setItemReemplazando(null) }} className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"><X size={18} className="text-gray-500" /></button>
               </div>
             </div>
             <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
 
               {/* ── Comprobante de transferencia (solo domi) ── */}
               {mesaDetalle.isDomi && mesaDetalle.pedido.comprobante_url && mesaDetalle.pagos.length === 0 && (
-                <div className="bg-gray-800/60 border-2 border-orange-500/30 rounded-2xl p-4 space-y-3">
-                  <p className="text-sm font-black text-white">📎 Comprobante de pago del cliente</p>
+                <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl p-4 space-y-3">
+                  <p className="text-sm font-black text-gray-800">📎 Comprobante de pago del cliente</p>
                   <a href={mesaDetalle.pedido.comprobante_url} target="_blank" rel="noopener noreferrer">
                     <img
                       src={mesaDetalle.pedido.comprobante_url}
                       alt="Comprobante"
-                      className="w-full rounded-xl object-cover max-h-64 border border-gray-700 hover:opacity-90 transition-opacity"
+                      className="w-full rounded-xl object-cover max-h-64 border border-orange-200 hover:opacity-90 transition-opacity"
                     />
                   </a>
-                  <p className="text-xs text-gray-400">Toca la imagen para verla en tamaño completo</p>
+                  <p className="text-xs text-gray-500">Toca la imagen para verla en tamaño completo</p>
                   <button
                     onClick={confirmarPagoTransferencia}
                     disabled={agregandoPago}
-                    className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2">
+                    className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors">
                     <CheckCircle size={18} />
                     {agregandoPago ? 'Confirmando...' : `✅ Confirmar pago (${mesaDetalle.pedido.metodo_pago_cliente || 'transferencia'})`}
                   </button>
@@ -3460,13 +3502,13 @@ export default function GerenciaPage() {
                           <button
                             onClick={() => cancelarItem(item.id!)}
                             disabled={guardandoEdicion}
-                            className="flex items-center gap-1 text-xs bg-red-100 hover:bg-red-200 text-red-600 font-bold px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50">
+                            className="flex items-center gap-1 text-xs bg-red-50 hover:bg-red-100 text-red-600 font-bold px-2.5 py-1 rounded-lg border border-red-200 transition-colors disabled:opacity-50">
                             <X size={11} /> Cancelar
                           </button>
                           <button
                             onClick={() => { setItemReemplazando({ id: item.id!, nombre: item.nombre }); setCategoriaReemplazo('todas') }}
                             disabled={guardandoEdicion}
-                            className="flex items-center gap-1 text-xs bg-gray-700 hover:bg-gray-600 text-white font-bold px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50">
+                            className="flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-2.5 py-1 rounded-lg border border-gray-200 transition-colors disabled:opacity-50">
                             🔄 Reemplazar
                           </button>
                         </div>
@@ -3545,11 +3587,11 @@ export default function GerenciaPage() {
                       return (
                         <button key={m.id}
                           onClick={() => { if (soloEfectivo) { abrirUpgrade(); toast('Solo efectivo en Plan Básico', { icon: '🔒' }); return } setMetodoPago(m.id); setPagaCon('') }}
-                          className={`py-2 rounded-xl text-xs font-bold flex flex-col items-center gap-1 border-2 transition-all relative
-                            ${metodoPago === m.id && !soloEfectivo ? `${m.color} text-white border-transparent` : 'bg-white border-white/12 text-gray-600'}
+                          className={`py-2.5 rounded-xl text-xs font-bold flex flex-col items-center gap-1 border-2 transition-all relative
+                            ${metodoPago === m.id && !soloEfectivo ? `${m.color} text-white border-transparent shadow-md` : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-300'}
                             ${soloEfectivo ? 'opacity-35' : ''}`}>
                           <span className="text-lg">{m.emoji}</span>{m.label}
-                          {soloEfectivo && <Lock size={10} className="absolute top-1 right-1 text-white/35" />}
+                          {soloEfectivo && <Lock size={10} className="absolute top-1 right-1 text-gray-400" />}
                         </button>
                       )
                     })}
@@ -3557,11 +3599,11 @@ export default function GerenciaPage() {
                   <div className={`flex gap-2 mb-2 transition-opacity ${!pedidoListoPagar ? 'opacity-40 pointer-events-none' : ''}`}>
                     <div className="flex-1">
                       <label className="text-xs text-gray-500 block mb-1">Monto</label>
-                      <input type="number" value={montoPago} onChange={e => setMontoPago(e.target.value)} placeholder={`$${saldoPendiente.toLocaleString('es-CO')}`} className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+                      <input type="number" value={montoPago} onChange={e => setMontoPago(e.target.value)} placeholder={`$${saldoPendiente.toLocaleString('es-CO')}`} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-gray-900 placeholder-gray-400 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-400/40 focus:border-orange-300" />
                     </div>
                     <div className="w-28">
                       <label className="text-xs text-gray-500 block mb-1">Propina</label>
-                      <input type="number" value={propinaPago} onChange={e => setPropinaPago(e.target.value)} placeholder="$0" className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+                      <input type="number" value={propinaPago} onChange={e => setPropinaPago(e.target.value)} placeholder="$0" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/40 focus:border-orange-300" />
                     </div>
                   </div>
                   {/* ── Paga con / Cambio (solo efectivo) ── */}
@@ -3569,20 +3611,20 @@ export default function GerenciaPage() {
                     <div className="mb-3">
                       <div className="flex gap-2">
                         <div className="flex-1">
-                          <label className="text-xs text-white/50 block mb-1">Paga con</label>
+                          <label className="text-xs text-gray-500 block mb-1">Paga con</label>
                           <input
                             type="number"
                             value={pagaCon}
                             onChange={e => setPagaCon(e.target.value)}
                             placeholder={`$${saldoPendiente.toLocaleString('es-CO')}`}
-                            className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-gray-900 placeholder-gray-400 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-400/40 focus:border-orange-300"
                           />
                         </div>
                         {pagaCon && parseFloat(pagaCon) >= saldoPendiente && (
                           <div className="w-32 flex flex-col justify-end">
-                            <label className="text-xs text-emerald-400 block mb-1">Cambio</label>
-                            <div className="bg-emerald-500/15 border border-emerald-500/30 rounded-xl px-3 py-2 text-center">
-                              <span className="text-emerald-400 font-black text-sm">
+                            <label className="text-xs text-emerald-600 block mb-1">Cambio</label>
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-center">
+                              <span className="text-emerald-700 font-black text-sm">
                                 ${(parseFloat(pagaCon) - saldoPendiente).toLocaleString('es-CO')}
                               </span>
                             </div>
@@ -3590,9 +3632,9 @@ export default function GerenciaPage() {
                         )}
                         {pagaCon && parseFloat(pagaCon) < saldoPendiente && (
                           <div className="w-32 flex flex-col justify-end">
-                            <label className="text-xs text-red-400 block mb-1">Faltan</label>
-                            <div className="bg-red-500/15 border border-red-500/30 rounded-xl px-3 py-2 text-center">
-                              <span className="text-red-400 font-black text-sm">
+                            <label className="text-xs text-red-500 block mb-1">Faltan</label>
+                            <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-center">
+                              <span className="text-red-600 font-black text-sm">
                                 ${(saldoPendiente - parseFloat(pagaCon)).toLocaleString('es-CO')}
                               </span>
                             </div>
@@ -3602,7 +3644,7 @@ export default function GerenciaPage() {
                     </div>
                   )}
                   {pedidoListoPagar && (
-                    <button onClick={() => setMontoPago(String(saldoPendiente))} className="text-xs text-orange-400 font-medium mb-3 hover:underline">→ Usar saldo exacto (${saldoPendiente.toLocaleString('es-CO')})</button>
+                    <button onClick={() => setMontoPago(String(saldoPendiente))} className="text-xs text-[#FF7A00] font-medium mb-3 hover:underline">→ Usar saldo exacto (${saldoPendiente.toLocaleString('es-CO')})</button>
                   )}
                   <button
                     onClick={agregarPago}
@@ -3610,8 +3652,8 @@ export default function GerenciaPage() {
                     title={!pedidoListoPagar ? 'Hay platos que aún no han salido de cocina' : ''}
                     className={`w-full font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
                       !pedidoListoPagar
-                        ? 'bg-white/14 text-gray-400 cursor-not-allowed'
-                        : 'bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-white'
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-[#FF7A00] hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white shadow-md shadow-orange-200'
                     }`}>
                     <Banknote size={18} />
                     {!pedidoListoPagar ? '🔒 Pago bloqueado — pedido en curso' : agregandoPago ? 'Registrando...' : 'Agregar pago'}
@@ -3620,21 +3662,21 @@ export default function GerenciaPage() {
               )}
             </div>
             {saldoPendiente <= 0 && (
-              <div className="px-5 py-4 border-t">
+              <div className="px-5 py-4 border-t border-gray-100">
                 <button
                   onClick={pedidoListoPagar ? cerrarMesa : undefined}
                   disabled={!pedidoListoPagar}
                   title={!pedidoListoPagar ? 'Hay platos que aún no han salido de cocina' : ''}
                   className={`w-full font-bold py-4 rounded-2xl flex items-center justify-center gap-2 text-lg transition-all ${
                     pedidoListoPagar
-                      ? 'bg-green-500 hover:bg-green-600 text-white'
-                      : 'bg-white/14 text-gray-400 cursor-not-allowed'
+                      ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-200'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   }`}>
                   <CheckCircle size={22} />
                   {pedidoListoPagar ? 'Cerrar mesa' : '🔒 Esperando cocina…'}
                 </button>
                 {!pedidoListoPagar && (
-                  <p className="text-center text-xs text-orange-500 mt-2 font-medium">
+                  <p className="text-center text-xs text-[#FF7A00] mt-2 font-medium">
                     ⏳ {itemsSinListar.length} plato{itemsSinListar.length !== 1 ? 's' : ''} aún en preparación
                   </p>
                 )}
@@ -3647,17 +3689,17 @@ export default function GerenciaPage() {
 
       {/* ══ MODAL NUEVO / EDITAR MENÚ DE TURNO ══════════════════════ */}
       {modalNuevoMenu && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center p-0 md:p-4">
-          <div className="bg-[#0f0f1e] border border-white/10 w-full md:max-w-lg md:rounded-3xl rounded-t-3xl max-h-[92vh] flex flex-col overflow-hidden fade-in">
-            <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-end justify-center p-0 md:p-4">
+          <div className="bg-white border border-gray-100 w-full md:max-w-lg md:rounded-3xl rounded-t-3xl max-h-[92vh] flex flex-col overflow-hidden fade-in shadow-2xl shadow-black/10">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
               <div>
-                <h2 className="text-lg font-black text-white/90">
+                <h2 className="text-lg font-black text-gray-900">
                   {modalNuevoMenu === 'editar' ? '✏️ Editar menú' : '📋 Nuevo menú de turno'}
                 </h2>
                 <p className="text-xs text-gray-400 mt-0.5">Define cantidades estándar por plato</p>
               </div>
               <button onClick={() => { setModalNuevoMenu(null); setEditandoMenuId(null); setMenuForm({ nombre: '', items: {} }) }}
-                className="w-9 h-9 rounded-full bg-white/8 flex items-center justify-center"><X size={18} /></button>
+                className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"><X size={18} className="text-gray-500" /></button>
             </div>
             <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
               {/* Nombre del menú */}
@@ -3668,7 +3710,7 @@ export default function GerenciaPage() {
                   placeholder="Ej: Entre semana, Fin de semana, Festivo..."
                   value={menuForm.nombre}
                   onChange={e => setMenuForm(prev => ({ ...prev, nombre: e.target.value }))}
-                  className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-gray-900 placeholder-gray-400 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-400/40 focus:border-orange-300"
                 />
               </div>
               {/* Cantidades por plato */}
@@ -3680,26 +3722,26 @@ export default function GerenciaPage() {
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">{cat.nombre}</p>
                     <div className="space-y-2">
                       {platosCategoria.map(p => (
-                        <div key={p.id} className="flex items-center justify-between bg-white/4 rounded-xl px-3 py-2.5 gap-3">
+                        <div key={p.id} className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 gap-3">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-800 truncate">{p.nombre}</p>
-                            <p className="text-xs text-white/35">${p.precio.toLocaleString('es-CO')}</p>
+                            <p className="text-xs text-gray-400">${p.precio.toLocaleString('es-CO')}</p>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <button
                               onClick={() => setMenuForm(prev => ({ ...prev, items: { ...prev.items, [p.id]: Math.max(0, (prev.items[p.id] ?? 0) - 1) } }))}
-                              className="w-7 h-7 bg-white/8 border border-white/15 rounded-full flex items-center justify-center text-white/50 hover:bg-white/14">
+                              className="w-7 h-7 bg-white border border-gray-200 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors">
                               <Minus size={12} />
                             </button>
                             <input
                               type="number" min="0"
                               value={menuForm.items[p.id] ?? 0}
                               onChange={e => setMenuForm(prev => ({ ...prev, items: { ...prev.items, [p.id]: parseInt(e.target.value) || 0 } }))}
-                              className="w-14 border border-white/12 rounded-xl px-2 py-1.5 text-sm font-bold text-center focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
+                              className="w-14 border border-gray-200 rounded-xl px-2 py-1.5 text-sm font-bold text-gray-900 text-center focus:outline-none focus:ring-2 focus:ring-orange-400/40 bg-white"
                             />
                             <button
                               onClick={() => setMenuForm(prev => ({ ...prev, items: { ...prev.items, [p.id]: (prev.items[p.id] ?? 0) + 1 } }))}
-                              className="w-7 h-7 bg-orange-500 text-white rounded-full flex items-center justify-center hover:bg-orange-600">
+                              className="w-7 h-7 bg-[#FF7A00] text-white rounded-full flex items-center justify-center hover:bg-orange-600 transition-colors shadow-sm shadow-orange-200">
                               <Plus size={12} />
                             </button>
                           </div>
@@ -3713,9 +3755,9 @@ export default function GerenciaPage() {
                 <p className="text-center text-gray-400 text-sm py-8">Sin platos activos en la carta</p>
               )}
             </div>
-            <div className="px-5 py-4 border-t shrink-0">
+            <div className="px-5 py-4 border-t border-gray-100 shrink-0">
               <button onClick={guardarMenuTurno} disabled={guardandoMenu}
-                className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white font-bold py-3 rounded-2xl">
+                className="w-full bg-[#FF7A00] hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold py-3 rounded-2xl transition-colors shadow-md shadow-orange-200">
                 {guardandoMenu ? 'Guardando...' : modalNuevoMenu === 'editar' ? '💾 Actualizar menú' : '💾 Guardar menú'}
               </button>
             </div>
@@ -3819,11 +3861,11 @@ export default function GerenciaPage() {
                   {/* Selector de modo */}
                   <div className="flex gap-2">
                     <button onClick={() => { setModoInventario('manual'); setMenuSeleccionadoId(null) }}
-                      className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${modoInventario === 'manual' ? 'bg-green-500 text-white shadow-sm' : 'bg-white/8 text-gray-600 hover:bg-white/14'}`}>
+                      className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${modoInventario === 'manual' ? 'bg-emerald-500 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                       ✏️ Manual
                     </button>
                     <button onClick={() => setModoInventario('menu')}
-                      className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${modoInventario === 'menu' ? 'bg-orange-500 text-white shadow-sm' : 'bg-white/8 text-gray-600 hover:bg-white/14'}`}>
+                      className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${modoInventario === 'menu' ? 'bg-[#FF7A00] text-white shadow-sm shadow-orange-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                       <ClipboardList size={14} /> Desde menú
                     </button>
                   </div>
@@ -3942,28 +3984,28 @@ export default function GerenciaPage() {
             <div className="bg-white rounded-3xl w-full max-w-md fade-in max-h-[92vh] flex flex-col overflow-hidden">
 
               {/* Header */}
-              <div className="flex justify-between items-center px-5 py-4 border-b shrink-0">
+              <div className="flex justify-between items-center px-5 py-4 border-b border-gray-100 shrink-0">
                 <div>
-                  <h3 className="font-bold text-lg text-white/90">Cuadre de caja</h3>
-                  <p className="text-xs text-white/35">Ingresa lo que tienes en cada medio</p>
+                  <h3 className="font-bold text-lg text-gray-900">Cuadre de caja</h3>
+                  <p className="text-xs text-gray-400">Ingresa lo que tienes en cada medio</p>
                 </div>
-                <button onClick={() => setModalCaja(null)} className="w-9 h-9 bg-white/8 rounded-full flex items-center justify-center"><X size={18}/></button>
+                <button onClick={() => setModalCaja(null)} className="w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors"><X size={18} className="text-gray-500"/></button>
               </div>
 
               <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
 
                 {/* Resumen ventas */}
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-white/4 rounded-2xl p-3 text-center">
-                    <p className="text-xs text-gray-500 mb-0.5">Ventas</p>
+                  <div className="bg-gray-50 border border-gray-100 rounded-2xl p-3 text-center">
+                    <p className="text-xs text-gray-400 mb-0.5">Ventas</p>
                     <p className="font-black text-gray-900 text-sm">${stats.ventas.toLocaleString('es-CO')}</p>
                   </div>
-                  <div className="bg-white/4 rounded-2xl p-3 text-center">
-                    <p className="text-xs text-gray-500 mb-0.5">Ingresos extra</p>
-                    <p className="font-black text-green-700 text-sm">+${totalIngresos.toLocaleString('es-CO')}</p>
+                  <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-3 text-center">
+                    <p className="text-xs text-gray-400 mb-0.5">Ingresos extra</p>
+                    <p className="font-black text-emerald-700 text-sm">+${totalIngresos.toLocaleString('es-CO')}</p>
                   </div>
-                  <div className="bg-white/4 rounded-2xl p-3 text-center">
-                    <p className="text-xs text-gray-500 mb-0.5">Egresos</p>
+                  <div className="bg-red-50 border border-red-100 rounded-2xl p-3 text-center">
+                    <p className="text-xs text-gray-400 mb-0.5">Egresos</p>
                     <p className="font-black text-red-600 text-sm">-${totalEgresos.toLocaleString('es-CO')}</p>
                   </div>
                 </div>
@@ -3977,18 +4019,18 @@ export default function GerenciaPage() {
 
                   return (
                     <div key={m.id} className={`rounded-2xl border-2 p-4 space-y-3 transition-all ${
-                      diff === null ? 'bg-white/5 border-white/12' :
-                      diff === 0   ? 'bg-green-500/10 border-green-500/40' :
-                      diff > 0     ? 'bg-orange-500/10 border-orange-500/30' :
-                                     'bg-red-500/10 border-red-500/40'
+                      diff === null ? 'bg-gray-50 border-gray-200' :
+                      diff === 0   ? 'bg-emerald-50 border-emerald-300' :
+                      diff > 0     ? 'bg-orange-50 border-orange-300' :
+                                     'bg-red-50 border-red-300'
                     }`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="text-2xl">{m.emoji}</span>
                           <div>
-                            <p className="font-bold text-white/90">{m.label}</p>
+                            <p className="font-bold text-gray-800">{m.label}</p>
                             {m.id === 'efectivo' && (
-                              <p className="text-xs text-white/35">
+                              <p className="text-xs text-gray-400">
                                 Base ${turnoActivo.monto_inicial.toLocaleString('es-CO')}
                                 {totalIngresos > 0 && ` + ingresos $${totalIngresos.toLocaleString('es-CO')}`}
                                 {totalEgresos  > 0 && ` − egresos $${totalEgresos.toLocaleString('es-CO')}`}
@@ -3997,8 +4039,8 @@ export default function GerenciaPage() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs text-white/35">Sistema espera</p>
-                          <p className="font-black text-white/90">${m.esperado.toLocaleString('es-CO')}</p>
+                          <p className="text-xs text-gray-400">Sistema espera</p>
+                          <p className="font-black text-gray-900">${m.esperado.toLocaleString('es-CO')}</p>
                         </div>
                       </div>
 

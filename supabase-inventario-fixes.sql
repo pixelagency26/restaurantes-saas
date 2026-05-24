@@ -56,9 +56,9 @@ BEGIN
   -- Obtener negocio_id desde el plato para cumplir con el schema
   SELECT negocio_id INTO v_negocio_id FROM platos WHERE id = NEW.plato_id;
 
-  INSERT INTO inventario (plato_id, cantidad_disponible, negocio_id, updated_at)
-  VALUES (NEW.plato_id, NEW.cantidad_inicial, v_negocio_id, NOW())
-  ON CONFLICT (plato_id) DO UPDATE
+INSERT INTO inventario (plato_id, cantidad_disponible, alerta_minima, negocio_id, updated_at)
+VALUES (NEW.plato_id, NEW.cantidad_inicial, 3, v_negocio_id, NOW())
+ ON CONFLICT (negocio_id, plato_id) DO UPDATE
     SET cantidad_disponible = EXCLUDED.cantidad_disponible,
         negocio_id          = EXCLUDED.negocio_id,
         updated_at          = EXCLUDED.updated_at;
