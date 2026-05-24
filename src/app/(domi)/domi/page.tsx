@@ -21,6 +21,7 @@ interface PedidoDomi {
   cliente_direccion: string | null
   metodo_pago_cliente: string | null
   comprobante_url: string | null
+  pago_domi_aprobado: boolean
   total: number
   items: { nombre: string; cantidad: number }[]
 }
@@ -73,7 +74,7 @@ export default function DomiPage() {
     const hoy = new Date().toISOString().split('T')[0]
     const { data } = await supabase
       .from('pedidos')
-      .select('id, estado, created_at, cliente_nombre, cliente_telefono, cliente_direccion, metodo_pago_cliente, comprobante_url, items:items_pedido(cantidad, precio_unitario, plato:platos(nombre))')
+      .select('id, estado, created_at, cliente_nombre, cliente_telefono, cliente_direccion, metodo_pago_cliente, comprobante_url, pago_domi_aprobado, items:items_pedido(cantidad, precio_unitario, plato:platos(nombre))')
       .eq('tipo', 'domi')
       .gte('created_at', `${hoy}T00:00:00`)
       .order('created_at', { ascending: true })
@@ -84,7 +85,7 @@ export default function DomiPage() {
         id: string; estado: string; created_at: string
         cliente_nombre: string | null; cliente_telefono: string | null
         cliente_direccion: string | null; metodo_pago_cliente: string | null
-        comprobante_url: string | null
+        comprobante_url: string | null; pago_domi_aprobado: boolean
         items: { cantidad: number; precio_unitario: number; plato: { nombre: string } }[]
       }
       return {
@@ -92,13 +93,16 @@ export default function DomiPage() {
         cliente_nombre: ped.cliente_nombre, cliente_telefono: ped.cliente_telefono,
         cliente_direccion: ped.cliente_direccion, metodo_pago_cliente: ped.metodo_pago_cliente,
         comprobante_url: ped.comprobante_url,
+        pago_domi_aprobado: ped.pago_domi_aprobado ?? true,
         total: ped.items?.reduce((a, i) => a + i.cantidad * i.precio_unitario, 0) ?? 0,
         items: ped.items?.map(i => ({ nombre: i.plato?.nombre || '', cantidad: i.cantidad })) ?? [],
       }
     }
     const todos = data.map(mapear)
-    setPedidosActivos(todos.filter(p => ['pendiente', 'en_preparacion', 'listo', 'entregado'].includes(p.estado)))
-    setPedidosEntregados(todos.filter(p => p.estado === 'pagado').slice(0, 8))
+    // Activos: todo lo que no esté pagado ni cancelado
+    setPedidosActivos(todos.filter(p => ['pendiente_pago', 'pendiente', 'en_preparacion', 'listo', 'en_camino'].includes(p.estado)))
+    // Historial de hoy
+    setPedidosEntregados(todos.filter(p => ['pagado', 'entregado'].includes(p.estado)).slice(0, 10))
   }, [supabase])
 
   // ── CARGAR MENÚ ───────────────────────────────────────────────
@@ -182,7 +186,7 @@ export default function DomiPage() {
     return () => { supabase.removeChannel(canal); clearInterval(intervalo) }
   }, [cargarPedidos, cargarMenu, supabase])
 
-  // ── REGISTRAR COBRO ──────────────────────────────────────────
+  // ── REGISTRAR COBRO (solo para pedidos en_camino) ─────────────
   async function registrarCobro() {
     if (!modalPagoDomi) return
     setCobrando(true)
@@ -194,21 +198,23 @@ export default function DomiPage() {
     await supabase.from('pedidos').update({
       estado: 'pagado', pagado_en: new Date().toISOString(),
     }).eq('id', modalPagoDomi)
-    toast.success('✅ Cobro registrado')
+    toast.success('✅ ¡Cobro registrado! Pedido cerrado')
     setModalPagoDomi(null)
     setCobrando(false)
     cargarPedidos()
   }
 
   // ── CARGAR MI CUADRE ─────────────────────────────────────────
+  // Muestra los pedidos domi que este usuario tomó hoy (mesera_id se asigna al hacer clic en "Llevar")
   const cargarCuadre = useCallback(async () => {
     setCargandoCuadre(true)
     const { data: { user } } = await supabase.auth.getUser()
     const hoy = new Date().toISOString().split('T')[0]
 
+    // Buscar todos los domi de hoy donde mesera_id = yo (se asigna cuando el domi hace clic en Llevar)
     const { data: pedidos } = await supabase
       .from('pedidos')
-      .select('id, cliente_nombre, estado, items:items_pedido(cantidad, precio_unitario)')
+      .select('id, cliente_nombre, estado, metodo_pago_cliente, items:items_pedido(cantidad, precio_unitario)')
       .eq('tipo', 'domi')
       .eq('mesera_id', user?.id)
       .gte('created_at', `${hoy}T00:00:00`)
@@ -227,7 +233,7 @@ export default function DomiPage() {
     let efectivo = 0, transfer = 0
     const lista: { nombre: string; total: number; metodo: string; pagado: boolean }[] = []
 
-    ;(pedidos as { id: string; cliente_nombre: string | null; estado: string; items: { cantidad: number; precio_unitario: number }[] }[]).forEach(p => {
+    ;(pedidos as { id: string; cliente_nombre: string | null; estado: string; metodo_pago_cliente: string | null; items: { cantidad: number; precio_unitario: number }[] }[]).forEach(p => {
       const pagosPed = ((pagos || []) as { pedido_id: string; metodo: string; monto: number }[])
         .filter(pg => pg.pedido_id === p.id)
       const totalPed = p.items?.reduce((a, i) => a + i.cantidad * i.precio_unitario, 0) ?? 0
@@ -239,7 +245,9 @@ export default function DomiPage() {
         else transfer += monto
         lista.push({ nombre: p.cliente_nombre || 'Sin nombre', total: monto, metodo: met, pagado: true })
       } else {
-        lista.push({ nombre: p.cliente_nombre || 'Sin nombre', total: totalPed, metodo: '—', pagado: false })
+        // En camino pero aún no cobrado — aparece como pendiente en el cuadre
+        const metCliente = p.metodo_pago_cliente || '—'
+        lista.push({ nombre: p.cliente_nombre || 'Sin nombre', total: totalPed, metodo: metCliente, pagado: false })
       }
     })
 
@@ -247,16 +255,16 @@ export default function DomiPage() {
     setCargandoCuadre(false)
   }, [supabase])
 
-  // ── MARCAR "SALIÓ A ENTREGAR" ─────────────────────────────────
-  async function salioAEntregar(pedidoId: string) {
+  // ── LLEVAR — domi sale a entregar (estado: listo → en_camino) ─
+  async function llevarPedido(pedidoId: string) {
     setMarcandoId(pedidoId)
     const { data: { user } } = await supabase.auth.getUser()
     await supabase.from('pedidos').update({
-      estado: 'entregado',
+      estado: 'en_camino',
       domi_tomado_en: new Date().toISOString(),
-      mesera_id: user?.id ?? null,
+      mesera_id: user?.id ?? null,   // ← asigna este domi al pedido (para cuadre)
     }).eq('id', pedidoId)
-    toast.success('🛵 ¡En camino!')
+    toast.success('🛵 ¡Saliste a entregar! El cliente verá que vas en camino.')
     setMarcandoId(null)
     cargarPedidos()
   }
@@ -622,29 +630,40 @@ export default function DomiPage() {
           <div className="space-y-3">
             <p className="text-[11px] font-black uppercase tracking-widest text-gray-500 px-1">Pedidos activos</p>
             {pedidosActivos.map(ped => {
-              const mins      = Math.floor((Date.now() - new Date(ped.created_at).getTime()) / 60000)
-              const esListo   = ped.estado === 'listo'
-              const esPend    = ped.estado === 'pendiente'
-              const esEnPrep  = ped.estado === 'en_preparacion'
-              const esEntrego = ped.estado === 'entregado'
+              const mins             = Math.floor((Date.now() - new Date(ped.created_at).getTime()) / 60000)
+              const esPendientePago  = ped.estado === 'pendiente_pago'
+              const esListo          = ped.estado === 'listo'
+              const esPend           = ped.estado === 'pendiente'
+              const esEnPrep         = ped.estado === 'en_preparacion'
+              const esEnCamino       = ped.estado === 'en_camino'
+              const esTransferencia  = ped.metodo_pago_cliente === 'transferencia'
+              const pagoAprobado     = ped.pago_domi_aprobado
 
-              const cardBg = esListo
+              // Card styles
+              const cardBg = esPendientePago
+                ? 'bg-yellow-500/10 border-2 border-yellow-500/30'
+                : esListo
                 ? 'bg-green-500/10 border-2 border-green-500/40'
-                : esEntrego
+                : esEnCamino
                 ? 'bg-sky-500/10 border-2 border-sky-500/30'
                 : esPend
                 ? 'bg-gray-900/60 border-2 border-gray-700'
                 : 'bg-orange-500/10 border-2 border-orange-500/25'
 
-              const badgeClases = esListo
+              const badgeClases = esPendientePago
+                ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                : esListo
                 ? 'bg-green-500/20 text-green-400 border border-green-500/30 animate-pulse'
-                : esEntrego
-                ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
+                : esEnCamino
+                ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30 animate-pulse'
                 : esPend
                 ? 'bg-gray-800 text-gray-500 border border-gray-700'
                 : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
 
-              const badgeLabel = esListo ? '✅ LISTO' : esEntrego ? '🛵 En camino' : esPend ? '⏳ Espera' : '🔥 Prep.'
+              const badgeLabel = esPendientePago ? '🔍 Verificando' : esListo ? '✅ LISTO' : esEnCamino ? '🛵 EN CAMINO' : esPend ? '⏳ Espera' : '🔥 Prep.'
+
+              // Llevar: habilitado si listo + (efectivo ó transferencia con pago aprobado)
+              const puedeLlevar = esListo && (ped.metodo_pago_cliente !== 'transferencia' || pagoAprobado)
 
               return (
                 <div key={ped.id} className={`rounded-2xl p-4 ${cardBg}`}>
@@ -679,23 +698,37 @@ export default function DomiPage() {
                     ))}
                   </div>
 
+                  {/* Aviso si transferencia bloqueada */}
+                  {esListo && esTransferencia && !pagoAprobado && (
+                    <p className="text-xs text-amber-400 font-bold mb-2 flex items-center gap-1.5">
+                      🔒 Esperando confirmación de pago por gerencia
+                    </p>
+                  )}
+
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-black text-white">${ped.total.toLocaleString('es-CO')}</span>
                     <div className="flex gap-2">
+                      {/* LLEVAR — solo cuando el pedido está listo */}
                       {esListo && (
                         <button
-                          onClick={() => salioAEntregar(ped.id)}
-                          disabled={marcandoId === ped.id}
-                          className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-400 active:bg-orange-600 disabled:opacity-50 text-white font-bold px-3 py-2.5 rounded-xl text-sm transition-all shadow-md shadow-orange-900/30">
+                          onClick={() => puedeLlevar && llevarPedido(ped.id)}
+                          disabled={marcandoId === ped.id || !puedeLlevar}
+                          title={!puedeLlevar ? 'Espera a que gerencia confirme recepción del pago' : ''}
+                          className={`flex items-center gap-1.5 font-bold px-3 py-2.5 rounded-xl text-sm transition-all shadow-md ${
+                            puedeLlevar
+                              ? 'bg-orange-500 hover:bg-orange-400 active:bg-orange-600 text-white shadow-orange-900/30'
+                              : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                          } disabled:opacity-50`}>
                           <Navigation size={15} />
-                          {marcandoId === ped.id ? '...' : '🛵 Salió'}
+                          {marcandoId === ped.id ? '...' : '🛵 Llevar'}
                         </button>
                       )}
-                      {(esListo || esEntrego) && (
+                      {/* COBRAR/ENTREGAR — solo cuando el domi ya salió (en_camino) */}
+                      {esEnCamino && (
                         <button
                           onClick={() => { setModalPagoDomi(ped.id); setMetodoCobro('efectivo') }}
                           className="flex items-center gap-1.5 bg-green-600 hover:bg-green-500 text-white font-bold px-3 py-2.5 rounded-xl text-sm transition-all">
-                          <Banknote size={15} /> Cobrar
+                          <Banknote size={15} /> Cobrar/Entregar
                         </button>
                       )}
                     </div>

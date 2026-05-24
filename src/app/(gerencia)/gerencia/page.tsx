@@ -70,7 +70,14 @@ export default function GerenciaPage() {
 
   // Mesas y cobro
   const [mesas, setMesas] = useState<{ id: number; numero: number; estado: string; zona: string | null }[]>([])
-  const [domiActivos, setDomiActivos] = useState<{ id: string; created_at: string; total: number; cliente_nombre: string | null; cliente_telefono: string | null; estado: string; metodos: string[] }[]>([])
+  const [domiActivos, setDomiActivos] = useState<{
+    id: string; created_at: string; total: number
+    cliente_nombre: string | null; cliente_telefono: string | null
+    estado: string; metodos: string[]
+    metodo_pago_cliente: string | null
+    comprobante_url: string | null
+    pago_domi_aprobado: boolean
+  }[]>([])
   const [notifsListoDomi, setNotifsListoDomi] = useState<{ id: number; clienteNombre: string }[]>([])
   const [mesaDetalle, setMesaDetalle] = useState<{ mesa: typeof mesas[0] | null; pedido: PedidoDetalle; pagos: PagoRegistrado[]; isDomi?: boolean } | null>(null)
   const [montoPago, setMontoPago] = useState(''); const [propinaPago, setPropinaPago] = useState(''); const [pagaCon, setPagaCon] = useState('')
@@ -241,7 +248,7 @@ export default function GerenciaPage() {
     const [{ data: mesasData }, { data: domiData }] = await Promise.all([
       supabase.from('mesas').select('*').order('numero'),
       supabase.from('pedidos')
-        .select('id, created_at, estado, cliente_nombre, cliente_telefono, items:items_pedido(cantidad, precio_unitario)')
+        .select('id, created_at, estado, cliente_nombre, cliente_telefono, metodo_pago_cliente, comprobante_url, pago_domi_aprobado, items:items_pedido(cantidad, precio_unitario)')
         .eq('tipo', 'domi')
         .gte('created_at', `${hoy}T00:00:00`)
         .neq('estado', 'cancelado')
@@ -250,17 +257,29 @@ export default function GerenciaPage() {
     if (mesasData) setMesas(mesasData)
     if (domiData) {
       const ids = domiData.map((p: unknown) => (p as { id: string }).id)
-      // Cargar pagos de todos los domis en una sola consulta
       const { data: pagosDomi } = ids.length > 0
         ? await supabase.from('pagos').select('pedido_id, metodo, monto, propina').in('pedido_id', ids)
         : { data: [] }
 
       setDomiActivos(domiData.map((p: unknown) => {
-        const ped = p as { id: string; created_at: string; estado: string; cliente_nombre: string | null; cliente_telefono: string | null; items: { cantidad: number; precio_unitario: number }[] }
+        const ped = p as {
+          id: string; created_at: string; estado: string
+          cliente_nombre: string | null; cliente_telefono: string | null
+          metodo_pago_cliente: string | null; comprobante_url: string | null
+          pago_domi_aprobado: boolean
+          items: { cantidad: number; precio_unitario: number }[]
+        }
         const total = ped.items?.reduce((a, i) => a + i.cantidad * i.precio_unitario, 0) ?? 0
         const pagosEste = (pagosDomi || []).filter((pg: { pedido_id: string }) => pg.pedido_id === ped.id) as { metodo: string; monto: number; propina: number }[]
         const metodos = [...new Set(pagosEste.map(pg => pg.metodo))]
-        return { id: ped.id, created_at: ped.created_at, total, cliente_nombre: ped.cliente_nombre, cliente_telefono: ped.cliente_telefono, estado: ped.estado, metodos }
+        return {
+          id: ped.id, created_at: ped.created_at, total,
+          cliente_nombre: ped.cliente_nombre, cliente_telefono: ped.cliente_telefono,
+          estado: ped.estado, metodos,
+          metodo_pago_cliente: ped.metodo_pago_cliente,
+          comprobante_url: ped.comprobante_url,
+          pago_domi_aprobado: ped.pago_domi_aprobado ?? true,
+        }
       }))
     }
   }, [supabase])
@@ -1068,6 +1087,36 @@ export default function GerenciaPage() {
     setMesaDetalle(null); setVistaModal('pago')
     setAgregandoPago(false)
     cargarMesas(); cargarDatos()
+  }
+
+  // ── CONFIRMAR PEDIDO QR → COCINA ─────────────────────────────
+  // Para pedidos desde la página pública (pendiente_pago): gerencia los valida y envía a cocina.
+  // Si es transferencia: pago_domi_aprobado queda FALSE hasta que gerencia confirme recepción real del dinero.
+  // Si es efectivo: se aprueba directamente (pago en mano al entregar).
+  async function confirmarQrDomiPago(pedidoId: string, metodo: string | null) {
+    const aprobado = metodo !== 'transferencia' // efectivo → aprobado de inmediato
+    await supabase.from('pedidos').update({
+      estado: 'pendiente',
+      pago_domi_aprobado: aprobado,
+    }).eq('id', pedidoId)
+    toast.success(aprobado ? '✅ Pedido enviado a cocina' : '✅ Pedido enviado a cocina — Confirma el pago cuando llegue a cuenta')
+    cargarMesas()
+  }
+
+  // ── RECHAZAR PEDIDO QR ────────────────────────────────────────
+  async function rechazarQrDomiPago(pedidoId: string) {
+    if (!confirm('¿Rechazar este pedido? Se notificará al cliente.')) return
+    await supabase.from('pedidos').update({ estado: 'cancelado' }).eq('id', pedidoId)
+    toast.success('Pedido rechazado')
+    cargarMesas()
+  }
+
+  // ── CONFIRMAR RECEPCIÓN DEL PAGO (transferencia listo) ────────
+  // Desbloquea al domiciliario para que pueda salir a entregar.
+  async function confirmarRecepcionPago(pedidoId: string) {
+    await supabase.from('pedidos').update({ pago_domi_aprobado: true }).eq('id', pedidoId)
+    toast.success('✅ Pago confirmado — El domiciliario ya puede salir a entregar')
+    cargarMesas()
   }
 
   async function agregarPago() {
@@ -1925,64 +1974,134 @@ export default function GerenciaPage() {
 
             {/* Panel domicilios del día */}
             {domiActivos.length > 0 && (
-              <div className="mt-5">
-                <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500 mb-2.5">🛵 Domicilios de hoy</h3>
+              <div className="mt-5 space-y-3">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500">🛵 Domicilios de hoy</h3>
+
+                {/* ── Pendientes de verificación ── */}
+                {domiActivos.filter(d => d.estado === 'pendiente_pago').length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-yellow-600">⚠️ Por verificar</p>
+                    {domiActivos.filter(d => d.estado === 'pendiente_pago').map(d => (
+                      <div key={d.id} className="bg-yellow-50 border-2 border-yellow-300 rounded-2xl px-4 py-3 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-gray-800 text-sm">{d.cliente_nombre || 'Sin nombre'}</p>
+                            {d.cliente_telefono && <p className="text-xs text-gray-500">📞 {d.cliente_telefono}</p>}
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <span className="text-xs font-black text-orange-600">${d.total.toLocaleString('es-CO')}</span>
+                              <span className="text-xs text-gray-500">
+                                {d.metodo_pago_cliente === 'efectivo' ? '💵 Efectivo' : d.metodo_pago_cliente ? `📲 ${d.metodo_pago_cliente}` : ''}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-black bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded-full shrink-0">
+                            {Math.floor((Date.now() - new Date(d.created_at).getTime()) / 60000)} min
+                          </span>
+                        </div>
+                        {/* Comprobante transferencia */}
+                        {d.metodo_pago_cliente === 'transferencia' && d.comprobante_url && (
+                          <a href={d.comprobante_url} target="_blank" rel="noreferrer"
+                            className="flex items-center gap-1.5 text-xs text-blue-600 font-bold hover:text-blue-700 transition-colors">
+                            🧾 Ver comprobante de transferencia →
+                          </a>
+                        )}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => confirmarQrDomiPago(d.id, d.metodo_pago_cliente)}
+                            className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 transition-all">
+                            <CheckCircle size={13} /> Confirmar → Cocina
+                          </button>
+                          <button
+                            onClick={() => rechazarQrDomiPago(d.id)}
+                            className="flex-1 bg-red-100 hover:bg-red-200 text-red-600 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 transition-all border border-red-200">
+                            ✗ Rechazar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* ── Activos (en cocina / listos / en camino / pagados) ── */}
                 <div className="space-y-2">
-                  {domiActivos.map(d => {
+                  {domiActivos.filter(d => d.estado !== 'pendiente_pago').map(d => {
                     const mins = Math.floor((Date.now() - new Date(d.created_at).getTime()) / 60000)
                     const pagado    = d.estado === 'pagado'
                     const listo     = d.estado === 'listo'
-                    const entregado = d.estado === 'entregado'
+                    const enCamino  = d.estado === 'en_camino'
                     const enPrep    = d.estado === 'en_preparacion'
                     const EMOJIS: Record<string, string> = { efectivo: '💵', nequi: '💜', daviplata: '❤️', bancolombia: '🟡' }
+
+                    // Para transferencia listo sin pago aprobado → mostrar botón "Recibir pago"
+                    const necesitaConfirmarPago = listo && d.metodo_pago_cliente === 'transferencia' && !d.pago_domi_aprobado
 
                     const badgeClases = pagado
                       ? 'bg-gray-200 text-gray-500'
                       : listo
                       ? 'bg-green-500 text-white animate-pulse'
-                      : entregado
-                      ? 'bg-gray-500 text-white'
+                      : enCamino
+                      ? 'bg-sky-500 text-white animate-pulse'
                       : enPrep
                       ? 'bg-orange-500 text-white'
                       : 'bg-gray-400 text-white'
 
-                    const badgeLabel = pagado ? '✓ PAGADO' : listo ? '🍽️ LISTO' : entregado ? '🛵 EN CAMINO' : enPrep ? '🔥 PREP.' : '⏳ ESPERA'
+                    const badgeLabel = pagado ? '✓ PAGADO' : listo ? '🍽️ LISTO' : enCamino ? '🛵 EN CAMINO' : enPrep ? '🔥 PREP.' : '⏳ ESPERA'
 
                     const cardClases = pagado
                       ? 'bg-white border-gray-200 opacity-50 cursor-default'
                       : listo
-                      ? 'bg-green-50 border-green-300 hover:bg-green-100 hover:border-green-400 shadow-sm shadow-green-100'
-                      : 'bg-white border-gray-200 hover:border-orange-300 hover:shadow-md shadow-sm'
+                      ? 'bg-green-50 border-green-300 shadow-sm shadow-green-100'
+                      : enCamino
+                      ? 'bg-sky-50 border-sky-300 shadow-sm shadow-sky-100'
+                      : 'bg-white border-gray-200 shadow-sm hover:border-orange-300 hover:shadow-md'
 
                     return (
-                      <button key={d.id} onClick={() => !pagado && abrirDetalleDomi(d.id)}
-                        disabled={pagado}
-                        className={`w-full rounded-2xl px-4 py-3 text-left transition-all border ${cardClases}`}>
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`text-xs font-black px-2 py-0.5 rounded-full ${badgeClases}`}>
-                                {badgeLabel}
-                              </span>
-                              <span className="font-bold text-gray-800 text-sm">
-                                {d.cliente_nombre || <span className="text-gray-400 italic font-normal">Sin nombre</span>}
-                              </span>
+                      <div key={d.id} className={`rounded-2xl px-4 py-3 border ${cardClases}`}>
+                        <button className="w-full text-left" onClick={() => !pagado && abrirDetalleDomi(d.id)} disabled={pagado}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`text-xs font-black px-2 py-0.5 rounded-full ${badgeClases}`}>
+                                  {badgeLabel}
+                                </span>
+                                <span className="font-bold text-gray-800 text-sm">
+                                  {d.cliente_nombre || <span className="text-gray-400 italic font-normal">Sin nombre</span>}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3 mt-1 flex-wrap">
+                                {d.cliente_telefono && <span className="text-xs text-gray-500">📞 {d.cliente_telefono}</span>}
+                                <span className="text-xs font-semibold text-orange-600">${d.total.toLocaleString('es-CO')}</span>
+                                {d.metodo_pago_cliente && (
+                                  <span className="text-xs text-gray-400">
+                                    {d.metodo_pago_cliente === 'efectivo' ? '💵' : '📲'} {d.metodo_pago_cliente}
+                                  </span>
+                                )}
+                                {d.metodos.length > 0 && (
+                                  <span className="text-xs text-gray-400">{d.metodos.map(m => EMOJIS[m] || m).join(' ')}</span>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-3 mt-1 flex-wrap">
-                              {d.cliente_telefono && <span className="text-xs text-gray-500">📞 {d.cliente_telefono}</span>}
-                              <span className="text-xs font-semibold text-orange-600">${d.total.toLocaleString('es-CO')}</span>
-                              {d.metodos.length > 0 && (
-                                <span className="text-xs text-gray-400">{d.metodos.map(m => EMOJIS[m] || m).join(' ')} {d.metodos.join(' / ')}</span>
-                              )}
-                            </div>
+                            <span className={`text-xs font-bold px-2 py-1 rounded-full shrink-0 ${pagado ? 'bg-gray-100 text-gray-400' : mins >= 40 ? 'bg-red-50 text-red-500 border border-red-200' : mins >= 20 ? 'bg-yellow-50 text-yellow-600 border border-yellow-200' : 'bg-green-50 text-green-600 border border-green-200'}`}>
+                              {pagado ? new Date(d.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : `${mins} min`}
+                            </span>
                           </div>
-                          <span className={`text-xs font-bold px-2 py-1 rounded-full shrink-0 ${pagado ? 'bg-gray-100 text-gray-400' : mins >= 40 ? 'bg-red-50 text-red-500 border border-red-200' : mins >= 20 ? 'bg-yellow-50 text-yellow-600 border border-yellow-200' : 'bg-green-50 text-green-600 border border-green-200'}`}>
-                            {pagado ? new Date(d.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : `${mins} min`}
-                          </span>
-                        </div>
-                        {listo && <p className="text-xs text-green-600 font-bold mt-1">✅ Listo en cocina — Toca para cobrar →</p>}
-                        {!pagado && !listo && <p className="text-xs text-gray-400 mt-1">Toca para cobrar →</p>}
-                      </button>
+                          {listo && !necesitaConfirmarPago && <p className="text-xs text-green-600 font-bold mt-1">✅ Listo en cocina — Toca para cobrar →</p>}
+                          {enCamino && <p className="text-xs text-sky-600 font-bold mt-1">🛵 Domi en camino (informativo)</p>}
+                          {!pagado && !listo && !enCamino && <p className="text-xs text-gray-400 mt-1">Toca para cobrar →</p>}
+                        </button>
+
+                        {/* Botón Recibir pago (solo para transferencia listo sin aprobar) */}
+                        {necesitaConfirmarPago && (
+                          <div className="mt-2 pt-2 border-t border-green-200">
+                            <p className="text-xs text-amber-600 font-bold mb-1.5">⏳ El domiciliario está bloqueado hasta confirmar recepción del dinero</p>
+                            <button
+                              onClick={() => confirmarRecepcionPago(d.id)}
+                              className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all">
+                              <CheckCircle size={13} /> Recibí el pago — Domi puede salir
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     )
                   })}
                 </div>

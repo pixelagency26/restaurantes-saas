@@ -98,6 +98,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   const [notasPedido, setNotasPedido] = useState('')
   const [enviando, setEnviando]     = useState(false)
   const [pedidoId, setPedidoId]     = useState<string | null>(null)
+  const [pedidoEstado, setPedidoEstado] = useState<string | null>(null)
   const [itemsSeg, setItemsSeg]     = useState<{ id: string; nombre: string; cantidad: number; estado: string }[]>([])
 
   // Cliente previo
@@ -230,6 +231,11 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   useEffect(() => {
     if (!pedidoId) return
     const canal = supabase.channel(`pub-seg-${pedidoId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pedidos', filter: `id=eq.${pedidoId}` },
+        (payload) => {
+          const n = payload.new as { estado: string }
+          setPedidoEstado(n.estado)
+        })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'items_pedido', filter: `pedido_id=eq.${pedidoId}` },
         (payload) => {
           const n = payload.new as { id: string; estado: string }
@@ -391,6 +397,10 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
       cliente_direccion: tipoConsumo === 'domi' ? direccion.trim() : null,
       turno_id: turno.id,
       tipo: tipoConsumo === 'domi' ? 'domi' : 'cliente_qr',
+      // QR domi → siempre llega a gerencia primero (evita fraudes)
+      ...(tipoConsumo === 'domi' ? { estado: 'pendiente_pago' } : {}),
+      // Para transferencia el domi queda bloqueado hasta que gerencia confirme recepción del dinero
+      ...(tipoConsumo === 'domi' && metodoPagoDomi === 'transferencia' ? { pago_domi_aprobado: false } : {}),
       notas: notasPedido.trim() || null,
       metodo_pago_cliente: tipoConsumo === 'domi' ? metodoPagoDomi : null,
       comprobante_url: comprobanteUrl,
@@ -419,7 +429,9 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
       cantidad: i.cantidad, estado: i.estado
     })))
 
-    setPedidoId(pedido.id); setPasoOrden('seguimiento')
+    setPedidoId(pedido.id)
+    setPedidoEstado(tipoConsumo === 'domi' ? 'pendiente_pago' : 'pendiente')
+    setPasoOrden('seguimiento')
     setCarrito([]); setEnviando(false)
     toast.success('✅ ¡Pedido enviado!')
   }
@@ -462,7 +474,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   function resetPedido() {
     setPasoOrden('browse'); setNombre(''); setTelefono(''); setCedula('')
     setMesa(searchParams.get('mesa') ?? ''); setDireccion(''); setNotasPedido('')
-    setPedidoId(null); setItemsSeg([]); setTipoConsumo(null)
+    setPedidoId(null); setPedidoEstado(null); setItemsSeg([]); setTipoConsumo(null)
     setMetodoPagoDomi(null); setComprobanteFile(null); setComprobantePreview(null)
     setClientePrevio(null)
   }
@@ -490,10 +502,13 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   )
 
   const ESTADO_CFG: Record<string, { label: string; dot: string; texto: string }> = {
-    pendiente:      { label: 'En espera',   dot: 'bg-gray-400',                texto: 'text-gray-500'   },
-    en_preparacion: { label: 'Preparando…', dot: 'bg-orange-500 animate-pulse', texto: 'text-orange-600' },
-    listo:          { label: '¡Listo! ✓',   dot: 'bg-green-500',               texto: 'text-green-600'  },
-    entregado:      { label: 'Entregado',   dot: 'bg-green-400',               texto: 'text-gray-500'   },
+    pendiente_pago:  { label: '🔍 Verificando…', dot: 'bg-yellow-400 animate-pulse', texto: 'text-yellow-600' },
+    pendiente:       { label: 'En espera',        dot: 'bg-gray-400',                 texto: 'text-gray-500'   },
+    en_preparacion:  { label: 'Preparando…',      dot: 'bg-orange-500 animate-pulse', texto: 'text-orange-600' },
+    listo:           { label: '¡Listo! ✓',        dot: 'bg-green-500',                texto: 'text-green-600'  },
+    en_camino:       { label: '🛵 En camino',      dot: 'bg-blue-500 animate-pulse',   texto: 'text-blue-600'   },
+    entregado:       { label: 'Entregado',         dot: 'bg-green-400',                texto: 'text-gray-500'   },
+    pagado:          { label: '✓ Entregado',       dot: 'bg-green-500',                texto: 'text-gray-500'   },
   }
 
   // ── Popup sugerido (reutilizable) ────────────────────────────
@@ -1040,50 +1055,72 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
       )}
 
       {/* SEGUIMIENTO */}
-      {pasoOrden === 'seguimiento' && (
-        <div className="p-4 max-w-2xl mx-auto space-y-4 pb-8">
-          <div className="bg-gradient-to-br from-orange-500 to-amber-500 rounded-3xl p-7 text-center text-white shadow-xl shadow-orange-200 mt-4">
-            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
-              <CheckCircle size={32} />
-            </div>
-            <p className="font-black text-2xl mb-1">¡Pedido enviado!</p>
-            <p className="text-white/80 text-sm">
-              {tipoConsumo === 'domi'
-                ? metodoPagoDomi === 'transferencia' ? '🧾 Verificaremos tu comprobante y salimos'
-                : '🛵 Lo preparamos y salimos a tu dirección'
-                : '🍽️ Sigue el estado abajo'}
-            </p>
-          </div>
+      {pasoOrden === 'seguimiento' && (() => {
+        const esDomi = tipoConsumo === 'domi'
+        const est = pedidoEstado || (esDomi ? 'pendiente_pago' : 'pendiente')
 
-          {tipoConsumo === 'domi' && metodoPagoDomi === 'efectivo' && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
-              <span className="text-2xl">💵</span>
-              <div>
-                <p className="text-amber-800 font-bold text-sm">Recuerda tener listo</p>
-                <p className="text-amber-600 text-sm font-black">${totalCarrito.toLocaleString('es-CO')}</p>
+        // Tarjetas de estado para domi
+        const DOMI_ESTADO: Record<string, { bg: string; emoji: string; titulo: string; subtitulo: string }> = {
+          pendiente_pago:  { bg: 'from-yellow-400 to-amber-400',  emoji: '🔍', titulo: 'Verificando tu pago…',    subtitulo: 'El restaurante está revisando tu comprobante. Te avisamos.' },
+          pendiente:       { bg: 'from-gray-600 to-gray-700',     emoji: '⏳', titulo: 'Pedido en cola',           subtitulo: 'Lo tenemos, pronto pasamos a prepararlo.' },
+          en_preparacion:  { bg: 'from-orange-500 to-amber-500',  emoji: '🔥', titulo: 'Preparando tu pedido…',    subtitulo: 'La cocina está trabajando en tu pedido.' },
+          listo:           { bg: 'from-green-500 to-emerald-500', emoji: '✅', titulo: '¡Pedido listo!',           subtitulo: 'El domiciliario ya va a recogerte tu pedido.' },
+          en_camino:       { bg: 'from-blue-500 to-sky-500',      emoji: '🛵', titulo: '¡En camino!',              subtitulo: 'El domiciliario ya está en ruta hacia ti.' },
+          entregado:       { bg: 'from-green-500 to-emerald-600', emoji: '🎉', titulo: '¡Entregado!',              subtitulo: '¡Gracias por tu pedido! Buen provecho.' },
+          pagado:          { bg: 'from-green-500 to-emerald-600', emoji: '🎉', titulo: '¡Entregado!',              subtitulo: '¡Gracias por tu pedido! Buen provecho.' },
+        }
+        const estadoCfgDomi = DOMI_ESTADO[est] ?? DOMI_ESTADO['pendiente']
+
+        return (
+          <div className="p-4 max-w-2xl mx-auto space-y-4 pb-8">
+
+            {/* Banner de estado */}
+            <div className={`bg-gradient-to-br ${esDomi ? estadoCfgDomi.bg : 'from-orange-500 to-amber-500'} rounded-3xl p-7 text-center text-white shadow-xl mt-4`}>
+              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3 text-3xl">
+                {esDomi ? estadoCfgDomi.emoji : <CheckCircle size={32} />}
               </div>
+              <p className="font-black text-2xl mb-1">{esDomi ? estadoCfgDomi.titulo : '¡Pedido enviado!'}</p>
+              <p className="text-white/80 text-sm">{esDomi ? estadoCfgDomi.subtitulo : '🍽️ Sigue el estado abajo'}</p>
             </div>
-          )}
 
-          <div className="space-y-2">
-            <p className="text-xs font-black text-gray-400 uppercase tracking-widest px-1">Estado del pedido</p>
-            {itemsSeg.map(item => {
-              const cfg = ESTADO_CFG[item.estado] ?? ESTADO_CFG['pendiente']
-              return (
-                <div key={item.id} className={`${CARD} px-4 py-4 flex items-center justify-between`}>
-                  <p className="text-sm font-semibold text-gray-800">{item.cantidad}× {item.nombre}</p>
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
-                    <span className={`text-xs font-bold ${cfg.texto}`}>{cfg.label}</span>
-                  </div>
+            {/* Recordatorio efectivo */}
+            {esDomi && metodoPagoDomi === 'efectivo' && est !== 'pagado' && est !== 'entregado' && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+                <span className="text-2xl">💵</span>
+                <div>
+                  <p className="text-amber-800 font-bold text-sm">Recuerda tener listo</p>
+                  <p className="text-amber-600 text-sm font-black">${totalCarrito.toLocaleString('es-CO')}</p>
                 </div>
-              )
-            })}
-          </div>
+              </div>
+            )}
 
-          <button onClick={resetPedido} className={BTN_DARK}>Hacer otro pedido →</button>
-        </div>
-      )}
+            {/* Items — solo si no es domi en camino/entregado */}
+            {!(esDomi && (est === 'en_camino' || est === 'pagado' || est === 'entregado')) && (
+              <div className="space-y-2">
+                <p className="text-xs font-black text-gray-400 uppercase tracking-widest px-1">
+                  {esDomi && est === 'pendiente_pago' ? 'Tu pedido' : 'Estado del pedido'}
+                </p>
+                {itemsSeg.map(item => {
+                  const cfg = esDomi && est === 'pendiente_pago'
+                    ? ESTADO_CFG['pendiente_pago']
+                    : (ESTADO_CFG[item.estado] ?? ESTADO_CFG['pendiente'])
+                  return (
+                    <div key={item.id} className={`${CARD} px-4 py-4 flex items-center justify-between`}>
+                      <p className="text-sm font-semibold text-gray-800">{item.cantidad}× {item.nombre}</p>
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
+                        <span className={`text-xs font-bold ${cfg.texto}`}>{cfg.label}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <button onClick={resetPedido} className={BTN_DARK}>Hacer otro pedido →</button>
+          </div>
+        )
+      })()}
     </div>
   )
 
