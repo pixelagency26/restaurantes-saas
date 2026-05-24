@@ -110,6 +110,7 @@ export default function MeseraPage() {
     cargarDatos()
     cargarPedidosListos()
     const canal = supabase.channel('mesera-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mesas' }, cargarDatos)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pedidos' }, () => {
         cargarPedidosListos(); cargarDatos()
       })
