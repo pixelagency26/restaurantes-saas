@@ -110,64 +110,52 @@ export default function MeseraPage() {
     cargarDatos()
     cargarPedidosListos()
     const canal = supabase.channel('mesera-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => { cargarPedidosListos(); cargarDatos() })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pedidos' }, () => {
+        cargarPedidosListos(); cargarDatos()
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pedidos' }, (payload) => {
+        cargarPedidosListos(); cargarDatos()
+
+        const p = payload.new as {
+          id: string; estado: string
+          mesera_id: string | null; tipo: string; mesa_id: string | null
+        }
+        // Notificar solo cuando el pedido completo queda listo (tabla pedidos ya está en realtime)
+        if (p.estado !== 'listo') return
+        if (!p.mesa_id) return // domicilio → va al panel domi
+
+        // Solo a la mesera que tomó el pedido (ref evita stale closure)
+        if (p.mesera_id && usuarioIdRef.current && p.mesera_id !== usuarioIdRef.current) return
+
+        supabase
+          .from('pedidos')
+          .select('mesa:mesas(numero), items:items_pedido(plato:platos(nombre))')
+          .eq('id', p.id)
+          .maybeSingle()
+          .then(({ data: detalle }) => {
+            if (!detalle) return
+            const d = detalle as unknown as {
+              mesa: { numero: number } | null
+              items: { plato: { nombre: string } }[]
+            }
+            if (!d.mesa) return
+
+            const notifId = Date.now()
+            setNotifsCocina(prev => [...prev, {
+              id: notifId,
+              mesa_numero: d.mesa!.numero,
+              plato_nombre: '¡Pedido listo! 🔔',
+              pendientes: d.items.map(i => i.plato.nombre),
+            }])
+            setTimeout(() => setNotifsCocina(prev => prev.filter(n => n.id !== notifId)), 30000)
+          })
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inventario' }, cargarDatos)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'turnos_inventario' }, cargarDatos)
       .subscribe()
 
-    // Escuchar cuando ítems individuales se marcan como listos en cocina
-    const canalItems = supabase.channel('items-cocina-mesera')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'items_pedido' }, (payload) => {
-        const item = payload.new as { id: string; estado: string; pedido_id: string }
-        if (item.estado !== 'listo') return // solo nos interesa cuando algo queda listo
-
-        // Usar .then() en lugar de async/await para mayor compatibilidad con realtime
-        supabase
-          .from('pedidos')
-          .select('tipo, mesera_id, mesa:mesas(numero), items:items_pedido(id, estado, plato:platos(nombre))')
-          .eq('id', item.pedido_id)
-          .maybeSingle()
-          .then(({ data: pedido }) => {
-            if (!pedido) return
-            const p = pedido as unknown as {
-              tipo: string
-              mesera_id: string | null
-              mesa: { numero: number } | null
-              items: { id: string; estado: string; plato: { nombre: string } }[]
-            }
-            if (!p.mesa || p.tipo === 'domi') return // domicilios domi van al panel domi, no aquí
-            // Solo notificar a la mesera que hizo el pedido (ref evita stale closure)
-            if (p.mesera_id && usuarioIdRef.current && p.mesera_id !== usuarioIdRef.current) return
-
-            // Identificar el plato específico que acaba de quedar listo
-            const itemListo = p.items.find(i => i.id === item.id)
-            const platoNombre = itemListo?.plato?.nombre ?? 'Plato'
-
-            // Cuántos platos siguen pendientes después de este
-            const pendientes = p.items
-              .filter(i => i.estado === 'pendiente' || i.estado === 'en_preparacion')
-              .map(i => i.plato.nombre)
-
-            // Crear notificación con ID único para poder descartarla
-            const notifId = Date.now()
-            setNotifsCocina(prev => [...prev, {
-              id: notifId,
-              mesa_numero: p.mesa!.numero,
-              plato_nombre: platoNombre,
-              pendientes,
-            }])
-
-            // Auto-descartar después de 30 segundos
-            setTimeout(() => {
-              setNotifsCocina(prev => prev.filter(n => n.id !== notifId))
-            }, 30000)
-          })
-      })
-      .subscribe()
-
     return () => {
       supabase.removeChannel(canal)
-      supabase.removeChannel(canalItems)
     }
   }, [cargarDatos, cargarPedidosListos, supabase])
 

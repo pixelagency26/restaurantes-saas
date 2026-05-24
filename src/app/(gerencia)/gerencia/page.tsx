@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import toast from 'react-hot-toast'
 import {
@@ -208,6 +208,9 @@ export default function GerenciaPage() {
   // Inventario activo para el modal de nuevo pedido
   const [inventarioModalMap, setInventarioModalMap] = useState<Record<string, { cantidad: number; alerta: number }>>({})
   const [turnoConInventario, setTurnoConInventario] = useState(false)
+  // Refs para acceder al estado del modal desde callbacks de realtime (evita stale closure)
+  const modalNuevoPedidoRef = useRef(false)
+  const turnoActivoIdRef = useRef<string | null>(null)
 
   // Gestión de zonas y mesas
   const [modoGestionMesas, setModoGestionMesas] = useState(false)
@@ -877,6 +880,26 @@ export default function GerenciaPage() {
     }
   }, [supabase, hoy])
 
+  // Mantener refs sincronizados (para callbacks de realtime que no pueden leer estado fresco)
+  useEffect(() => { modalNuevoPedidoRef.current = modalNuevoPedido }, [modalNuevoPedido])
+  useEffect(() => { turnoActivoIdRef.current = turnoActivo?.id ?? null }, [turnoActivo])
+
+  // Refrescar inventarioModalMap sin depender del estado cerrado (usa refs para evitar stale closure)
+  const cargarInventarioModal = useCallback(async () => {
+    if (!modalNuevoPedidoRef.current || !turnoActivoIdRef.current) return
+    const { data: tiRows } = await supabase.from('turnos_inventario')
+      .select('plato_id').eq('turno_id', turnoActivoIdRef.current)
+    if (!tiRows || tiRows.length === 0) return
+    const platoIds = tiRows.map((r: { plato_id: string }) => r.plato_id)
+    const { data } = await supabase.from('inventario')
+      .select('plato_id, cantidad_disponible, alerta_minima').in('plato_id', platoIds)
+    const map: Record<string, { cantidad: number; alerta: number }> = {}
+    ;(data || []).forEach((i: { plato_id: string; cantidad_disponible: number; alerta_minima: number }) => {
+      map[i.plato_id] = { cantidad: i.cantidad_disponible, alerta: i.alerta_minima }
+    })
+    setInventarioModalMap(map)
+  }, [supabase])
+
   useEffect(() => {
     cargarDatos(); cargarMesas(); cargarCarta()
     cargarResumen(hoyStr, hoyStr)
@@ -888,6 +911,8 @@ export default function GerenciaPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'mesas' }, cargarMesas)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'configuracion' }, cargarConfiguracion)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reservas' }, cargarReservas)
+      // Actualizar el mapa de inventario en tiempo real cuando otro usuario toma un pedido
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'inventario' }, cargarInventarioModal)
       .subscribe()
 
     // Notificación cuando un pedido domi llega a "listo" (cocina terminó)
@@ -903,7 +928,7 @@ export default function GerenciaPage() {
       .subscribe()
 
     return () => { supabase.removeChannel(canal); supabase.removeChannel(canalDomiListo) }
-  }, [cargarDatos, cargarMesas, cargarCarta, cargarResumen, cargarConfiguracion, cargarMenusTurno, cargarReservas, supabase, hoyStr])
+  }, [cargarDatos, cargarMesas, cargarCarta, cargarResumen, cargarConfiguracion, cargarMenusTurno, cargarReservas, cargarInventarioModal, supabase, hoyStr])
 
   // Cargar resumen de inventario al abrir modal cerrar turno
   useEffect(() => {
@@ -1509,6 +1534,28 @@ export default function GerenciaPage() {
     if (nuevoOrdenTipo === 'mesa' && !nuevoOrdenMesaId) { toast.error('Selecciona una mesa'); return }
     setTomandoPedido(true)
     try {
+      // ── Verificación de stock en tiempo real (previene sobre-pedidos) ──
+      if (turnoConInventario) {
+        const platoIdsConInv = Object.keys(inventarioModalMap)
+        const itemsConLimite = itemsCarrito.filter(([platoId]) => platoIdsConInv.includes(platoId))
+        if (itemsConLimite.length > 0) {
+          const { data: invActual } = await supabase
+            .from('inventario').select('plato_id, cantidad_disponible')
+            .in('plato_id', itemsConLimite.map(([id]) => id))
+          const invMap = Object.fromEntries(
+            ((invActual || []) as { plato_id: string; cantidad_disponible: number }[]).map(i => [i.plato_id, i.cantidad_disponible])
+          )
+          for (const [platoId, qty] of itemsConLimite) {
+            const pl = platos.find(p => p.id === platoId)
+            const disp = invMap[platoId] ?? 0
+            if (disp < qty) {
+              toast.error(`Sin stock suficiente para "${pl?.nombre ?? platoId}": quedan ${disp}`, { duration: 5000 })
+              setTomandoPedido(false)
+              return
+            }
+          }
+        }
+      }
       const { data: { user } } = await supabase.auth.getUser()
       let pedidoId: string
 
