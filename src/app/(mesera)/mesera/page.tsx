@@ -64,17 +64,10 @@ export default function MeseraPage() {
       const { data: tiData } = await supabase.from('turnos_inventario')
         .select('plato_id').eq('turno_id', td.id)
       if (tiData && tiData.length > 0) {
-        // Fuente principal: turnos_inventario legible → usarlo como verdad absoluta
+        // Fuente única de verdad: solo platos explícitamente configurados en este turno
         platoIdsConInv = new Set(tiData.map((r: { plato_id: string }) => r.plato_id))
-      } else if (td.abierto_en && invData && invData.length > 0) {
-        // Fallback: turnos_inventario vacío o bloqueado por RLS
-        // Los platos actualizados DESPUÉS de que el turno abrió fueron configurados en este turno
-        const abrioEn = new Date(td.abierto_en).getTime()
-        const enTurno = (invData as unknown as Inventario[]).filter(i =>
-          i.updated_at && new Date(i.updated_at).getTime() >= abrioEn - 1000
-        )
-        if (enTurno.length > 0) platoIdsConInv = new Set(enTurno.map(i => i.plato_id))
       }
+      // Sin fallback: si turnos_inventario no tiene registros → sin restricciones de stock
     }
     setTurnoInventarioIds(platoIdsConInv)
     if (mesasData) setMesas(mesasData)

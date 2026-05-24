@@ -1196,7 +1196,7 @@ export default function GerenciaPage() {
         ),
         ...entries.map(([platoId, qty]) =>
           supabase.from('inventario').upsert(
-            { plato_id: platoId, cantidad_disponible: qty, updated_at: new Date().toISOString() },
+            { plato_id: platoId, cantidad_disponible: qty, updated_at: new Date().toISOString(), ...(myNegocioId ? { negocio_id: myNegocioId } : {}) },
             { onConflict: 'plato_id' }
           )
         ),
