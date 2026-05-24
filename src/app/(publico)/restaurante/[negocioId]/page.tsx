@@ -125,10 +125,13 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   const [enviandoRes, setEnviandoRes] = useState(false)
   const [resOk, setResOk]           = useState(false)
 
+  // Mesas disponibles para selección
+  const [mesasDisponibles, setMesasDisponibles] = useState<{ id: number; numero: number; estado: string }[]>([])
+
   // ── Carga ────────────────────────────────────────────────────
   const cargar = useCallback(async () => {
     setCargando(true)
-    const [{ data: neg }, { data: cats }, { data: pls }, { data: cfg }, { data: res }, { data: turnoData }] = await Promise.all([
+    const [{ data: neg }, { data: cats }, { data: pls }, { data: cfg }, { data: res }, { data: turnoData }, { data: mesasData }] = await Promise.all([
       supabase.from('negocios').select('id, nombre, plan').eq('id', negocioId).single(),
       supabase.from('categorias').select('*').eq('negocio_id', negocioId).order('orden'),
       supabase.from('platos').select('*').eq('negocio_id', negocioId).eq('activo', true),
@@ -140,9 +143,19 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
         .order('created_at', { ascending: false }),
       supabase.from('turnos').select('id, abierto_en').eq('negocio_id', negocioId).is('cerrado_en', null)
         .order('abierto_en', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('mesas').select('id, numero, estado').eq('negocio_id', negocioId).order('numero'),
     ])
     if (!neg) { setNoEncontrado(true); setCargando(false); return }
     setNegocio(neg as Negocio)
+    if (mesasData) {
+      setMesasDisponibles(mesasData as { id: number; numero: number; estado: string }[])
+      // Pre-seleccionar mesa desde URL param (?mesa=3)
+      const mesaParam = searchParams.get('mesa')
+      if (mesaParam) {
+        const encontrada = (mesasData as { id: number; numero: number; estado: string }[]).find(m => m.numero === parseInt(mesaParam))
+        if (encontrada) setMesa(String(encontrada.numero))
+      }
+    }
     if (cats) { setCategorias(cats as Categoria[]); if (cats[0]) setCatActiva(cats[0].id) }
 
     // Cargar inventario con restricción POR PLATO (no global)
@@ -856,7 +869,46 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
             <input placeholder="Cédula (opcional)" value={cedula} onChange={e => setCedula(e.target.value)} className={INPUT} />
 
             {tipoConsumo === 'consumo' && (
-              <input placeholder="Número de mesa *" type="number" value={mesa} onChange={e => setMesa(e.target.value)} className={INPUT} />
+              <div>
+                <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">
+                  ¿En qué mesa estás? *
+                </p>
+                {mesasDisponibles.length > 0 ? (
+                  <div className="grid grid-cols-4 gap-2">
+                    {mesasDisponibles.map(m => {
+                      const seleccionada = mesa === String(m.numero)
+                      const libre = m.estado === 'libre'
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setMesa(String(m.numero))}
+                          className={`py-3 rounded-xl font-black text-base transition-all border-2 flex flex-col items-center justify-center gap-0.5 ${
+                            seleccionada
+                              ? 'bg-orange-500 text-white border-orange-500 shadow-md shadow-orange-200 scale-105'
+                              : libre
+                              ? 'bg-white text-gray-900 border-gray-200 hover:border-orange-300 hover:shadow-sm'
+                              : 'bg-gray-50 text-gray-400 border-gray-100 hover:border-orange-200'
+                          }`}
+                        >
+                          <span>{m.numero}</span>
+                          {!libre && (
+                            <span className="text-[9px] font-bold leading-none opacity-70">
+                              {m.estado === 'ocupada' ? 'ocupada' : m.estado === 'esperando_pago' ? 'en pago' : m.estado}
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  // Fallback si no cargaron mesas (e.g. RLS anon no configurado)
+                  <input placeholder="Número de mesa *" type="number" value={mesa} onChange={e => setMesa(e.target.value)} className={INPUT} />
+                )}
+                {mesa && (
+                  <p className="text-xs text-orange-600 font-bold mt-2 pl-1">✓ Mesa {mesa} seleccionada</p>
+                )}
+              </div>
             )}
             {tipoConsumo === 'domi' && (
               <input placeholder="Dirección de entrega *" value={direccion} onChange={e => setDireccion(e.target.value)} className={INPUT} />
