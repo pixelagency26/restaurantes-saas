@@ -1305,7 +1305,8 @@ export default function GerenciaPage() {
       return
     }
 
-    const entries = Object.entries(inventarioTurno).filter(([, qty]) => qty > 0)
+    const platosValidos = new Set(platos.map(p => p.id))
+    const entries = Object.entries(inventarioTurno).filter(([platoId, qty]) => qty > 0 && platosValidos.has(platoId))
     if (entries.length > 0) {
       const inventarioBase = entries.map(([platoId, qty]) => ({
         plato_id: platoId,
