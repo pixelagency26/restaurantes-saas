@@ -80,6 +80,8 @@ const METODOS: { id: MetodoPago; label: string; color: string; emoji: string }[]
   { id: 'bancolombia', label: 'Bancolombia', color: 'bg-yellow-500', emoji: '🟡' },
 ]
 
+const METODOS_DIGITALES_DOMI = ['transferencia', 'nequi', 'daviplata', 'bancolombia']
+
 const PLATO_VACIO: Omit<Plato, 'id'> = {
   nombre: '', descripcion: '', precio: 0, costo: 0, categoria_id: 0, imagen_url: '',
   activo: true, visible_menu: true, controla_inventario: true,
@@ -1148,17 +1150,16 @@ export default function GerenciaPage() {
     cargarMesas(); cargarDatos()
   }
 
-  // ── CONFIRMAR PEDIDO QR → COCINA ─────────────────────────────
+  // ── Confirmar pago -> Cocina ─────────────────────────────
   // Para pedidos desde la página pública (pendiente_pago): gerencia los valida y envía a cocina.
   // Si es transferencia: pago_domi_aprobado queda FALSE hasta que gerencia confirme recepción real del dinero.
   // Si es efectivo: se aprueba directamente (pago en mano al entregar).
   async function confirmarQrDomiPago(pedidoId: string, metodo: string | null) {
-    const aprobado = metodo !== 'transferencia' // efectivo → aprobado de inmediato
-    await supabase.from('pedidos').update({
+        await supabase.from('pedidos').update({
       estado: 'pendiente',
-      pago_domi_aprobado: aprobado,
+      pago_domi_aprobado: true,
     }).eq('id', pedidoId)
-    toast.success(aprobado ? '✅ Pedido enviado a cocina' : '✅ Pedido enviado a cocina — Confirma el pago cuando llegue a cuenta')
+    toast.success(METODOS_DIGITALES_DOMI.includes(metodo || '') ? 'Pago confirmado. Pedido enviado a cocina' : 'Pedido enviado a cocina')
     cargarMesas()
   }
 
@@ -2292,10 +2293,10 @@ export default function GerenciaPage() {
                 <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500">🛵 Domicilios de hoy</h3>
 
                 {/* ── Pendientes de verificación ── */}
-                {domiActivos.filter(d => d.metodo_pago_cliente === 'transferencia' && !d.pago_domi_aprobado && d.estado !== 'cancelado' && d.estado !== 'pagado').length > 0 && (
+                {domiActivos.filter(d => METODOS_DIGITALES_DOMI.includes(d.metodo_pago_cliente || '') && !d.pago_domi_aprobado && d.estado !== 'cancelado' && d.estado !== 'pagado').length > 0 && (
                   <div className="space-y-2">
                     <p className="text-[10px] font-black uppercase tracking-widest text-yellow-600">⚠️ Por verificar</p>
-                    {domiActivos.filter(d => d.metodo_pago_cliente === 'transferencia' && !d.pago_domi_aprobado && d.estado !== 'cancelado' && d.estado !== 'pagado').map(d => (
+                    {domiActivos.filter(d => METODOS_DIGITALES_DOMI.includes(d.metodo_pago_cliente || '') && !d.pago_domi_aprobado && d.estado !== 'cancelado' && d.estado !== 'pagado').map(d => (
                       <div key={d.id} className="bg-yellow-50 border-2 border-yellow-300 rounded-2xl px-4 py-3 space-y-2">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
@@ -2313,7 +2314,7 @@ export default function GerenciaPage() {
                           </span>
                         </div>
                         {/* Comprobante transferencia */}
-                        {d.metodo_pago_cliente === 'transferencia' && d.comprobante_url && (
+                        {METODOS_DIGITALES_DOMI.includes(d.metodo_pago_cliente || '') && d.comprobante_url && (
                           <a href={d.comprobante_url} target="_blank" rel="noreferrer"
                             className="flex items-center gap-1.5 text-xs text-blue-600 font-bold hover:text-blue-700 transition-colors">
                             🧾 Ver comprobante de transferencia →
@@ -2323,7 +2324,7 @@ export default function GerenciaPage() {
                           <button
                             onClick={() => confirmarQrDomiPago(d.id, d.metodo_pago_cliente)}
                             className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 transition-all">
-                            <CheckCircle size={13} /> Confirmar → Cocina
+                            <CheckCircle size={13} /> Confirmar pago a cocina
                           </button>
                           <button
                             onClick={() => rechazarQrDomiPago(d.id)}
@@ -2338,7 +2339,7 @@ export default function GerenciaPage() {
 
                 {/* ── Activos (en cocina / listos / en camino / pagados) ── */}
                 <div className="space-y-2">
-                  {domiActivos.filter(d => !(d.metodo_pago_cliente === 'transferencia' && !d.pago_domi_aprobado && d.estado !== 'cancelado' && d.estado !== 'pagado')).map(d => {
+                  {domiActivos.filter(d => !(METODOS_DIGITALES_DOMI.includes(d.metodo_pago_cliente || '') && !d.pago_domi_aprobado && d.estado !== 'cancelado' && d.estado !== 'pagado')).map(d => {
                     const mins = Math.floor((Date.now() - new Date(d.created_at).getTime()) / 60000)
                     const pagado    = d.estado === 'pagado'
                     const listo     = d.estado === 'listo'
@@ -2347,7 +2348,7 @@ export default function GerenciaPage() {
                     const EMOJIS: Record<string, string> = { efectivo: '💵', nequi: '💜', daviplata: '❤️', bancolombia: '🟡' }
 
                     // Para transferencia listo sin pago aprobado → mostrar botón "Recibir pago"
-                    const necesitaConfirmarPago = listo && d.metodo_pago_cliente === 'transferencia' && !d.pago_domi_aprobado
+                    const necesitaConfirmarPago = listo && METODOS_DIGITALES_DOMI.includes(d.metodo_pago_cliente || '') && !d.pago_domi_aprobado
 
                     const badgeClases = pagado
                       ? 'bg-gray-200 text-gray-500'
@@ -5686,3 +5687,5 @@ export default function GerenciaPage() {
     </div>
   )
 }
+
+

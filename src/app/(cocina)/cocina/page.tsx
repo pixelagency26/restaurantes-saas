@@ -317,7 +317,7 @@ export default function CocinaPage() {
       .from('pedidos')
       .select(`*, mesa:mesas(numero), mesera:usuarios!mesera_id(nombre), items:items_pedido(*, plato:platos(nombre), pedido_por_usuario:usuarios!pedido_por(nombre), modificadores:items_pedido_modificadores(nombre_grupo, nombre_opcion, descuenta_inventario))`)
       .in('estado', ['pendiente', 'en_preparacion'])
-      .or('tipo.neq.domi,pago_domi_aprobado.eq.true')
+      .not('pago_domi_aprobado', 'is', false)
       .order('created_at', { ascending: true })
     if (data) setPedidos(data as unknown as Pedido[])
     setCargando(false)

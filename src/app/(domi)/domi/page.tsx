@@ -21,6 +21,8 @@ import {
 
 type ItemCarrito = ItemConModificadores
 
+const METODOS_DIGITALES_DOMI = ['transferencia', 'nequi', 'daviplata', 'bancolombia']
+
 interface PedidoDomi {
   id: string
   estado: string
@@ -696,12 +698,12 @@ export default function DomiPage() {
             <p className="text-[11px] font-black uppercase tracking-widest text-gray-500 px-1">Pedidos activos</p>
             {pedidosActivos.map(ped => {
               const mins             = Math.floor((Date.now() - new Date(ped.created_at).getTime()) / 60000)
-              const esPendientePago  = ped.estado === 'pendiente_pago' || (ped.metodo_pago_cliente === 'transferencia' && !ped.pago_domi_aprobado)
+              const esPendientePago  = ped.estado === 'pendiente_pago' || (METODOS_DIGITALES_DOMI.includes(ped.metodo_pago_cliente || '') && !ped.pago_domi_aprobado)
               const esListo          = ped.estado === 'listo'
               const esPend           = ped.estado === 'pendiente'
               const esEnPrep         = ped.estado === 'en_preparacion'
               const esEnCamino       = ped.estado === 'en_camino'
-              const esTransferencia  = ped.metodo_pago_cliente === 'transferencia'
+              const esTransferencia  = METODOS_DIGITALES_DOMI.includes(ped.metodo_pago_cliente || '')
               const pagoAprobado     = ped.pago_domi_aprobado
 
               // Card styles
@@ -728,7 +730,7 @@ export default function DomiPage() {
               const badgeLabel = esPendientePago ? '🔍 Verificando' : esListo ? '✅ LISTO' : esEnCamino ? '🛵 EN CAMINO' : esPend ? '⏳ Espera' : '🔥 Prep.'
 
               // Llevar: habilitado si listo + (efectivo ó transferencia con pago aprobado)
-              const puedeLlevar = esListo && (ped.metodo_pago_cliente !== 'transferencia' || pagoAprobado)
+              const puedeLlevar = esListo && (!METODOS_DIGITALES_DOMI.includes(ped.metodo_pago_cliente || '') || pagoAprobado)
 
               return (
                 <div key={ped.id} className={`rounded-2xl p-4 ${cardBg}`}>
