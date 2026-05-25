@@ -402,6 +402,8 @@ export default function DomiPage() {
       cliente_cedula:    clienteDomi.cedula.trim() || null,
       cliente_telefono:  clienteDomi.telefono.trim(),
       cliente_direccion: clienteDomi.direccion.trim(),
+      metodo_pago_cliente: 'efectivo',
+      pago_domi_aprobado: true,
       ...(myNegocioId ? { negocio_id: myNegocioId } : {}),
     }).select().single()
 
