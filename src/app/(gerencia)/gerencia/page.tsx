@@ -14,6 +14,9 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, CartesianGrid
 } from 'recharts'
+import ModificadorModal from '@/components/ModificadorModal'
+import { ItemConModificadores, itemKey, itemPedidoPayload, modificadoresPedidoPayload, tieneModificadores } from '@/lib/modificadores'
+import { ModificadorSeleccionado } from '@/types'
 
 // ─── TIPOS ───────────────────────────────────────────────────
 interface PlatoStat { nombre: string; cantidad: number; total: number }
@@ -40,7 +43,7 @@ interface ClientePedido { id: string; created_at: string; total: number; tipo: s
 interface Plato {
   id: string; nombre: string; descripcion: string | null; precio: number; costo: number | null
   categoria_id: number; imagen_url: string | null; activo: boolean
-  visible_menu?: boolean; controla_inventario?: boolean
+  visible_menu?: boolean; controla_inventario?: boolean; modificadores?: GrupoModificador[]
 }
 interface PlatoOpcionComponente {
   id: string; componente_plato_id: string; cantidad: number
@@ -231,6 +234,8 @@ export default function GerenciaPage() {
   const [nuevoOrdenTipo, setNuevoOrdenTipo] = useState<'mesa' | 'domi'>('mesa')
   const [nuevoOrdenMesaId, setNuevoOrdenMesaId] = useState<number | null>(null)
   const [nuevoOrdenCarrito, setNuevoOrdenCarrito] = useState<Record<string, number>>({})
+  const [nuevoOrdenItemsMod, setNuevoOrdenItemsMod] = useState<ItemConModificadores[]>([])
+  const [platoConfigNuevoOrden, setPlatoConfigNuevoOrden] = useState<Plato | null>(null)
   const [nuevoOrdenNotas, setNuevoOrdenNotas] = useState('')
   const [nuevoOrdenDomi, setNuevoOrdenDomi] = useState({ nombre: '', telefono: '', direccion: '' })
   const [nuevoOrdenCategoria, setNuevoOrdenCategoria] = useState<number | 'todas'>('todas')
@@ -315,12 +320,19 @@ export default function GerenciaPage() {
 
   // ── CARGAR CARTA ─────────────────────────────────────────────
   const cargarCarta = useCallback(async () => {
-    const [{ data: cats }, { data: pls }] = await Promise.all([
+    const [{ data: cats }, { data: pls }, { data: mods }] = await Promise.all([
       supabase.from('categorias').select('*').order('orden'),
       supabase.from('platos').select('*').order('nombre'),
+      supabase.from('grupos_modificadores').select('*, opciones:opciones_modificador(*, componente:platos(nombre))').order('orden'),
     ])
     if (cats) setCategorias(cats)
-    if (pls) setPlatos(pls)
+    if (pls) {
+      const modsPorPlato = new Map<string, GrupoModificador[]>()
+      ;((mods || []) as unknown as (GrupoModificador & { plato_id: string })[]).forEach(g => {
+        modsPorPlato.set(g.plato_id, [...(modsPorPlato.get(g.plato_id) || []), g])
+      })
+      setPlatos((pls as Plato[]).map(p => ({ ...p, modificadores: modsPorPlato.get(p.id) || [] })))
+    }
   }, [supabase])
 
   const cargarOpcionesPlato = useCallback(async (platoId: string) => {
@@ -1630,7 +1642,7 @@ export default function GerenciaPage() {
   async function agregarOpcionPlato() {
     if (!platoEditandoId) return
     const nombre = nuevaOpcionNombre.trim()
-    if (!nombre) { toast.error('Escribe el nombre de la opción'); return }
+    if (!nombre) { toast.error('Elige una opción'); return }
     setGuardandoOpcion(true)
     const { error } = await supabase.from('plato_opciones').insert({
       plato_id: platoEditandoId,
@@ -1696,9 +1708,9 @@ export default function GerenciaPage() {
     else await cargarModificadoresPlato(platoEditandoId)
   }
 
-  async function agregarOpcionModificador(grupo: GrupoModificador) {
+  async function agregarOpcionModificador(grupo: GrupoModificador, opcionRapida?: { nombre: string; componente_plato_id: string | null; no_aplica: boolean }) {
     if (!platoEditandoId) return
-    const form = nuevasOpcionesMod[grupo.id] || { nombre: '', componente_plato_id: '', no_aplica: false }
+    const form = opcionRapida || nuevasOpcionesMod[grupo.id] || { nombre: '', componente_plato_id: '', no_aplica: false }
     const nombre = form.nombre.trim()
     if (!nombre) { toast.error('Escribe el nombre de la opción'); return }
     if (!form.no_aplica && !form.componente_plato_id) { toast.error('Elige el componente inventariable'); return }
@@ -1772,9 +1784,39 @@ export default function GerenciaPage() {
   }
 
   // ── TOMAR PEDIDO DESDE GERENCIA ───────────────────────────────
+  function agregarNuevoOrdenPlato(plato: Plato, modificadores?: ModificadorSeleccionado[]) {
+    if (!modificadores && tieneModificadores(plato as never)) { setPlatoConfigNuevoOrden(plato); return }
+    const mods = modificadores || []
+    if (mods.length > 0) {
+      const nuevoItem: ItemConModificadores = { plato: plato as never, cantidad: 1, notas: '', modificadores: mods }
+      const keyNuevo = itemKey(nuevoItem)
+      setNuevoOrdenItemsMod(prev => {
+        const existe = prev.find(i => itemKey(i) === keyNuevo)
+        if (existe) return prev.map(i => itemKey(i) === keyNuevo ? { ...i, cantidad: i.cantidad + 1 } : i)
+        return [...prev, nuevoItem]
+      })
+      return
+    }
+    setNuevoOrdenCarrito(prev => ({ ...prev, [plato.id]: (prev[plato.id] ?? 0) + 1 }))
+  }
+
+  function quitarNuevoOrdenPlato(plato: Plato) {
+    if (tieneModificadores(plato as never)) {
+      setNuevoOrdenItemsMod(prev => {
+        const index = prev.findIndex(i => i.plato.id === plato.id)
+        if (index < 0) return prev
+        const item = prev[index]
+        if (item.cantidad > 1) return prev.map((i, idx) => idx === index ? { ...i, cantidad: i.cantidad - 1 } : i)
+        return prev.filter((_, idx) => idx !== index)
+      })
+      return
+    }
+    setNuevoOrdenCarrito(prev => ({ ...prev, [plato.id]: Math.max(0, (prev[plato.id] ?? 0) - 1) }))
+  }
+
   async function tomarPedidoGerencia() {
     const itemsCarrito = Object.entries(nuevoOrdenCarrito).filter(([, qty]) => qty > 0)
-    if (itemsCarrito.length === 0) { toast.error('Agrega al menos un plato al pedido'); return }
+    if (itemsCarrito.length === 0 && nuevoOrdenItemsMod.length === 0) { toast.error('Agrega al menos un plato al pedido'); return }
     if (!turnoActivo) { toast.error('No hay turno activo — abre el turno primero'); return }
     if (nuevoOrdenTipo === 'mesa' && !nuevoOrdenMesaId) { toast.error('Selecciona una mesa'); return }
     setTomandoPedido(true)
@@ -1782,7 +1824,10 @@ export default function GerenciaPage() {
       // ── Verificación de stock en tiempo real (previene sobre-pedidos) ──
       if (turnoConInventario) {
         const platoIdsConInv = Object.keys(inventarioModalMap)
-        const itemsConLimite = itemsCarrito.filter(([platoId]) => platoIdsConInv.includes(platoId))
+        const cantidadesPorPlato = new Map<string, number>()
+        itemsCarrito.forEach(([platoId, qty]) => cantidadesPorPlato.set(platoId, (cantidadesPorPlato.get(platoId) || 0) + qty))
+        nuevoOrdenItemsMod.forEach(item => cantidadesPorPlato.set(item.plato.id, (cantidadesPorPlato.get(item.plato.id) || 0) + item.cantidad))
+        const itemsConLimite = [...cantidadesPorPlato.entries()].filter(([platoId]) => platoIdsConInv.includes(platoId))
         if (itemsConLimite.length > 0) {
           const { data: invActual } = await supabase
             .from('inventario').select('plato_id, cantidad_disponible')
@@ -1851,17 +1896,28 @@ export default function GerenciaPage() {
         })
       }
 
-      const { error: errItems } = await supabase.from('items_pedido').insert(
-        itemsCarrito.map(([platoId, qty]) => {
-          const p = platos.find(pl => pl.id === platoId)!
-          return { pedido_id: pedidoId, plato_id: platoId, cantidad: qty, precio_unitario: p.precio, estado: 'pendiente', pedido_por: user?.id || null }
-        })
-      )
-      if (errItems) throw new Error(errItems.message)
+      const itemsSimples = itemsCarrito.map(([platoId, qty]) => {
+        const p = platos.find(pl => pl.id === platoId)!
+        return { pedido_id: pedidoId, plato_id: platoId, cantidad: qty, precio_unitario: p.precio, estado: 'pendiente', pedido_por: user?.id || null }
+      })
+      if (itemsSimples.length > 0) {
+        const { error: errItems } = await supabase.from('items_pedido').insert(itemsSimples)
+        if (errItems) throw new Error(errItems.message)
+      }
+      for (const item of nuevoOrdenItemsMod) {
+        const { data: itemCreado, error: itemError } = await supabase.from('items_pedido')
+          .insert({ ...itemPedidoPayload(item, pedidoId, user?.id || null), estado: 'pendiente' })
+          .select('id').single()
+        if (itemError) throw new Error(itemError.message)
+        if (itemCreado?.id) {
+          const mods = modificadoresPedidoPayload(itemCreado.id, item)
+          if (mods.length > 0) await supabase.from('items_pedido_modificadores').insert(mods)
+        }
+      }
 
       toast.success('✅ Pedido enviado a cocina')
       setModalNuevoPedido(false)
-      setNuevoOrdenCarrito({}); setNuevoOrdenMesaId(null); setNuevoOrdenNotas('')
+      setNuevoOrdenCarrito({}); setNuevoOrdenItemsMod([]); setNuevoOrdenMesaId(null); setNuevoOrdenNotas('')
       setNuevoOrdenDomi({ nombre: '', telefono: '', direccion: '' })
       cargarMesas(); cargarDatos()
     } catch (e) {
@@ -1955,6 +2011,13 @@ export default function GerenciaPage() {
 
   return (
     <div className="min-h-screen bg-[#FAFAFA]">
+      {platoConfigNuevoOrden && (
+        <ModificadorModal
+          plato={platoConfigNuevoOrden as never}
+          onCancel={() => setPlatoConfigNuevoOrden(null)}
+          onConfirm={mods => { agregarNuevoOrdenPlato(platoConfigNuevoOrden, mods); setPlatoConfigNuevoOrden(null) }}
+        />
+      )}
 
       {/* ── HEADER premium light ──────────────────────────────────── */}
       <div className="bg-white/95 backdrop-blur-sm border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-40 shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
@@ -2068,7 +2131,7 @@ export default function GerenciaPage() {
               <div className="flex gap-2 shrink-0">
                 <button onClick={() => {
                   setModalNuevoPedido(true)
-                  setNuevoOrdenTipo('mesa'); setNuevoOrdenCarrito({})
+                  setNuevoOrdenTipo('mesa'); setNuevoOrdenCarrito({}); setNuevoOrdenItemsMod([])
                   setNuevoOrdenMesaId(null); setNuevoOrdenNotas('')
                   setNuevoOrdenCategoria('todas')
                   setNuevoOrdenDomi({ nombre: '', telefono: '', direccion: '' })
@@ -4060,7 +4123,6 @@ export default function GerenciaPage() {
                   ) : (
                     <div className="space-y-3">
                       {gruposMod.map(grupo => {
-                        const form = nuevasOpcionesMod[grupo.id] || { nombre: '', componente_plato_id: '', no_aplica: false }
                         return (
                           <div key={grupo.id} className="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
                             <div className="flex items-center justify-between gap-2">
@@ -4092,33 +4154,27 @@ export default function GerenciaPage() {
                               ))}
                             </div>
 
-                            <div className="grid grid-cols-1 gap-2 border-t border-gray-100 pt-2">
-                              <input
-                                type="text"
-                                value={form.nombre}
-                                onChange={e => setNuevasOpcionesMod(prev => ({ ...prev, [grupo.id]: { ...form, nombre: e.target.value } }))}
-                                placeholder="Nombre opci?n: Sancocho, arroz, No deseo sopa..."
-                                className="bg-gray-50 border border-gray-200 rounded-lg px-2 py-2 text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
-                              />
-                              <div className="grid grid-cols-[1fr_auto] gap-2">
-                                <select
-                                  value={form.componente_plato_id}
-                                  disabled={form.no_aplica}
-                                  onChange={e => setNuevasOpcionesMod(prev => ({ ...prev, [grupo.id]: { ...form, componente_plato_id: e.target.value } }))}
-                                  className="bg-gray-50 border border-gray-200 rounded-lg px-2 py-2 text-xs text-gray-900 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-orange-500/30">
-                                  <option value="">Componente inventariable</option>
-                                  {platos.filter(p => p.id !== platoEditandoId && (p.controla_inventario ?? true)).map(p => (
-                                    <option key={p.id} value={p.id}>{p.nombre}</option>
-                                  ))}
-                                </select>
-                                <button onClick={() => agregarOpcionModificador(grupo)} className="px-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg">
-                                  <Plus size={14} />
-                                </button>
+                            <div className="border-t border-gray-100 pt-2 space-y-2">
+                              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">Agregar con click</p>
+                              <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
+                                {platos.filter(p => p.id !== platoEditandoId && (p.controla_inventario ?? true)).map(p => {
+                                  const yaExiste = grupo.opciones.some(o => o.componente_plato_id === p.id && !o.es_opcion_no_aplica)
+                                  return (
+                                    <button
+                                      key={p.id}
+                                      onClick={() => agregarOpcionModificador(grupo, { nombre: p.nombre, componente_plato_id: p.id, no_aplica: false })}
+                                      disabled={yaExiste}
+                                      className="text-left text-xs bg-gray-50 hover:bg-orange-50 disabled:bg-gray-100 disabled:text-gray-400 border border-gray-200 hover:border-orange-200 rounded-lg px-2 py-2 text-gray-800 transition-colors">
+                                      {p.nombre}
+                                    </button>
+                                  )
+                                })}
                               </div>
-                              <label className="flex items-center gap-2 text-[11px] text-gray-600">
-                                <input type="checkbox" checked={form.no_aplica} onChange={e => setNuevasOpcionesMod(prev => ({ ...prev, [grupo.id]: { ...form, no_aplica: e.target.checked, componente_plato_id: e.target.checked ? '' : form.componente_plato_id } }))} />
-                                Esta opci?n no descuenta inventario
-                              </label>
+                              <button
+                                onClick={() => agregarOpcionModificador(grupo, { nombre: grupo.tipo === 'radio' ? `No deseo ${grupo.nombre.toLowerCase()}` : `Sin ${grupo.nombre.toLowerCase()}`, componente_plato_id: null, no_aplica: true })}
+                                className="w-full text-xs bg-white hover:bg-gray-50 border border-dashed border-gray-300 rounded-lg px-2 py-2 text-gray-600 font-semibold">
+                                Agregar opci?n sin descuento de inventario
+                              </button>
                             </div>
                           </div>
                         )
@@ -5352,7 +5408,7 @@ export default function GerenciaPage() {
                 <h2 className="text-lg font-black text-white/90">Tomar pedido</h2>
                 <p className="text-xs text-white/35">Gerencia</p>
               </div>
-              <button onClick={() => { setModalNuevoPedido(false); setNuevoOrdenCarrito({}); setNuevoOrdenMesaId(null) }}
+              <button onClick={() => { setModalNuevoPedido(false); setNuevoOrdenCarrito({}); setNuevoOrdenItemsMod([]); setNuevoOrdenMesaId(null) }}
                 className="w-9 h-9 rounded-full bg-white/8 flex items-center justify-center"><X size={18} /></button>
             </div>
 
@@ -5436,6 +5492,8 @@ export default function GerenciaPage() {
                 <div className="space-y-2">
                   {platos.filter(p => p.activo && (nuevoOrdenCategoria === 'todas' || p.categoria_id === nuevoOrdenCategoria)).map(p => {
                     const inv = inventarioModalMap[p.id]
+                    const cantidadConfigurada = nuevoOrdenItemsMod.filter(i => i.plato.id === p.id).reduce((a, i) => a + i.cantidad, 0)
+                    const cantidadTotal = (nuevoOrdenCarrito[p.id] ?? 0) + cantidadConfigurada
                     // sinStock solo si este plato TIENE inventario de turno configurado Y está en 0
                     // Si inv es undefined → plato sin restricción de turno → siempre disponible
                     const sinStock  = inv !== undefined && inv.cantidad === 0
@@ -5443,7 +5501,7 @@ export default function GerenciaPage() {
                     return (
                     <div key={p.id} className={`flex items-center justify-between bg-white/5 border rounded-2xl px-4 py-2.5 gap-3 transition-all ${
                       sinStock ? 'border-red-500/20 opacity-50' :
-                      (nuevoOrdenCarrito[p.id] ?? 0) > 0 ? 'border-orange-500/30 bg-orange-500/10' : 'border-white/10'
+                      cantidadTotal > 0 ? 'border-orange-500/30 bg-orange-500/10' : 'border-white/10'
                     }`}>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-white/80 truncate">{p.nombre}</p>
@@ -5453,19 +5511,19 @@ export default function GerenciaPage() {
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <button
-                          onClick={() => setNuevoOrdenCarrito(prev => ({ ...prev, [p.id]: Math.max(0, (prev[p.id] ?? 0) - 1) }))}
+                          onClick={() => quitarNuevoOrdenPlato(p)}
                           className="w-7 h-7 bg-white/8 hover:bg-white/14 border border-white/10 rounded-full flex items-center justify-center text-white/60">
                           <Minus size={12} />
                         </button>
-                        <span className="w-6 text-center font-black text-white text-sm">{nuevoOrdenCarrito[p.id] ?? 0}</span>
+                        <span className="w-6 text-center font-black text-white text-sm">{cantidadTotal}</span>
                         <button
                           disabled={sinStock}
                           onClick={() => {
                             if (turnoConInventario && inv) {
-                              const enCarrito = nuevoOrdenCarrito[p.id] ?? 0
+                              const enCarrito = cantidadTotal
                               if (inv.cantidad > 0 && enCarrito >= inv.cantidad) { toast.error(`Solo hay ${inv.cantidad} de ${p.nombre}`); return }
                             }
-                            setNuevoOrdenCarrito(prev => ({ ...prev, [p.id]: (prev[p.id] ?? 0) + 1 }))
+                            agregarNuevoOrdenPlato(p)
                           }}
                           className="w-7 h-7 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-full flex items-center justify-center shadow-lg shadow-orange-900/30">
                           <Plus size={12} />
@@ -5492,10 +5550,10 @@ export default function GerenciaPage() {
 
             {/* Footer: resumen + botón enviar */}
             <div className="border-t border-white/10 px-5 py-4 shrink-0 bg-gray-950 space-y-3">
-              {Object.values(nuevoOrdenCarrito).some(v => v > 0) && (
+              {(Object.values(nuevoOrdenCarrito).some(v => v > 0) || nuevoOrdenItemsMod.length > 0) && (
                 <div className="flex justify-between items-center text-sm bg-white/4 rounded-xl px-4 py-2.5">
                   <span className="text-gray-500 font-medium">
-                    {Object.values(nuevoOrdenCarrito).reduce((a, v) => a + v, 0)} platos
+                    {Object.values(nuevoOrdenCarrito).reduce((a, v) => a + v, 0) + nuevoOrdenItemsMod.reduce((a, i) => a + i.cantidad, 0)} platos
                     {nuevoOrdenTipo === 'mesa' && nuevoOrdenMesaId && (
                       <span className="ml-1">· Mesa {mesas.find(m => m.id === nuevoOrdenMesaId)?.numero}</span>
                     )}
@@ -5504,13 +5562,23 @@ export default function GerenciaPage() {
                     ${Object.entries(nuevoOrdenCarrito).reduce((a, [id, qty]) => {
                       const p = platos.find(pl => pl.id === id)
                       return a + (p?.precio ?? 0) * qty
-                    }, 0).toLocaleString('es-CO')}
+                    }, nuevoOrdenItemsMod.reduce((a, i) => a + i.plato.precio * i.cantidad, 0)).toLocaleString('es-CO')}
                   </span>
+                </div>
+              )}
+              {nuevoOrdenItemsMod.length > 0 && (
+                <div className="space-y-1.5">
+                  {nuevoOrdenItemsMod.map(item => (
+                    <div key={itemKey(item)} className="text-xs text-gray-400 bg-white/4 rounded-lg px-3 py-2">
+                      <span className="font-bold text-white/70">{item.cantidad}x {item.plato.nombre}</span>
+                      <span className="block">{item.modificadores.map(m => `${m.nombre_grupo}: ${m.nombre_opcion}`).join(' · ')}</span>
+                    </div>
+                  ))}
                 </div>
               )}
               <button
                 onClick={tomarPedidoGerencia}
-                disabled={tomandoPedido || !Object.values(nuevoOrdenCarrito).some(v => v > 0)}
+                disabled={tomandoPedido || (!Object.values(nuevoOrdenCarrito).some(v => v > 0) && nuevoOrdenItemsMod.length === 0)}
                 className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-900/30">
                 {tomandoPedido
                   ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando a cocina...</>

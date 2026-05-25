@@ -13,12 +13,13 @@ import {
 } from 'lucide-react'
 import {
   ItemConModificadores,
-  elegirModificadoresPrompt,
   itemKey,
   itemPedidoPayload,
   modificadoresPedidoPayload,
   tieneModificadores,
 } from '@/lib/modificadores'
+import ModificadorModal from '@/components/ModificadorModal'
+import { ModificadorSeleccionado } from '@/types'
 
 // ─── TIPOS ─────────────────────────────────────────────────────────────────
 interface Negocio { id: string; nombre: string; plan: string }
@@ -94,6 +95,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   const [platos, setPlatos]                 = useState<PlatoConInv[]>([])
   const [catActiva, setCatActiva]           = useState<number | null>(null)
   const [carrito, setCarrito]               = useState<ItemCarrito[]>([])
+  const [platoConfig, setPlatoConfig]       = useState<Plato | null>(null)
   const [turnoConInventario, setTurnoConInventario] = useState(false)
   const [pasoOrden, setPasoOrden]   = useState<PasoOrden>('browse')
   const [tipoConsumo, setTipoConsumo] = useState<TipoConsumo>(null)
@@ -266,11 +268,11 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   const cantTotal    = carrito.reduce((s, i) => s + i.cantidad, 0)
   const cantPlato    = (id: string) => carrito.filter(i => i.plato.id === id).reduce((a, i) => a + i.cantidad, 0)
 
-  function agregar(platoRaw: Plato) {
+  function agregar(platoRaw: Plato, modificadores?: ModificadorSeleccionado[]) {
     const platoConInv = platos.find(p => p.id === platoRaw.id)
-    const modificadores = tieneModificadores(platoRaw as never) ? elegirModificadoresPrompt(platoRaw as never) : []
-    if (modificadores === null) return
-    const keyNuevo = itemKey({ plato: platoRaw as never, cantidad: 1, notas: '', modificadores })
+    if (!modificadores && tieneModificadores(platoRaw as never)) { setPlatoConfig(platoRaw); return }
+    const mods = modificadores || []
+    const keyNuevo = itemKey({ plato: platoRaw as never, cantidad: 1, notas: '', modificadores: mods })
     if (turnoConInventario && platoConInv?.inv) {
       const disp = platoConInv.inv.cantidad_disponible
       if (disp === 0) { toast.error(`${platoRaw.nombre} no est? disponible`); return }
@@ -280,7 +282,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
     setCarrito(prev => {
       const ex = prev.find(i => itemKey(i) === keyNuevo)
       if (ex) return prev.map(i => itemKey(i) === keyNuevo ? { ...i, cantidad: i.cantidad + 1 } : i)
-      return [...prev, { plato: platoRaw as never, cantidad: 1, notas: '', modificadores }]
+      return [...prev, { plato: platoRaw as never, cantidad: 1, notas: '', modificadores: mods }]
     })
   }
   function cambiarCant(id: string, delta: number) {
@@ -561,6 +563,13 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
       </div>
     </div>
   ) : null
+  const modalModificadores = platoConfig && (
+    <ModificadorModal
+      plato={platoConfig as never}
+      onCancel={() => setPlatoConfig(null)}
+      onConfirm={mods => { agregar(platoConfig, mods); setPlatoConfig(null) }}
+    />
+  )
 
   // ═══════════════════════════════════════════
   // HOME
@@ -568,6 +577,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   if (vista === 'home') return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <PopupSugerido />
+      {modalModificadores}
 
       {/* Hero naranja */}
       <div className="relative overflow-hidden bg-gradient-to-br from-orange-600 via-orange-500 to-amber-500 px-6 pt-14 pb-16 text-center">
@@ -700,6 +710,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   if (vista === 'menu') return (
     <div className="min-h-screen bg-gray-50">
       <PopupSugerido />
+      {modalModificadores}
       <Header titulo={negocio?.nombre || ''} subtitulo={puedeOrdenar ? 'Toca + para agregar' : 'Solo lectura'} />
 
       {/* BROWSE */}
@@ -725,6 +736,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
           <div className="p-4 max-w-2xl mx-auto space-y-3 pb-32">
             {platos.filter(p => p.categoria_id === catActiva).map(plato => {
               const cant      = cantPlato(plato.id)
+              const requiereConfig = tieneModificadores(plato as never)
               const disp      = plato.inv?.cantidad_disponible ?? null
               const sinStock  = turnoConInventario && disp !== null && disp === 0
               const stockBajo = turnoConInventario && disp !== null && disp > 0 && disp <= (plato.inv?.alerta_minima ?? 3)
@@ -748,7 +760,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
                     </div>
                     <div className="shrink-0 pl-2">
                       {puedeOrdenar && !sinStock ? (
-                        cant > 0 ? (
+                        cant > 0 && !requiereConfig ? (
                           <div className="flex items-center gap-1.5">
                             <button onClick={() => cambiarCant(plato.id, -1)}
                               className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center font-black transition-colors">
@@ -862,10 +874,13 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
           <div className={`${CARD} p-4`}>
             <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Tu pedido</p>
             {carrito.map(i => (
-              <div key={i.plato.id} className="flex justify-between items-center py-1.5">
+              <div key={itemKey(i)} className="flex justify-between items-center py-1.5">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-black text-gray-400 w-5">{i.cantidad}×</span>
-                  <span className="text-sm text-gray-700 font-medium">{i.plato.nombre}</span>
+                  <div>
+                    <span className="text-sm text-gray-700 font-medium">{i.plato.nombre}</span>
+                    {i.modificadores.length > 0 && <p className="text-xs text-gray-500">{i.modificadores.map(m => `${m.nombre_grupo}: ${m.nombre_opcion}`).join(' · ')}</p>}
+                  </div>
                 </div>
                 <span className="text-sm font-black text-gray-900">${(i.cantidad * i.plato.precio).toLocaleString('es-CO')}</span>
               </div>

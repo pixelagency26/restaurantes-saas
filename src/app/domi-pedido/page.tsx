@@ -4,14 +4,9 @@ import { useEffect, useState, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Plato, Categoria, Inventario } from '@/types'
-import {
-  ItemConModificadores,
-  elegirModificadoresPrompt,
-  itemKey,
-  itemPedidoPayload,
-  modificadoresPedidoPayload,
-  tieneModificadores,
-} from '@/lib/modificadores'
+import { ModificadorSeleccionado } from '@/types'
+import { ItemConModificadores, itemKey, itemPedidoPayload, modificadoresPedidoPayload, tieneModificadores } from '@/lib/modificadores'
+import ModificadorModal from '@/components/ModificadorModal'
 import toast from 'react-hot-toast'
 import {
   Plus, Minus, ShoppingBag, CheckCircle, ChevronLeft,
@@ -38,6 +33,7 @@ function DomiPedidoInner() {
   const [platos, setPlatos]         = useState<(Plato & { inventario: Inventario[] })[]>([])
   const [catActiva, setCatActiva]   = useState<number | null>(null)
   const [carrito, setCarrito]       = useState<ItemCarrito[]>([])
+  const [platoConfig, setPlatoConfig] = useState<Plato | null>(null)
 
   // Datos del cliente
   const [nombre, setNombre]         = useState('')
@@ -137,10 +133,10 @@ function DomiPedidoInner() {
     return p?.inventario?.[0]?.cantidad_disponible ?? 0
   }
 
-  function agregar(plato: Plato) {
-    const modificadores = tieneModificadores(plato) ? elegirModificadoresPrompt(plato) : []
-    if (modificadores === null) return
-    const keyNuevo = itemKey({ plato, cantidad: 1, notas: '', modificadores })
+  function agregar(plato: Plato, modificadores?: ModificadorSeleccionado[]) {
+    if (!modificadores && tieneModificadores(plato)) { setPlatoConfig(plato); return }
+    const mods = modificadores || []
+    const keyNuevo = itemKey({ plato, cantidad: 1, notas: '', modificadores: mods })
     const disp = stockDisponible(plato.id)
     const enCarrito = carrito.find(i => itemKey(i) === keyNuevo)?.cantidad ?? 0
     if (enCarrito >= disp) {
@@ -150,7 +146,7 @@ function DomiPedidoInner() {
     setCarrito(prev => {
       const existe = prev.find(i => itemKey(i) === keyNuevo)
       if (existe) return prev.map(i => itemKey(i) === keyNuevo ? { ...i, cantidad: i.cantidad + 1 } : i)
-      return [...prev, { plato, cantidad: 1, notas: '', modificadores }]
+      return [...prev, { plato, cantidad: 1, notas: '', modificadores: mods }]
     })
   }
 
@@ -292,10 +288,18 @@ function DomiPedidoInner() {
   const platosFiltrados = platos.filter(p => p.categoria_id === catActiva)
   const datosCompletos = nombre.trim() && telefono.trim() && direccion.trim()
   const esTransferencia = metodoPago === 'nequi' || metodoPago === 'daviplata'
+  const modalModificadores = platoConfig && (
+    <ModificadorModal
+      plato={platoConfig}
+      onCancel={() => setPlatoConfig(null)}
+      onConfirm={mods => { agregar(platoConfig, mods); setPlatoConfig(null) }}
+    />
+  )
 
   // ── SEGUIMIENTO ───────────────────────────────────────────────
   if (paso === 'seguimiento') return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex flex-col">
+      {modalModificadores}
       <div className="bg-white border-b px-4 py-4 text-center shadow-sm">
         <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-2 bg-blue-600">
           <Bike size={28} className="text-white" />
@@ -570,6 +574,7 @@ function DomiPedidoInner() {
   // ── MENÚ ──────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {modalModificadores}
       <div className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 shadow-sm">
         <div>
           <h1 className="font-bold text-gray-900">{negocioNombre}</h1>

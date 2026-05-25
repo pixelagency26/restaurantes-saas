@@ -40,25 +40,6 @@ export function acompanantesOpcion(plato: Plato, opcion: PlatoOpcion | null): st
     .map(c => c.cantidad > 1 ? `${c.nombre} x${c.cantidad}` : c.nombre)
 }
 
-export function elegirOpcion(plato: Plato): PlatoOpcion | null {
-  const opciones = opcionesDelPlato(plato)
-  if (opciones.length <= 1) return opcionDefault(plato)
-
-  const texto = opciones
-    .map((o, i) => {
-      const acomp = acompanantesOpcion(plato, o)
-      const detalle = acomp.length ? ` (${acomp.join(', ')})` : ''
-      return `${i + 1}. ${o.nombre}${detalle}`
-    })
-    .join('\n')
-
-  const respuesta = window.prompt(`Como va "${plato.nombre}"?\n\n${texto}`, '1')
-  if (respuesta === null) return null
-
-  const index = Math.max(0, Math.min(opciones.length - 1, (parseInt(respuesta, 10) || 1) - 1))
-  return opciones[index]
-}
-
 export function itemPedidoPayload(item: ItemConOpcion, pedidoId: string, pedidoPor?: string | null) {
   return {
     pedido_id: pedidoId,
@@ -72,4 +53,3 @@ export function itemPedidoPayload(item: ItemConOpcion, pedidoId: string, pedidoP
     pedido_por: pedidoPor || null,
   }
 }
-

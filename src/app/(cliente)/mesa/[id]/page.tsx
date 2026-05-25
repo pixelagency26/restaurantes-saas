@@ -2,15 +2,15 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plato, Categoria, Inventario } from '@/types'
+import { Plato, Categoria, Inventario, ModificadorSeleccionado } from '@/types'
 import {
   ItemConModificadores,
-  elegirModificadoresPrompt,
   itemKey,
   itemPedidoPayload,
   modificadoresPedidoPayload,
   tieneModificadores,
 } from '@/lib/modificadores'
+import ModificadorModal from '@/components/ModificadorModal'
 import toast from 'react-hot-toast'
 import { Plus, Minus, ShoppingBag, CheckCircle, ChevronLeft, User, Bell, RefreshCw } from 'lucide-react'
 import { use } from 'react'
@@ -44,6 +44,7 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
   const [platos, setPlatos]               = useState<(Plato & { inventario: Inventario[] })[]>([])
   const [categoriaActiva, setCategoriaActiva] = useState<number | null>(null)
   const [carrito, setCarrito]             = useState<ItemCarrito[]>([])
+  const [platoConfig, setPlatoConfig]     = useState<Plato | null>(null)
   const [mesa, setMesa]                   = useState<{ numero: number; estado: string } | null>(null)
   const [negocioNombre, setNegocioNombre] = useState('Restaurant Pix')
   const [enviando, setEnviando]           = useState(false)
@@ -172,19 +173,25 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
   function disponibilidad(plato: Plato & { inventario: Inventario[] }) {
     return plato.inventario?.[0]?.cantidad_disponible ?? 0
   }
-  function agregar(plato: Plato) {
-    const modificadores = tieneModificadores(plato) ? elegirModificadoresPrompt(plato) : []
-    if (modificadores === null) return
-    const keyNuevo = itemKey({ plato, cantidad: 1, notas: '', modificadores })
+  function agregar(plato: Plato, modificadores?: ModificadorSeleccionado[]) {
+    if (!modificadores && tieneModificadores(plato)) { setPlatoConfig(plato); return }
+    const mods = modificadores || []
+    const keyNuevo = itemKey({ plato, cantidad: 1, notas: '', modificadores: mods })
     setCarrito(prev => {
       const existe = prev.find(i => itemKey(i) === keyNuevo)
       if (existe) return prev.map(i => itemKey(i) === keyNuevo ? { ...i, cantidad: i.cantidad + 1 } : i)
-      return [...prev, { plato, cantidad: 1, notas: '', modificadores }]
+      return [...prev, { plato, cantidad: 1, notas: '', modificadores: mods }]
     })
   }
   function cambiarCantidad(id: string, delta: number) {
     setCarrito(prev =>
       prev.map(i => i.plato.id === id ? { ...i, cantidad: Math.max(0, i.cantidad + delta) } : i)
+          .filter(i => i.cantidad > 0)
+    )
+  }
+  function cambiarCantidadItem(key: string, delta: number) {
+    setCarrito(prev =>
+      prev.map(i => itemKey(i) === key ? { ...i, cantidad: Math.max(0, i.cantidad + delta) } : i)
           .filter(i => i.cantidad > 0)
     )
   }
@@ -307,10 +314,18 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
   const total           = carrito.reduce((a, i) => a + i.plato.precio * i.cantidad, 0)
   const totalItems      = carrito.reduce((a, i) => a + i.cantidad, 0)
   const todoEntregado   = itemsSeguimiento.length > 0 && itemsSeguimiento.every(i => i.estado === 'entregado')
+  const modalModificadores = platoConfig && (
+    <ModificadorModal
+      plato={platoConfig}
+      onCancel={() => setPlatoConfig(null)}
+      onConfirm={mods => { agregar(platoConfig, mods); setPlatoConfig(null) }}
+    />
+  )
 
   // ── SEGUIMIENTO ──────────────────────────────────────────────────────────────
   if (paso === 'seguimiento') return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 flex flex-col">
+      {modalModificadores}
       {/* Header */}
       <div className="bg-white border-b px-4 py-4 text-center shadow-sm">
         <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-2 ${todoEntregado ? 'bg-gray-400' : 'bg-green-500'}`}>
@@ -373,6 +388,7 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
   // ── IDENTIFICACIÓN ──────────────────────────────────────────────────────────
   if (paso === 'identificacion') return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 flex flex-col">
+      {modalModificadores}
       <div className="bg-white border-b px-4 py-3 flex items-center gap-3 sticky top-0 shadow-sm">
         <button onClick={() => setPaso('carrito')} className="text-gray-400 hover:text-gray-600">
           <ChevronLeft size={22} />
@@ -436,6 +452,7 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
   // ── CARRITO ──────────────────────────────────────────────────────────────────
   if (paso === 'carrito') return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {modalModificadores}
       <div className="bg-white border-b px-4 py-3 flex items-center gap-3 sticky top-0 z-10 shadow-sm">
         <button onClick={() => setPaso('menu')} className="text-gray-400 hover:text-gray-600"><ChevronLeft size={22} /></button>
         <h2 className="font-bold text-gray-900">Tu pedido</h2>
@@ -449,22 +466,28 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
             <p className="text-gray-400 text-sm">Tu carrito está vacío</p>
             <button onClick={() => setPaso('menu')} className="mt-3 text-orange-500 font-semibold text-sm">← Volver al menú</button>
           </div>
-        ) : carrito.map(item => (
-          <div key={item.plato.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+        ) : carrito.map(item => {
+          const key = itemKey(item)
+          return (
+          <div key={key} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-2">
-              <p className="font-semibold text-gray-900">{item.plato.nombre}</p>
+              <div>
+                <p className="font-semibold text-gray-900">{item.plato.nombre}</p>
+                {item.modificadores.length > 0 && <p className="text-xs text-gray-500">{item.modificadores.map(m => `${m.nombre_grupo}: ${m.nombre_opcion}`).join(' · ')}</p>}
+              </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => cambiarCantidad(item.plato.id, -1)} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><Minus size={12} /></button>
+                <button onClick={() => cambiarCantidadItem(key, -1)} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><Minus size={12} /></button>
                 <span className="font-bold w-5 text-center">{item.cantidad}</span>
-                <button onClick={() => cambiarCantidad(item.plato.id, 1)} className="w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center"><Plus size={12} /></button>
+                <button onClick={() => cambiarCantidadItem(key, 1)} className="w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center"><Plus size={12} /></button>
               </div>
             </div>
             <p className="text-orange-500 text-sm font-bold">${(item.plato.precio * item.cantidad).toLocaleString('es-CO')}</p>
             <input type="text" placeholder="Nota especial (ej: sin cebolla)" value={item.notas}
-              onChange={e => setCarrito(prev => prev.map(i => i.plato.id === item.plato.id ? { ...i, notas: e.target.value } : i))}
+              onChange={e => setCarrito(prev => prev.map(i => itemKey(i) === key ? { ...i, notas: e.target.value } : i))}
               className="mt-2.5 w-full text-sm border border-gray-100 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-gray-50" />
           </div>
-        ))}
+          )
+        })}
       </div>
 
       {carrito.length > 0 && (
@@ -493,6 +516,7 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
   // ── MENÚ ─────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {modalModificadores}
       <div className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm">
         <div>
           <h1 className="font-bold text-gray-900">{negocioNombre}</h1>
@@ -525,7 +549,7 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
         {platosFiltrados.map(plato => {
           const disp      = disponibilidad(plato)
           const sinStock  = disp === 0
-          const enCarrito = carrito.find(i => i.plato.id === plato.id)
+          const enCarrito = tieneModificadores(plato) ? null : carrito.find(i => i.plato.id === plato.id)
           return (
             <div key={plato.id} className={`bg-white rounded-2xl p-4 border flex items-center gap-3 shadow-sm transition-opacity ${sinStock ? 'opacity-50' : 'border-gray-100'}`}>
               {plato.imagen_url && <img src={plato.imagen_url} alt={plato.nombre} className="w-16 h-16 rounded-xl object-cover shrink-0" />}

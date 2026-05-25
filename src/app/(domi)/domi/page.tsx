@@ -2,15 +2,15 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plato, Categoria, Inventario } from '@/types'
+import { Plato, Categoria, Inventario, ModificadorSeleccionado } from '@/types'
 import {
   ItemConModificadores,
-  elegirModificadoresPrompt,
   itemKey,
   itemPedidoPayload,
   modificadoresPedidoPayload,
   tieneModificadores,
 } from '@/lib/modificadores'
+import ModificadorModal from '@/components/ModificadorModal'
 import toast from 'react-hot-toast'
 import {
   Bike, X, Plus, Minus, ShoppingBag,
@@ -53,6 +53,7 @@ export default function DomiPage() {
   const [platos, setPlatos] = useState<(Plato & { inventario: Inventario[] })[]>([])
   const [categoriaActiva, setCategoriaActiva] = useState<number | null>(null)
   const [carrito, setCarrito] = useState<ItemCarrito[]>([])
+  const [platoConfig, setPlatoConfig] = useState<Plato | null>(null)
   const [clienteDomi, setClienteDomi] = useState({ nombre: '', telefono: '', direccion: '', cedula: '' })
   const [notaGeneral, setNotaGeneral] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -290,10 +291,10 @@ export default function DomiPage() {
     return p?.inventario?.[0]?.cantidad_disponible ?? 0
   }
 
-  function agregarAlCarrito(plato: Plato) {
-    const modificadores = tieneModificadores(plato) ? elegirModificadoresPrompt(plato) : []
-    if (modificadores === null) return
-    const keyNuevo = itemKey({ plato, cantidad: 1, notas: '', modificadores })
+  function agregarAlCarrito(plato: Plato, modificadores?: ModificadorSeleccionado[]) {
+    if (!modificadores && tieneModificadores(plato)) { setPlatoConfig(plato); return }
+    const mods = modificadores || []
+    const keyNuevo = itemKey({ plato, cantidad: 1, notas: '', modificadores: mods })
     // Solo limitar si el plato tiene inventario de turno configurado
     if (turnoInventarioIds.has(plato.id)) {
       const disp = stockDisponible(plato.id)
@@ -304,7 +305,7 @@ export default function DomiPage() {
     setCarrito(prev => {
       const existe = prev.find(i => itemKey(i) === keyNuevo)
       if (existe) return prev.map(i => itemKey(i) === keyNuevo ? { ...i, cantidad: i.cantidad + 1 } : i)
-      return [...prev, { plato, cantidad: 1, notas: '', modificadores }]
+      return [...prev, { plato, cantidad: 1, notas: '', modificadores: mods }]
     })
     toast.success(`${plato.nombre} agregado`)
   }
@@ -392,10 +393,18 @@ export default function DomiPage() {
 
   const totalCarrito = carrito.reduce((a, i) => a + i.plato.precio * i.cantidad, 0)
   const platosFiltrados = platos.filter(p => p.categoria_id === categoriaActiva)
+  const modalModificadores = platoConfig && (
+    <ModificadorModal
+      plato={platoConfig}
+      onCancel={() => setPlatoConfig(null)}
+      onConfirm={mods => { agregarAlCarrito(platoConfig, mods); setPlatoConfig(null) }}
+    />
+  )
 
   // ── VISTA: MENÚ ───────────────────────────────────────────────
   if (vista === 'menu') return (
     <div className="min-h-screen bg-gray-950 flex flex-col">
+      {modalModificadores}
       {/* Header */}
       <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
@@ -500,6 +509,7 @@ export default function DomiPage() {
   // ── VISTA: CARRITO ────────────────────────────────────────────
   if (vista === 'carrito') return (
     <div className="min-h-screen bg-gray-950 flex flex-col">
+      {modalModificadores}
       {/* Header */}
       <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
         <button onClick={() => setVista('menu')}
@@ -584,6 +594,7 @@ export default function DomiPage() {
   // ── VISTA: PEDIDOS (principal) ────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-950 pb-8">
+      {modalModificadores}
 
       {/* Header */}
       <div className="sticky top-0 z-10 bg-gray-950/95 backdrop-blur-md border-b border-gray-800 px-4 pt-4 pb-3">

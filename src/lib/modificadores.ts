@@ -43,47 +43,6 @@ export function seleccionInicial(plato: Plato): SeleccionModificadores {
   return seleccion
 }
 
-export function elegirModificadoresPrompt(plato: Plato): ModificadorSeleccionado[] | null {
-  const grupos = gruposDelPlato(plato)
-  if (grupos.length === 0) return []
-
-  const seleccion = seleccionInicial(plato)
-  for (const grupo of grupos) {
-    if (grupo.tipo === 'radio') {
-      const texto = grupo.opciones.map((o, i) => `${i + 1}. ${o.nombre}`).join('\n')
-      const respuesta = window.prompt(`${plato.nombre}\n\n${grupo.nombre}:\n${texto}`, '1')
-      if (respuesta === null) return null
-      const index = Math.max(0, Math.min(grupo.opciones.length - 1, (parseInt(respuesta, 10) || 1) - 1))
-      seleccion[grupo.id] = new Set([grupo.opciones[index].id])
-      continue
-    }
-
-    const activas = grupo.opciones.filter(o => !o.es_opcion_no_aplica)
-    const texto = grupo.opciones.map((o, i) => `${i + 1}. ${o.nombre}`).join('\n')
-    const valorInicial = grupo.tiene_opcion_todos ? 'todos' : ''
-    const respuesta = window.prompt(
-      `${plato.nombre}\n\n${grupo.nombre}:\n${texto}\n\nEscribe "todos" o números separados por coma.`,
-      valorInicial,
-    )
-    if (respuesta === null) return null
-    if (respuesta.trim().toLowerCase() === 'todos') {
-      seleccion[grupo.id] = new Set(activas.map(o => o.id))
-    } else {
-      const ids = respuesta.split(',')
-        .map(v => grupo.opciones[(parseInt(v.trim(), 10) || 0) - 1]?.id)
-        .filter(Boolean) as string[]
-      seleccion[grupo.id] = new Set(ids)
-    }
-  }
-
-  const error = validarSeleccion(plato, seleccion)
-  if (error) {
-    window.alert(error)
-    return null
-  }
-  return seleccionAmodificadores(plato, seleccion)
-}
-
 export function seleccionAmodificadores(plato: Plato, seleccion: SeleccionModificadores): ModificadorSeleccionado[] {
   return gruposDelPlato(plato).flatMap(grupo => {
     const ids = seleccion[grupo.id] || new Set<string>()
