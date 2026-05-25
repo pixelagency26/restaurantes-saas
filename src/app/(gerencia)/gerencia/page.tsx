@@ -1314,7 +1314,7 @@ export default function GerenciaPage() {
       }))
       const { error: invError } = await supabase
         .from('inventario')
-        .upsert(inventarioBase, { onConflict: 'plato_id' })
+        .upsert(inventarioBase, { onConflict: 'negocio_id,plato_id' })
 
       if (invError) {
         console.error('Error al preparar inventario base:', invError)
