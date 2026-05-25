@@ -1313,8 +1313,8 @@ export default function GerenciaPage() {
         cantidad: qty,
       }))
       const { error: invError } = await supabase.rpc('preparar_inventario_turno', {
-        p_negocio_id: myNegocioId,
         p_items: inventarioBase,
+        p_negocio_id: myNegocioId,
       })
 
       if (invError) {

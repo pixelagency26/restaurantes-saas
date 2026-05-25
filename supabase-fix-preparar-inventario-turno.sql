@@ -1,6 +1,9 @@
 -- Fix: preparar inventario de turno sin chocar con RLS ni IDs obsoletos.
 -- Ejecutar TODO en Supabase SQL Editor.
 
+DROP FUNCTION IF EXISTS preparar_inventario_turno(UUID, JSONB);
+DROP FUNCTION IF EXISTS preparar_inventario_turno(JSONB, UUID);
+
 CREATE OR REPLACE FUNCTION preparar_inventario_turno(
   p_items JSONB,
   p_negocio_id UUID
@@ -34,19 +37,6 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 GRANT EXECUTE ON FUNCTION preparar_inventario_turno(JSONB, UUID) TO authenticated;
-
--- Compatibilidad para llamadas RPC con los argumentos en el otro orden.
-CREATE OR REPLACE FUNCTION preparar_inventario_turno(
-  p_negocio_id UUID,
-  p_items JSONB
-)
-RETURNS VOID AS $$
-BEGIN
-  PERFORM preparar_inventario_turno(p_items, p_negocio_id);
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-
-GRANT EXECUTE ON FUNCTION preparar_inventario_turno(UUID, JSONB) TO authenticated;
 
 -- Fuerza a la API de Supabase/PostgREST a recargar el schema cache.
 NOTIFY pgrst, 'reload schema';
