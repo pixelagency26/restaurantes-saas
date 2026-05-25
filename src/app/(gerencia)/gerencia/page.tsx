@@ -1284,6 +1284,23 @@ export default function GerenciaPage() {
 
     const entries = Object.entries(inventarioTurno).filter(([, qty]) => qty > 0)
     if (entries.length > 0) {
+      const inventarioBase = entries.map(([platoId, qty]) => ({
+        plato_id: platoId,
+        cantidad_disponible: qty,
+        alerta_minima: 3,
+        negocio_id: myNegocioId,
+      }))
+      const { error: invError } = await supabase
+        .from('inventario')
+        .upsert(inventarioBase, { onConflict: 'plato_id' })
+
+      if (invError) {
+        console.error('Error al preparar inventario base:', invError)
+        toast.error('Error al preparar inventario: ' + invError.message, { duration: 8000 })
+        setAbriendo(false)
+        return
+      }
+
       // Insertar en turnos_inventario — el trigger sync_inventario_desde_turno()
       // actualiza la tabla inventario automáticamente (SECURITY DEFINER, bypassa RLS).
       const { error: tiError } = await supabase.from('turnos_inventario').insert(
