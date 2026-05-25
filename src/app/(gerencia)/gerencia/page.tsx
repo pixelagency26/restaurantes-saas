@@ -1308,13 +1308,12 @@ export default function GerenciaPage() {
     if (entries.length > 0) {
       const inventarioBase = entries.map(([platoId, qty]) => ({
         plato_id: platoId,
-        cantidad_disponible: qty,
-        alerta_minima: 3,
-        negocio_id: myNegocioId,
+        cantidad: qty,
       }))
-      const { error: invError } = await supabase
-        .from('inventario')
-        .upsert(inventarioBase, { onConflict: 'negocio_id,plato_id' })
+      const { error: invError } = await supabase.rpc('preparar_inventario_turno', {
+        p_negocio_id: myNegocioId,
+        p_items: inventarioBase,
+      })
 
       if (invError) {
         console.error('Error al preparar inventario base:', invError)
