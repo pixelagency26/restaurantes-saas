@@ -123,6 +123,7 @@ export default function GerenciaPage() {
   const [nuevoMov, setNuevoMov] = useState({ tipo: 'egreso' as 'ingreso' | 'egreso', monto: '', descripcion: '' })
   const [agregandoMov, setAgregandoMov] = useState(false)
   const [abriendo, setAbriendo] = useState(false)
+  const [cerrandoTurno, setCerrandoTurno] = useState(false)
   // Inventario por turno
   const [pasoCaja, setPasoCaja] = useState<'efectivo' | 'inventario'>('efectivo')
   const [inventarioTurno, setInventarioTurno] = useState<Record<string, number>>({})
@@ -1344,17 +1345,35 @@ export default function GerenciaPage() {
     await cargarDatos()
   }
   async function cerrarTurno() {
+    if (cerrandoTurno) return
     if (!turnoActivo) { toast.error('No hay turno activo'); return }
+    setCerrandoTurno(true)
     const montoFinalTotal = Object.values(conteoFinal).reduce((a, v) => a + (parseFloat(v) || 0), 0)
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('turnos')
       .update({ cerrado_en: new Date().toISOString(), monto_final: montoFinalTotal })
       .eq('id', turnoActivo.id)
-    if (error) { toast.error('Error al cerrar turno: ' + error.message); return }
-    toast.success('Turno cerrado ✓')
+      .is('cerrado_en', null)
+      .select('id')
+      .maybeSingle()
+    if (error) {
+      toast.error('Error al cerrar turno: ' + error.message)
+      setCerrandoTurno(false)
+      return
+    }
+    if (!data?.id) {
+      await cargarDatos()
+      toast.success('Turno ya estaba cerrado')
+      setModalCaja(null); setConteoFinal({})
+      setPagosPorMetodo([]); setMovimientosCaja([])
+      setCerrandoTurno(false)
+      return
+    }
+    toast.success('Turno cerrado')
     setModalCaja(null); setConteoFinal({})
     setPagosPorMetodo([]); setMovimientosCaja([])
-    cargarDatos()
+    await cargarDatos()
+    setCerrandoTurno(false)
   }
 
   async function agregarMovimiento() {
@@ -4459,9 +4478,9 @@ export default function GerenciaPage() {
 
               {/* Footer */}
               <div className="px-5 py-4 border-t shrink-0">
-                <button onClick={cerrarTurno}
-                  className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-4 rounded-2xl text-base flex items-center justify-center gap-2">
-                  <Square size={18}/> Cerrar turno
+                <button onClick={cerrarTurno} disabled={cerrandoTurno}
+                  className="w-full bg-red-500 hover:bg-red-600 disabled:bg-red-300 disabled:cursor-not-allowed text-white font-bold py-4 rounded-2xl text-base flex items-center justify-center gap-2">
+                  {cerrandoTurno ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Cerrando...</> : <><Square size={18}/> Cerrar turno</>}
                 </button>
                 <p className="text-center text-xs text-gray-400 mt-2">Puedes cerrar sin llenar los campos si prefieres</p>
               </div>
