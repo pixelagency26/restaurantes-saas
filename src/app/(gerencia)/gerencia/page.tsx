@@ -2292,10 +2292,10 @@ export default function GerenciaPage() {
                 <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500">🛵 Domicilios de hoy</h3>
 
                 {/* ── Pendientes de verificación ── */}
-                {domiActivos.filter(d => d.estado === 'pendiente_pago').length > 0 && (
+                {domiActivos.filter(d => d.metodo_pago_cliente === 'transferencia' && !d.pago_domi_aprobado && d.estado !== 'cancelado' && d.estado !== 'pagado').length > 0 && (
                   <div className="space-y-2">
                     <p className="text-[10px] font-black uppercase tracking-widest text-yellow-600">⚠️ Por verificar</p>
-                    {domiActivos.filter(d => d.estado === 'pendiente_pago').map(d => (
+                    {domiActivos.filter(d => d.metodo_pago_cliente === 'transferencia' && !d.pago_domi_aprobado && d.estado !== 'cancelado' && d.estado !== 'pagado').map(d => (
                       <div key={d.id} className="bg-yellow-50 border-2 border-yellow-300 rounded-2xl px-4 py-3 space-y-2">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
@@ -2338,7 +2338,7 @@ export default function GerenciaPage() {
 
                 {/* ── Activos (en cocina / listos / en camino / pagados) ── */}
                 <div className="space-y-2">
-                  {domiActivos.filter(d => d.estado !== 'pendiente_pago').map(d => {
+                  {domiActivos.filter(d => !(d.metodo_pago_cliente === 'transferencia' && !d.pago_domi_aprobado && d.estado !== 'cancelado' && d.estado !== 'pagado')).map(d => {
                     const mins = Math.floor((Date.now() - new Date(d.created_at).getTime()) / 60000)
                     const pagado    = d.estado === 'pagado'
                     const listo     = d.estado === 'listo'

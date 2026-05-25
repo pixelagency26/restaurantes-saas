@@ -696,7 +696,7 @@ export default function DomiPage() {
             <p className="text-[11px] font-black uppercase tracking-widest text-gray-500 px-1">Pedidos activos</p>
             {pedidosActivos.map(ped => {
               const mins             = Math.floor((Date.now() - new Date(ped.created_at).getTime()) / 60000)
-              const esPendientePago  = ped.estado === 'pendiente_pago'
+              const esPendientePago  = ped.estado === 'pendiente_pago' || (ped.metodo_pago_cliente === 'transferencia' && !ped.pago_domi_aprobado)
               const esListo          = ped.estado === 'listo'
               const esPend           = ped.estado === 'pendiente'
               const esEnPrep         = ped.estado === 'en_preparacion'

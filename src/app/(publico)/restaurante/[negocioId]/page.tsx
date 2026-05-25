@@ -434,9 +434,9 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
       turno_id: turno.id,
       tipo: tipoConsumo === 'domi' ? 'domi' : 'cliente_qr',
       // QR domi → siempre llega a gerencia primero (evita fraudes)
-      ...(tipoConsumo === 'domi' ? { estado: 'pendiente_pago' } : {}),
+      estado: 'pendiente',
       // Para transferencia el domi queda bloqueado hasta que gerencia confirme recepción del dinero
-      ...(tipoConsumo === 'domi' && metodoPagoDomi === 'transferencia' ? { pago_domi_aprobado: false } : {}),
+      ...(tipoConsumo === 'domi' ? { pago_domi_aprobado: metodoPagoDomi !== 'transferencia' } : {}),
       notas: notasPedido.trim() || null,
       metodo_pago_cliente: tipoConsumo === 'domi' ? metodoPagoDomi : null,
       comprobante_url: comprobanteUrl,
@@ -469,7 +469,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
     })))
 
     setPedidoId(pedido.id)
-    setPedidoEstado(tipoConsumo === 'domi' ? 'pendiente_pago' : 'pendiente')
+    setPedidoEstado(tipoConsumo === 'domi' && metodoPagoDomi === 'transferencia' ? 'pendiente_pago' : 'pendiente')
     setPasoOrden('seguimiento')
     setCarrito([]); setEnviando(false)
     toast.success('✅ ¡Pedido enviado!')
@@ -1089,7 +1089,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
                   </div>
                 </button>
               )}
-              <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleComprobanteChange} />
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleComprobanteChange} />
             </div>
           )}
 
