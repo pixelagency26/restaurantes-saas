@@ -31,3 +31,19 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 GRANT EXECUTE ON FUNCTION preparar_inventario_turno(UUID, JSONB) TO authenticated;
+
+-- Compatibilidad para PostgREST/Supabase cuando resuelve RPC por nombres en otro orden.
+CREATE OR REPLACE FUNCTION preparar_inventario_turno(
+  p_items JSONB,
+  p_negocio_id UUID
+)
+RETURNS VOID AS $$
+BEGIN
+  PERFORM preparar_inventario_turno(p_negocio_id, p_items);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+GRANT EXECUTE ON FUNCTION preparar_inventario_turno(JSONB, UUID) TO authenticated;
+
+-- Fuerza a la API de Supabase/PostgREST a recargar el schema cache.
+NOTIFY pgrst, 'reload schema';
