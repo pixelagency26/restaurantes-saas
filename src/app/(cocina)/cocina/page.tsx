@@ -82,6 +82,8 @@ interface ItemPlatoExtended extends Omit<ItemPedido, 'plato'> {
   plato: { nombre: string }
   cocinero?: string | null
   pedido_por_usuario?: { nombre: string } | null
+  opcion_nombre?: string | null
+  acompanantes?: string[] | null
 }
 
 // ── Pantalla de selección de cocinero (login) ──────────────────────────────────
@@ -617,12 +619,22 @@ export default function CocinaPage() {
                               <p className="font-bold text-sm text-white">
                                 {item.cantidad}× {item.plato?.nombre}
                               </p>
+                              {item.opcion_nombre && (
+                                <span className="text-[10px] bg-orange-500/15 border border-orange-500/25 text-orange-300 px-1.5 py-0.5 rounded-full font-bold">
+                                  {item.opcion_nombre}
+                                </span>
+                              )}
                               {esAdicional && item.estado !== 'listo' && (
                                 <span className="text-[10px] bg-purple-500/20 border border-purple-500/30 text-purple-400 px-1.5 py-0.5 rounded-full font-bold">
                                   ➕ Adicional
                                 </span>
                               )}
                             </div>
+                            {item.acompanantes && item.acompanantes.length > 0 && (
+                              <p className="text-xs text-gray-300 mt-0.5">
+                                Incluye: {item.acompanantes.join(' · ')}
+                              </p>
+                            )}
                             {item.notas && (
                               <p className="text-xs text-amber-400 mt-0.5">⚠️ {item.notas}</p>
                             )}

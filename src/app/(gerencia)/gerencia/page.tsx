@@ -40,6 +40,15 @@ interface ClientePedido { id: string; created_at: string; total: number; tipo: s
 interface Plato {
   id: string; nombre: string; descripcion: string | null; precio: number; costo: number | null
   categoria_id: number; imagen_url: string | null; activo: boolean
+  visible_menu?: boolean; controla_inventario?: boolean
+}
+interface PlatoOpcionComponente {
+  id: string; componente_plato_id: string; cantidad: number
+  componente?: { nombre: string } | null
+}
+interface PlatoOpcion {
+  id: string; nombre: string; es_default: boolean; orden: number
+  componentes: PlatoOpcionComponente[]
 }
 interface MenuTurno {
   id: string; nombre: string
@@ -58,7 +67,10 @@ const METODOS: { id: MetodoPago; label: string; color: string; emoji: string }[]
   { id: 'bancolombia', label: 'Bancolombia', color: 'bg-yellow-500', emoji: '🟡' },
 ]
 
-const PLATO_VACIO: Omit<Plato, 'id'> = { nombre: '', descripcion: '', precio: 0, costo: 0, categoria_id: 0, imagen_url: '', activo: true }
+const PLATO_VACIO: Omit<Plato, 'id'> = {
+  nombre: '', descripcion: '', precio: 0, costo: 0, categoria_id: 0, imagen_url: '',
+  activo: true, visible_menu: true, controla_inventario: true,
+}
 
 export default function GerenciaPage() {
   const [seccion, setSeccion] = useState<Seccion>('mesas')
@@ -239,6 +251,9 @@ export default function GerenciaPage() {
   const [platoEditandoId, setPlatoEditandoId] = useState<string | null>(null)
   const [guardandoPlato, setGuardandoPlato] = useState(false)
   const [categoriaActivaCarta, setCategoriaActivaCarta] = useState<number | 'todas'>('todas')
+  const [platoOpciones, setPlatoOpciones] = useState<PlatoOpcion[]>([])
+  const [nuevaOpcionNombre, setNuevaOpcionNombre] = useState('')
+  const [guardandoOpcion, setGuardandoOpcion] = useState(false)
 
   const supabase = createClient()
   const hoy = new Date().toISOString().split('T')[0]
@@ -292,6 +307,15 @@ export default function GerenciaPage() {
     ])
     if (cats) setCategorias(cats)
     if (pls) setPlatos(pls)
+  }, [supabase])
+
+  const cargarOpcionesPlato = useCallback(async (platoId: string) => {
+    const { data } = await supabase
+      .from('plato_opciones')
+      .select('id, nombre, es_default, orden, componentes:plato_opcion_componentes(id, componente_plato_id, cantidad, componente:platos(nombre))')
+      .eq('plato_id', platoId)
+      .order('orden')
+    setPlatoOpciones((data || []) as unknown as PlatoOpcion[])
   }, [supabase])
 
   // ── CARGAR RESUMEN / INFORMES ────────────────────────────────
@@ -1485,11 +1509,19 @@ export default function GerenciaPage() {
   // ── CARTA ─────────────────────────────────────────────────────
   function abrirNuevoPlato() {
     setPlatoForm({ ...PLATO_VACIO, categoria_id: categorias[0]?.id || 0 })
+    setPlatoOpciones([]); setNuevaOpcionNombre('')
     setPlatoEditandoId(null); setModalPlato('nuevo')
   }
   function abrirEditarPlato(plato: Plato) {
-    setPlatoForm({ nombre: plato.nombre, descripcion: plato.descripcion || '', precio: plato.precio, costo: plato.costo || 0, categoria_id: plato.categoria_id, imagen_url: plato.imagen_url || '', activo: plato.activo })
+    setPlatoForm({
+      nombre: plato.nombre, descripcion: plato.descripcion || '', precio: plato.precio,
+      costo: plato.costo || 0, categoria_id: plato.categoria_id, imagen_url: plato.imagen_url || '',
+      activo: plato.activo, visible_menu: plato.visible_menu ?? true,
+      controla_inventario: plato.controla_inventario ?? true,
+    })
+    setNuevaOpcionNombre('')
     setPlatoEditandoId(plato.id); setModalPlato('editar')
+    cargarOpcionesPlato(plato.id)
   }
   async function guardarPlato() {
     if (!platoForm.nombre || !platoForm.precio || !platoForm.categoria_id) { toast.error('Completa nombre, precio y categoría'); return }
@@ -1514,6 +1546,8 @@ export default function GerenciaPage() {
       categoria_id: platoForm.categoria_id,
       imagen_url: platoForm.imagen_url || null,
       activo: platoForm.activo,
+      visible_menu: platoForm.visible_menu ?? true,
+      controla_inventario: platoForm.controla_inventario ?? true,
       ...(nid ? { negocio_id: nid } : {}),
     }
 
@@ -1534,6 +1568,47 @@ export default function GerenciaPage() {
       toast.success('✅ Plato actualizado')
     }
     setModalPlato(null); setGuardandoPlato(false); cargarCarta()
+  }
+  async function agregarOpcionPlato() {
+    if (!platoEditandoId) return
+    const nombre = nuevaOpcionNombre.trim()
+    if (!nombre) { toast.error('Escribe el nombre de la opción'); return }
+    setGuardandoOpcion(true)
+    const { error } = await supabase.from('plato_opciones').insert({
+      plato_id: platoEditandoId,
+      nombre,
+      es_default: platoOpciones.length === 0,
+      orden: platoOpciones.length,
+    })
+    if (error) toast.error('Error al crear opción: ' + error.message)
+    else {
+      setNuevaOpcionNombre('')
+      await cargarOpcionesPlato(platoEditandoId)
+      toast.success('Opción creada')
+    }
+    setGuardandoOpcion(false)
+  }
+  async function eliminarOpcionPlato(opcionId: string) {
+    if (!platoEditandoId) return
+    if (!confirm('¿Eliminar esta opción y sus componentes?')) return
+    const { error } = await supabase.from('plato_opciones').delete().eq('id', opcionId)
+    if (error) toast.error('Error al eliminar opción: ' + error.message)
+    else {
+      await cargarOpcionesPlato(platoEditandoId)
+      toast.success('Opción eliminada')
+    }
+  }
+  async function setComponenteOpcion(opcionId: string, componentePlatoId: string, cantidad: number) {
+    if (!platoEditandoId) return
+    const qty = Math.max(0, cantidad || 0)
+    if (qty === 0) {
+      await supabase.from('plato_opcion_componentes')
+        .delete().eq('opcion_id', opcionId).eq('componente_plato_id', componentePlatoId)
+    } else {
+      await supabase.from('plato_opcion_componentes')
+        .upsert({ opcion_id: opcionId, componente_plato_id: componentePlatoId, cantidad: qty }, { onConflict: 'opcion_id,componente_plato_id' })
+    }
+    await cargarOpcionesPlato(platoEditandoId)
   }
   async function toggleActivoPlato(plato: Plato) {
     await supabase.from('platos').update({ activo: !plato.activo }).eq('id', plato.id)
@@ -3715,7 +3790,7 @@ export default function GerenciaPage() {
               </div>
               {/* Cantidades por plato */}
               {categorias.map(cat => {
-                const platosCategoria = platos.filter(p => p.activo && p.categoria_id === cat.id)
+                const platosCategoria = platos.filter(p => (p.controla_inventario ?? true) && p.categoria_id === cat.id)
                 if (platosCategoria.length === 0) return null
                 return (
                   <div key={cat.id}>
@@ -3751,8 +3826,8 @@ export default function GerenciaPage() {
                   </div>
                 )
               })}
-              {platos.filter(p => p.activo).length === 0 && (
-                <p className="text-center text-gray-400 text-sm py-8">Sin platos activos en la carta</p>
+              {platos.filter(p => p.controla_inventario ?? true).length === 0 && (
+                <p className="text-center text-gray-400 text-sm py-8">Sin productos con control de inventario</p>
               )}
             </div>
             <div className="px-5 py-4 border-t border-gray-100 shrink-0">
@@ -3806,12 +3881,88 @@ export default function GerenciaPage() {
               <label className="text-xs text-gray-500 font-medium block mb-1">URL de imagen (opcional)</label>
               <input type="url" value={platoForm.imagen_url || ''} onChange={e => setPlatoForm(p => ({ ...p, imagen_url: e.target.value }))} placeholder="https://..." className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-400" />
             </div>
-            <div className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 border border-gray-200">
-              <label className="text-sm text-gray-700 font-medium">Disponible en el menú</label>
-              <button onClick={() => setPlatoForm(p => ({ ...p, activo: !p.activo }))}
-                className={`w-12 h-6 rounded-full transition-colors ${platoForm.activo ? 'bg-green-500' : 'bg-gray-300'}`}>
-                <span className={`block w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${platoForm.activo ? 'translate-x-6' : 'translate-x-0'}`} />
-              </button>
+            {[
+              { key: 'activo', label: 'Activo para vender' },
+              { key: 'visible_menu', label: 'Visible en menú público y meseras' },
+              { key: 'controla_inventario', label: 'Controla inventario de turno' },
+            ].map(opt => (
+              <div key={opt.key} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 border border-gray-200">
+                <label className="text-sm text-gray-700 font-medium">{opt.label}</label>
+                <button onClick={() => setPlatoForm(p => ({ ...p, [opt.key]: !p[opt.key as keyof typeof p] }))}
+                  className={`w-12 h-6 rounded-full transition-colors ${platoForm[opt.key as keyof typeof platoForm] ? 'bg-green-500' : 'bg-gray-300'}`}>
+                  <span className={`block w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${platoForm[opt.key as keyof typeof platoForm] ? 'translate-x-6' : 'translate-x-0'}`} />
+                </button>
+              </div>
+            ))}
+
+            <div className="bg-gray-50 rounded-xl border border-gray-200 p-3 space-y-3">
+              <div>
+                <h4 className="text-sm font-bold text-gray-900">Opciones y acompañantes</h4>
+                <p className="text-xs text-gray-500">Ejemplo: completo incluye sancocho, bandeja no.</p>
+              </div>
+
+              {!platoEditandoId ? (
+                <p className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg p-3">
+                  Guarda el plato primero para agregar sus opciones.
+                </p>
+              ) : (
+                <>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={nuevaOpcionNombre}
+                      onChange={e => setNuevaOpcionNombre(e.target.value)}
+                      placeholder="Completo, solo bandeja..."
+                      className="flex-1 bg-white border border-gray-300 rounded-xl px-3 py-2 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-400"
+                    />
+                    <button onClick={agregarOpcionPlato} disabled={guardandoOpcion} className="px-3 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white rounded-xl transition-colors">
+                      <Plus size={16} />
+                    </button>
+                  </div>
+
+                  {platoOpciones.length === 0 ? (
+                    <p className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg p-3">
+                      Sin opciones. Si no agregas ninguna, el sistema descontará este plato como unidad normal.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {platoOpciones.map(opcion => (
+                        <div key={opcion.id} className="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-bold text-gray-900">{opcion.nombre}</p>
+                              {opcion.es_default && <p className="text-[11px] text-orange-600 font-semibold">Opción por defecto</p>}
+                            </div>
+                            <button onClick={() => eliminarOpcionPlato(opcion.id)} className="w-8 h-8 bg-red-50 hover:bg-red-100 rounded-lg flex items-center justify-center border border-red-100">
+                              <Trash2 size={14} className="text-red-500" />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-1">
+                            {platos
+                              .filter(p => p.id !== platoEditandoId && (p.controla_inventario ?? true))
+                              .map(componente => {
+                                const actual = opcion.componentes.find(c => c.componente_plato_id === componente.id)?.cantidad || 0
+                                return (
+                                  <label key={componente.id} className="text-xs text-gray-700">
+                                    <span className="block truncate mb-1">{componente.nombre}</span>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      value={actual || ''}
+                                      onChange={e => setComponenteOpcion(opcion.id, componente.id, parseInt(e.target.value) || 0)}
+                                      placeholder="0"
+                                      className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-gray-900 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+                                    />
+                                  </label>
+                                )
+                              })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
             <button onClick={guardarPlato} disabled={guardandoPlato} className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl shadow-md shadow-orange-100 transition-all">
               {guardandoPlato ? 'Guardando...' : modalPlato === 'nuevo' ? 'Crear plato' : 'Guardar cambios'}
@@ -3881,13 +4032,21 @@ export default function GerenciaPage() {
                         <>
                           <p className="text-xs text-gray-500 font-medium">Selecciona el menú para precargar cantidades:</p>
                           {menusTurno.map(menu => (
-                            <button key={menu.id} onClick={() => aplicarMenuTurno(menu.id)}
-                              className={`w-full text-left p-3 rounded-xl border-2 transition-all ${menuSeleccionadoId === menu.id ? 'border-orange-500 bg-orange-50' : 'border-gray-200 bg-white hover:border-orange-400'}`}>
-                              <p className="font-bold text-white/90">{menu.nombre}</p>
-                              <p className="text-xs text-gray-400 mt-0.5">
-                                {menu.items.filter(i => i.cantidad > 0).length} platos · {menu.items.reduce((a, i) => a + i.cantidad, 0)} unidades
-                              </p>
-                            </button>
+<button
+  key={menu.id}
+  onClick={() => aplicarMenuTurno(menu.id)}
+  className={`w-full text-left p-3 rounded-xl border-2 transition-all opacity-100 ${
+    menuSeleccionadoId === menu.id
+      ? "border-orange-400 bg-orange-50 !text-black"
+      : "border-gray-200 bg-white hover:bg-gray-50 !text-black"
+  }`}
+>
+  <p className="font-bold text-black">{menu.nombre}</p>
+  <p className="text-xs text-black mt-0.5">
+    {menu.items.filter(i => i.cantidad > 0).length} platos ·{" "}
+    {menu.items.reduce((a, i) => a + i.cantidad, 0)} unidades
+  </p>
+</button>
                           ))}
                           {menuSeleccionadoId && (
                             <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2 text-xs text-green-700">
@@ -3907,7 +4066,7 @@ export default function GerenciaPage() {
 
                   {/* Lista de platos — siempre visible para ajustar */}
                   {categorias.map(cat => {
-                    const platosCategoria = platos.filter(p => p.activo && p.categoria_id === cat.id)
+                    const platosCategoria = platos.filter(p => (p.controla_inventario ?? true) && p.categoria_id === cat.id)
                     if (platosCategoria.length === 0) return null
                     return (
                       <div key={cat.id}>
@@ -3934,8 +4093,8 @@ export default function GerenciaPage() {
                       </div>
                     )
                   })}
-                  {platos.filter(p => p.activo).length === 0 && (
-                    <p className="text-center text-gray-400 text-sm py-4">Sin platos activos en la carta</p>
+                  {platos.filter(p => p.controla_inventario ?? true).length === 0 && (
+                    <p className="text-center text-gray-400 text-sm py-4">Sin productos con control de inventario</p>
                   )}
                 </div>
                 <div className="px-5 py-4 border-t shrink-0 space-y-2">

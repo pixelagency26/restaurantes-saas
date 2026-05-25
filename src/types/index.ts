@@ -46,7 +46,28 @@ export interface Plato {
   categoria_id: number
   imagen_url: string | null
   activo: boolean
+  visible_menu?: boolean
+  controla_inventario?: boolean
   categoria?: Categoria
+  opciones?: PlatoOpcion[]
+}
+
+export interface PlatoOpcionComponente {
+  plato_id: string
+  nombre: string
+  cantidad: number
+  disponibles: number | null
+}
+
+export interface PlatoOpcion {
+  id: string
+  negocio_id: string | null
+  plato_id: string
+  nombre: string
+  es_default: boolean
+  orden: number
+  disponibles: number | null
+  componentes: PlatoOpcionComponente[]
 }
 
 // ─── INVENTARIO ───────────────────────────────────────────────────────────────
@@ -71,6 +92,9 @@ export interface ItemPedido {
   cantidad: number
   precio_unitario: number
   notas: string | null
+  opcion_id?: string | null
+  opcion_nombre?: string | null
+  acompanantes?: string[] | null
   estado: EstadoItem
   created_at: string
   tiempo_inicio_prep: string | null

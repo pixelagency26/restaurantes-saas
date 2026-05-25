@@ -3,10 +3,11 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Mesa, Plato, Categoria, Inventario } from '@/types'
+import { ItemConOpcion, disponiblesOpcion, elegirOpcion, itemKey, itemPedidoPayload, keyItem } from '@/lib/opciones'
 import toast from 'react-hot-toast'
 import { UtensilsCrossed, ShoppingBag, Bell, CheckCircle, X, Plus, Minus, Bike } from 'lucide-react'
 
-type ItemCarrito = { plato: Plato; cantidad: number; notas: string }
+type ItemCarrito = ItemConOpcion
 
 export default function MeseraPage() {
   const [mesas, setMesas] = useState<Mesa[]>([])
@@ -50,12 +51,13 @@ export default function MeseraPage() {
   const supabase = createClient()
 
   const cargarDatos = useCallback(async () => {
-    const [{ data: mesasData }, { data: catData }, { data: platosData }, { data: invData }, { data: turnoData }] = await Promise.all([
+    const [{ data: mesasData }, { data: catData }, { data: platosData }, { data: invData }, { data: turnoData }, { data: opcionesData }] = await Promise.all([
       supabase.from('mesas').select('*').order('numero'),
       supabase.from('categorias').select('*').order('orden'),
-      supabase.from('platos').select('*').eq('activo', true),
+      supabase.from('platos').select('*').eq('activo', true).neq('visible_menu', false),
       supabase.from('inventario').select('*'),
       supabase.from('turnos').select('id, abierto_en').is('cerrado_en', null).order('abierto_en', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('vista_plato_opciones_disponibilidad').select('*'),
     ])
     // Cargar IDs de platos con inventario en el turno activo (para restricción por plato)
     let platoIdsConInv = new Set<string>()
@@ -73,9 +75,14 @@ export default function MeseraPage() {
     if (mesasData) setMesas(mesasData)
     if (catData) { setCategorias(catData); if (!categoriaActiva && catData[0]) setCategoriaActiva(catData[0].id) }
     if (platosData) {
+      const opcionesPorPlato = new Map<string, unknown[]>()
+      ;((opcionesData || []) as { plato_id: string }[]).forEach(o => {
+        opcionesPorPlato.set(o.plato_id, [...(opcionesPorPlato.get(o.plato_id) || []), o])
+      })
       const platosConInv = platosData.map(p => ({
         ...p,
-        inventario: (invData || []).filter((i: Inventario) => i.plato_id === p.id)
+        inventario: (invData || []).filter((i: Inventario) => i.plato_id === p.id),
+        opciones: opcionesPorPlato.get(p.id) || [],
       }))
       setPlatos(platosConInv as unknown as (Plato & { inventario: Inventario[] })[])
     }
@@ -219,35 +226,39 @@ export default function MeseraPage() {
   }
 
   function agregarAlCarrito(plato: Plato) {
-    if (turnoInventarioIds.has(plato.id)) {
-      const disp = stockDisponible(plato.id)
-      if (disp === 0) { toast.error(`${plato.nombre} no está disponible`); return }
-      const enCarrito = carrito.find(i => i.plato.id === plato.id)?.cantidad ?? 0
+    const opcion = elegirOpcion(plato)
+    if (opcion === null && (plato.opciones?.length || 0) > 1) return
+    const disp = disponiblesOpcion(plato, opcion)
+    const key = itemKey(plato.id, opcion?.id)
+    if (disp !== null) {
+      if (disp === 0) { toast.error(`${plato.nombre} no esta disponible`); return }
+      const enCarrito = carrito.find(i => keyItem(i) === key)?.cantidad ?? 0
       if (enCarrito >= disp) { toast.error(`Solo hay ${disp} unidad(es) de ${plato.nombre}`); return }
     }
     setCarrito(prev => {
-      const existe = prev.find(i => i.plato.id === plato.id)
-      if (existe) return prev.map(i => i.plato.id === plato.id ? { ...i, cantidad: i.cantidad + 1 } : i)
-      return [...prev, { plato, cantidad: 1, notas: '' }]
+      const existe = prev.find(i => keyItem(i) === key)
+      if (existe) return prev.map(i => keyItem(i) === key ? { ...i, cantidad: i.cantidad + 1 } : i)
+      return [...prev, { plato, cantidad: 1, notas: '', opcion }]
     })
-    toast.success(`${plato.nombre} agregado`)
+    toast.success(`${plato.nombre}${opcion?.nombre ? ` (${opcion.nombre})` : ''} agregado`)
   }
 
-  function cambiarCantidad(platoId: string, delta: number) {
-    if (delta > 0 && turnoInventarioIds.has(platoId)) {
-      const disp = stockDisponible(platoId)
-      if (disp <= 0) { toast.error('No hay más unidades disponibles'); return }
-      const enCarrito = carrito.find(i => i.plato.id === platoId)?.cantidad ?? 0
-      if (enCarrito >= disp) { toast.error('No hay más unidades disponibles'); return }
+  function cambiarCantidad(platoId: string, delta: number, opcionId?: string | null) {
+    const key = itemKey(platoId, opcionId)
+    const itemActual = carrito.find(i => keyItem(i) === key)
+    if (delta > 0 && itemActual) {
+      const disp = disponiblesOpcion(itemActual.plato, itemActual.opcion)
+      if (disp !== null && itemActual.cantidad >= disp) { toast.error('No hay mas unidades disponibles'); return }
     }
     setCarrito(prev => prev
-      .map(i => i.plato.id === platoId ? { ...i, cantidad: Math.max(0, i.cantidad + delta) } : i)
+      .map(i => keyItem(i) === key ? { ...i, cantidad: Math.max(0, i.cantidad + delta) } : i)
       .filter(i => i.cantidad > 0)
     )
   }
 
-  function actualizarNota(platoId: string, nota: string) {
-    setCarrito(prev => prev.map(i => i.plato.id === platoId ? { ...i, notas: nota } : i))
+  function actualizarNota(platoId: string, nota: string, opcionId?: string | null) {
+    const key = itemKey(platoId, opcionId)
+    setCarrito(prev => prev.map(i => keyItem(i) === key ? { ...i, notas: nota } : i))
   }
 
   function iniciarDomi() {
@@ -276,36 +287,21 @@ export default function MeseraPage() {
     }
 
     // ── VERIFICACIÓN DE STOCK EN DB (previene sobre-pedidos por estado local desactualizado) ──
-    if (turnoInventarioIds.size > 0) {
-      const itemsConLimite = carrito.filter(item => turnoInventarioIds.has(item.plato.id))
-      if (itemsConLimite.length > 0) {
-        const { data: invActual } = await supabase
-          .from('inventario').select('plato_id, cantidad_disponible')
-          .in('plato_id', itemsConLimite.map(i => i.plato.id))
-        const invMap = Object.fromEntries(((invActual || []) as { plato_id: string; cantidad_disponible: number }[]).map(i => [i.plato_id, i.cantidad_disponible]))
-        for (const item of itemsConLimite) {
-          const disp = invMap[item.plato.id] ?? 0
-          if (disp < item.cantidad) {
-            toast.error(`Solo quedan ${disp} de "${item.plato.nombre}" — actualiza el carrito`, { duration: 5000 })
-            await cargarDatos()
-            setEnviando(false)
-            return
-          }
-        }
+    for (const item of carrito) {
+      const disp = disponiblesOpcion(item.plato, item.opcion)
+      if (disp !== null && disp < item.cantidad) {
+        toast.error(`Solo quedan ${disp} de "${item.plato.nombre}"${item.opcion?.nombre ? ` (${item.opcion.nombre})` : ''}`, { duration: 5000 })
+        await cargarDatos()
+        setEnviando(false)
+        return
       }
     }
+
 
     if (pedidoExistenteId) {
       // ── AGREGAR A PEDIDO EXISTENTE ──────────────────────────
       const { error } = await supabase.from('items_pedido').insert(
-        carrito.map(item => ({
-          pedido_id: pedidoExistenteId,
-          plato_id: item.plato.id,
-          cantidad: item.cantidad,
-          precio_unitario: item.plato.precio,
-          notas: item.notas || null,
-          pedido_por: user?.id || null,
-        }))
+        carrito.map(item => itemPedidoPayload(item, pedidoExistenteId, user?.id))
       )
       if (error) { toast.error('Error al agregar platos'); setEnviando(false); return }
       await supabase.from('pedidos').update({ estado: 'en_preparacion' }).eq('id', pedidoExistenteId)
@@ -337,14 +333,7 @@ export default function MeseraPage() {
       if (error || !pedido) { toast.error('Error al enviar el pedido'); setEnviando(false); return }
 
       await supabase.from('items_pedido').insert(
-        carrito.map(item => ({
-          pedido_id: pedido.id,
-          plato_id: item.plato.id,
-          cantidad: item.cantidad,
-          precio_unitario: item.plato.precio,
-          notas: item.notas || null,
-          pedido_por: user?.id || null,  // registrar quién hizo el pedido (visible en cocina)
-        }))
+        carrito.map(item => itemPedidoPayload(item, pedido.id, user?.id))
       )
       if (!modoDomi && mesaSeleccionada) {
         await supabase.from('mesas').update({ estado: 'ocupada' }).eq('id', mesaSeleccionada.id)
@@ -655,7 +644,8 @@ export default function MeseraPage() {
           const hasInvRec   = (plato.inventario?.length ?? 0) > 0
           const sinStock    = enTurnoInv && hasInvRec && disp === 0
           const stockBajo   = enTurnoInv && hasInvRec && disp > 0 && disp <= (plato.inventario?.[0]?.alerta_minima ?? 3)
-          const enCarrito = carrito.find(i => i.plato.id === plato.id)
+          const pideOpcion = (plato.opciones?.length || 0) > 1
+          const enCarrito = pideOpcion ? null : carrito.find(i => i.plato.id === plato.id)
           return (
             <div key={plato.id}
               className={`rounded-2xl border flex items-center gap-3 p-3 transition-all ${
@@ -682,12 +672,12 @@ export default function MeseraPage() {
               {!sinStock && (
                 enCarrito ? (
                   <div className="flex items-center gap-2 shrink-0">
-                    <button onClick={() => cambiarCantidad(plato.id, -1)}
+                    <button onClick={() => cambiarCantidad(plato.id, -1, enCarrito.opcion?.id)}
                       className="w-8 h-8 bg-gray-800 hover:bg-gray-700 rounded-full flex items-center justify-center text-white transition-colors">
                       <Minus size={14} />
                     </button>
                     <span className="font-black text-white w-5 text-center">{enCarrito.cantidad}</span>
-                    <button onClick={() => cambiarCantidad(plato.id, 1)}
+                    <button onClick={() => cambiarCantidad(plato.id, 1, enCarrito.opcion?.id)}
                       className="w-8 h-8 bg-orange-500 hover:bg-orange-400 text-white rounded-full flex items-center justify-center transition-colors">
                       <Plus size={14} />
                     </button>
@@ -735,20 +725,28 @@ export default function MeseraPage() {
       <div className="flex-1 p-4 space-y-3">
         {carrito.map(item => {
           // Solo limitar el + si este plato está en inventario de turno y tiene stock conocido
-          const dispCarrito = turnoInventarioIds.has(item.plato.id) ? stockDisponible(item.plato.id) : Infinity
+          const dispCarrito = disponiblesOpcion(item.plato, item.opcion) ?? Infinity
           return (
-          <div key={item.plato.id} className="bg-white rounded-2xl p-4 border border-gray-100">
+          <div key={keyItem(item)} className="bg-white rounded-2xl p-4 border border-gray-100">
             <div className="flex items-center justify-between mb-2">
-              <p className="font-semibold text-gray-900">{item.plato.nombre}</p>
+              <div className="min-w-0">
+                <p className="font-semibold text-gray-900">{item.plato.nombre}</p>
+                {item.opcion?.nombre && <p className="text-xs text-orange-600 font-bold">{item.opcion.nombre}</p>}
+                {item.opcion?.componentes?.length ? (
+                  <p className="text-xs text-gray-500 truncate">
+                    Incluye: {item.opcion.componentes.map(c => c.componente?.nombre).filter(Boolean).join(' · ')}
+                  </p>
+                ) : null}
+              </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => cambiarCantidad(item.plato.id, -1)} className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center"><Minus size={12} /></button>
+                <button onClick={() => cambiarCantidad(item.plato.id, -1, item.opcion?.id)} className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center"><Minus size={12} /></button>
                 <span className="font-bold">{item.cantidad}</span>
-                <button onClick={() => cambiarCantidad(item.plato.id, 1)} disabled={item.cantidad >= dispCarrito} className="w-7 h-7 bg-orange-500 text-white rounded-full flex items-center justify-center disabled:opacity-40"><Plus size={12} /></button>
+                <button onClick={() => cambiarCantidad(item.plato.id, 1, item.opcion?.id)} disabled={item.cantidad >= dispCarrito} className="w-7 h-7 bg-orange-500 text-white rounded-full flex items-center justify-center disabled:opacity-40"><Plus size={12} /></button>
               </div>
             </div>
             <p className="text-orange-600 text-sm font-semibold mb-2">${(item.plato.precio * item.cantidad).toLocaleString('es-CO')}</p>
             <input type="text" placeholder="Nota especial (ej: sin cebolla)" value={item.notas}
-              onChange={e => actualizarNota(item.plato.id, e.target.value)}
+              onChange={e => actualizarNota(item.plato.id, e.target.value, item.opcion?.id)}
               className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-300" />
           </div>
           )
