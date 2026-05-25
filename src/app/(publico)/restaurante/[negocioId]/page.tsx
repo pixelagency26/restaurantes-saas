@@ -434,7 +434,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
       turno_id: turno.id,
       tipo: tipoConsumo === 'domi' ? 'domi' : 'cliente_qr',
       // QR domi → siempre llega a gerencia primero (evita fraudes)
-      estado: 'pendiente',
+      estado: tipoConsumo === 'domi' && metodoPagoDomi === 'transferencia' ? 'pendiente_pago' : 'pendiente',
       // Para transferencia el domi queda bloqueado hasta que gerencia confirme recepción del dinero
       ...(tipoConsumo === 'domi' ? { pago_domi_aprobado: metodoPagoDomi !== 'transferencia' } : {}),
       notas: notasPedido.trim() || null,

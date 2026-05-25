@@ -11,6 +11,7 @@ import {
 
 const MINUTOS_LIMITE = 20
 const LS_KEY = 'cocina_mi_nombre'
+const METODOS_DIGITALES_DOMI = ['transferencia', 'nequi', 'daviplata', 'bancolombia']
 
 function tiempoTranscurrido(fecha: string, ahora: number) {
   return Math.floor((ahora - new Date(fecha).getTime()) / 1000 / 60)
@@ -317,9 +318,15 @@ export default function CocinaPage() {
       .from('pedidos')
       .select(`*, mesa:mesas(numero), mesera:usuarios!mesera_id(nombre), items:items_pedido(*, plato:platos(nombre), pedido_por_usuario:usuarios!pedido_por(nombre), modificadores:items_pedido_modificadores(nombre_grupo, nombre_opcion, descuenta_inventario))`)
       .in('estado', ['pendiente', 'en_preparacion'])
-      .not('pago_domi_aprobado', 'is', false)
       .order('created_at', { ascending: true })
-    if (data) setPedidos(data as unknown as Pedido[])
+    if (data) {
+      const visibles = (data as unknown as Pedido[]).filter(p =>
+        p.tipo !== 'domi'
+        || !METODOS_DIGITALES_DOMI.includes(p.metodo_pago_cliente || '')
+        || p.pago_domi_aprobado === true
+      )
+      setPedidos(visibles)
+    }
     setCargando(false)
   }, [supabase])
 

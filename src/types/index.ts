@@ -153,6 +153,9 @@ export interface Pedido {
   estado: EstadoPedido
   tipo: TipoPedido
   notas: string | null
+  metodo_pago_cliente?: string | null
+  pago_domi_aprobado?: boolean | null
+  comprobante_url?: string | null
   created_at: string
   updated_at: string
   mesa?: Mesa
