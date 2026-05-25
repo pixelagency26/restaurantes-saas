@@ -79,7 +79,7 @@ CREATE TABLE pedidos (
   cliente_id UUID REFERENCES clientes(id),
   mesera_id UUID REFERENCES usuarios(id),
   turno_id UUID REFERENCES turnos(id),
-  estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'en_preparacion', 'listo', 'entregado', 'pagado', 'cancelado')),
+  estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'pendiente_pago', 'en_preparacion', 'listo', 'en_camino', 'entregado', 'esperando_pago', 'pagado', 'cancelado')),
   tipo TEXT NOT NULL DEFAULT 'mesera' CHECK (tipo IN ('mesera', 'cliente_qr')),
   notas TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
