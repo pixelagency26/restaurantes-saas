@@ -816,7 +816,12 @@ export default function MeseraPage() {
                           onChange={e => setSeleccionMods(prev => {
                             const next = new Set(prev[grupo.id] || [])
                             if (grupo.tipo === 'radio') return { ...prev, [grupo.id]: new Set([opcion.id]) }
-                            if (e.target.checked) next.add(opcion.id)
+                            const opcionNoAplica = grupo.opciones.find(o => o.es_opcion_no_aplica)
+                            if (opcion.es_opcion_no_aplica) return { ...prev, [grupo.id]: new Set([opcion.id]) }
+                            if (e.target.checked) {
+                              if (opcionNoAplica) next.delete(opcionNoAplica.id)
+                              next.add(opcion.id)
+                            }
                             else next.delete(opcion.id)
                             return { ...prev, [grupo.id]: next }
                           })}

@@ -21,12 +21,12 @@ export function gruposDelPlato(plato: Plato): GrupoModificador[] {
         .slice()
         .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
       const tieneNoAplica = opciones.some(o => o.es_opcion_no_aplica)
-      if (g.tipo === 'radio' && !tieneNoAplica) {
+      if (!tieneNoAplica) {
         opciones.push({
           id: `${NO_APLICA_PREFIX}${g.id}`,
           negocio_id: g.negocio_id,
           grupo_id: g.id,
-          nombre: `No deseo ${g.nombre.toLowerCase()}`,
+          nombre: `No quiero ${g.nombre.toLowerCase()}`,
           componente_plato_id: null,
           cantidad_descontar: 0,
           descuenta_inventario: false,
@@ -52,7 +52,7 @@ export function seleccionInicial(plato: Plato): SeleccionModificadores {
       return
     }
     if (grupo.tiene_opcion_todos) {
-      seleccion[grupo.id] = new Set(grupo.opciones.map(o => o.id))
+      seleccion[grupo.id] = new Set(grupo.opciones.filter(o => !o.es_opcion_no_aplica).map(o => o.id))
       return
     }
     seleccion[grupo.id] = new Set()

@@ -65,8 +65,13 @@ export default function ModificadorModal({
                       onClick={() => setSeleccion(prev => {
                         const next = new Set(prev[grupo.id] || [])
                         if (grupo.tipo === 'radio') return { ...prev, [grupo.id]: new Set([opcion.id]) }
+                        const opcionNoAplica = grupo.opciones.find(o => o.es_opcion_no_aplica)
+                        if (opcion.es_opcion_no_aplica) return { ...prev, [grupo.id]: new Set([opcion.id]) }
                         if (checked) next.delete(opcion.id)
-                        else next.add(opcion.id)
+                        else {
+                          if (opcionNoAplica) next.delete(opcionNoAplica.id)
+                          next.add(opcion.id)
+                        }
                         return { ...prev, [grupo.id]: next }
                       })}
                       className={`text-left rounded-xl px-3 py-2.5 text-sm border transition-colors ${checked ? 'bg-orange-50 border-orange-300 text-gray-900 font-bold' : 'bg-gray-50 border-gray-200 text-gray-700'}`}>
