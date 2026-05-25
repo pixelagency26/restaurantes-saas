@@ -50,6 +50,7 @@ export interface Plato {
   controla_inventario?: boolean
   categoria?: Categoria
   opciones?: PlatoOpcion[]
+  modificadores?: GrupoModificador[]
 }
 
 export interface PlatoOpcionComponente {
@@ -68,6 +69,46 @@ export interface PlatoOpcion {
   orden: number
   disponibles: number | null
   componentes: PlatoOpcionComponente[]
+}
+
+export type TipoGrupoModificador = 'radio' | 'checkbox'
+
+export interface OpcionModificador {
+  id: string
+  negocio_id: string | null
+  grupo_id: string
+  nombre: string
+  componente_plato_id: string | null
+  cantidad_descontar: number
+  descuenta_inventario: boolean
+  es_opcion_no_aplica: boolean
+  orden: number
+  activo: boolean
+  componente?: { nombre: string } | null
+}
+
+export interface GrupoModificador {
+  id: string
+  negocio_id: string | null
+  plato_id: string
+  nombre: string
+  tipo: TipoGrupoModificador
+  min_selecciones: number
+  max_selecciones: number | null
+  tiene_opcion_todos: boolean
+  obligatorio: boolean
+  orden: number
+  opciones: OpcionModificador[]
+}
+
+export interface ModificadorSeleccionado {
+  grupo_id: string
+  opcion_id: string
+  nombre_grupo: string
+  nombre_opcion: string
+  cantidad_descontada: number
+  descuenta_inventario: boolean
+  componente_plato_id: string | null
 }
 
 // ─── INVENTARIO ───────────────────────────────────────────────────────────────
@@ -95,6 +136,7 @@ export interface ItemPedido {
   opcion_id?: string | null
   opcion_nombre?: string | null
   acompanantes?: string[] | null
+  modificadores?: ModificadorSeleccionado[] | null
   estado: EstadoItem
   created_at: string
   tiempo_inicio_prep: string | null

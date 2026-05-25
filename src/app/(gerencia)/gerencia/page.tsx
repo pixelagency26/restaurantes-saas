@@ -50,6 +50,16 @@ interface PlatoOpcion {
   id: string; nombre: string; es_default: boolean; orden: number
   componentes: PlatoOpcionComponente[]
 }
+interface OpcionModificador {
+  id: string; nombre: string; componente_plato_id: string | null; cantidad_descontar: number
+  descuenta_inventario: boolean; es_opcion_no_aplica: boolean; orden: number; activo: boolean
+  componente?: { nombre: string } | null
+}
+interface GrupoModificador {
+  id: string; nombre: string; tipo: 'radio' | 'checkbox'; min_selecciones: number
+  max_selecciones: number | null; tiene_opcion_todos: boolean; obligatorio: boolean; orden: number
+  opciones: OpcionModificador[]
+}
 interface MenuTurno {
   id: string; nombre: string
   items: { plato_id: string; cantidad: number }[]
@@ -254,6 +264,9 @@ export default function GerenciaPage() {
   const [platoOpciones, setPlatoOpciones] = useState<PlatoOpcion[]>([])
   const [nuevaOpcionNombre, setNuevaOpcionNombre] = useState('')
   const [guardandoOpcion, setGuardandoOpcion] = useState(false)
+  const [gruposMod, setGruposMod] = useState<GrupoModificador[]>([])
+  const [nuevoGrupoMod, setNuevoGrupoMod] = useState({ nombre: '', tipo: 'radio' as 'radio' | 'checkbox', tiene_opcion_todos: false })
+  const [nuevasOpcionesMod, setNuevasOpcionesMod] = useState<Record<string, { nombre: string; componente_plato_id: string; no_aplica: boolean }>>({})
 
   const supabase = createClient()
   const hoy = new Date().toISOString().split('T')[0]
@@ -316,6 +329,15 @@ export default function GerenciaPage() {
       .eq('plato_id', platoId)
       .order('orden')
     setPlatoOpciones((data || []) as unknown as PlatoOpcion[])
+  }, [supabase])
+
+  const cargarModificadoresPlato = useCallback(async (platoId: string) => {
+    const { data } = await supabase
+      .from('grupos_modificadores')
+      .select('*, opciones:opciones_modificador(*, componente:platos(nombre))')
+      .eq('plato_id', platoId)
+      .order('orden')
+    setGruposMod((data || []) as unknown as GrupoModificador[])
   }, [supabase])
 
   // ── CARGAR RESUMEN / INFORMES ────────────────────────────────
@@ -1527,6 +1549,7 @@ export default function GerenciaPage() {
   function abrirNuevoPlato() {
     setPlatoForm({ ...PLATO_VACIO, categoria_id: categorias[0]?.id || 0 })
     setPlatoOpciones([]); setNuevaOpcionNombre('')
+    setGruposMod([]); setNuevoGrupoMod({ nombre: '', tipo: 'radio', tiene_opcion_todos: false }); setNuevasOpcionesMod({})
     setPlatoEditandoId(null); setModalPlato('nuevo')
   }
   function abrirEditarPlato(plato: Plato) {
@@ -1537,8 +1560,10 @@ export default function GerenciaPage() {
       controla_inventario: plato.controla_inventario ?? true,
     })
     setNuevaOpcionNombre('')
+    setNuevoGrupoMod({ nombre: '', tipo: 'radio', tiene_opcion_todos: false }); setNuevasOpcionesMod({})
     setPlatoEditandoId(plato.id); setModalPlato('editar')
     cargarOpcionesPlato(plato.id)
+    cargarModificadoresPlato(plato.id)
   }
   async function guardarPlato() {
     if (!platoForm.nombre || !platoForm.precio || !platoForm.categoria_id) { toast.error('Completa nombre, precio y categoría'); return }
@@ -1626,6 +1651,66 @@ export default function GerenciaPage() {
         .upsert({ opcion_id: opcionId, componente_plato_id: componentePlatoId, cantidad: qty }, { onConflict: 'opcion_id,componente_plato_id' })
     }
     await cargarOpcionesPlato(platoEditandoId)
+  }
+
+  async function agregarGrupoModificador() {
+    if (!platoEditandoId) return
+    const nombre = nuevoGrupoMod.nombre.trim()
+    if (!nombre) { toast.error('Escribe el nombre del grupo'); return }
+    const { error } = await supabase.from('grupos_modificadores').insert({
+      plato_id: platoEditandoId,
+      nombre,
+      tipo: nuevoGrupoMod.tipo,
+      min_selecciones: nuevoGrupoMod.tipo === 'radio' ? 1 : 0,
+      max_selecciones: nuevoGrupoMod.tipo === 'radio' ? 1 : null,
+      obligatorio: nuevoGrupoMod.tipo === 'radio',
+      tiene_opcion_todos: nuevoGrupoMod.tipo === 'checkbox' && nuevoGrupoMod.tiene_opcion_todos,
+      orden: gruposMod.length,
+    })
+    if (error) { toast.error('Error al crear grupo: ' + error.message); return }
+    setNuevoGrupoMod({ nombre: '', tipo: 'radio', tiene_opcion_todos: false })
+    await cargarModificadoresPlato(platoEditandoId)
+  }
+
+  async function eliminarGrupoModificador(grupoId: string) {
+    if (!platoEditandoId) return
+    if (!confirm('¿Eliminar este grupo y sus opciones?')) return
+    const { error } = await supabase.from('grupos_modificadores').delete().eq('id', grupoId)
+    if (error) toast.error('Error al eliminar grupo: ' + error.message)
+    else await cargarModificadoresPlato(platoEditandoId)
+  }
+
+  async function agregarOpcionModificador(grupo: GrupoModificador) {
+    if (!platoEditandoId) return
+    const form = nuevasOpcionesMod[grupo.id] || { nombre: '', componente_plato_id: '', no_aplica: false }
+    const nombre = form.nombre.trim()
+    if (!nombre) { toast.error('Escribe el nombre de la opción'); return }
+    if (!form.no_aplica && !form.componente_plato_id) { toast.error('Elige el componente inventariable'); return }
+    const { error } = await supabase.from('opciones_modificador').insert({
+      grupo_id: grupo.id,
+      nombre,
+      componente_plato_id: form.no_aplica ? null : form.componente_plato_id,
+      cantidad_descontar: form.no_aplica ? 0 : 1,
+      descuenta_inventario: !form.no_aplica,
+      es_opcion_no_aplica: form.no_aplica,
+      orden: grupo.opciones.length,
+      activo: true,
+    })
+    if (error) { toast.error('Error al crear opción: ' + error.message); return }
+    setNuevasOpcionesMod(prev => ({ ...prev, [grupo.id]: { nombre: '', componente_plato_id: '', no_aplica: false } }))
+    await cargarModificadoresPlato(platoEditandoId)
+  }
+
+  async function toggleOpcionModificador(opcion: OpcionModificador) {
+    if (!platoEditandoId) return
+    await supabase.from('opciones_modificador').update({ activo: !opcion.activo }).eq('id', opcion.id)
+    await cargarModificadoresPlato(platoEditandoId)
+  }
+
+  async function eliminarOpcionModificador(opcionId: string) {
+    if (!platoEditandoId) return
+    await supabase.from('opciones_modificador').delete().eq('id', opcionId)
+    await cargarModificadoresPlato(platoEditandoId)
   }
   async function toggleActivoPlato(plato: Plato) {
     await supabase.from('platos').update({ activo: !plato.activo }).eq('id', plato.id)
@@ -3914,68 +3999,114 @@ export default function GerenciaPage() {
 
             <div className="bg-gray-50 rounded-xl border border-gray-200 p-3 space-y-3">
               <div>
-                <h4 className="text-sm font-bold text-gray-900">Opciones y acompañantes</h4>
-                <p className="text-xs text-gray-500">Ejemplo: completo incluye sancocho, bandeja no.</p>
+                <h4 className="text-sm font-bold text-gray-900">Grupos de modificadores</h4>
+                <p className="text-xs text-gray-500">Configura sopa, acompa?antes y opciones que descuentan inventario.</p>
               </div>
 
               {!platoEditandoId ? (
                 <p className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg p-3">
-                  Guarda el plato primero para agregar sus opciones.
+                  Guarda el plato primero para agregar modificadores.
                 </p>
               ) : (
                 <>
-                  <div className="flex gap-2">
+                  <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
                     <input
                       type="text"
-                      value={nuevaOpcionNombre}
-                      onChange={e => setNuevaOpcionNombre(e.target.value)}
-                      placeholder="Completo, solo bandeja..."
-                      className="flex-1 bg-white border border-gray-300 rounded-xl px-3 py-2 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-400"
+                      value={nuevoGrupoMod.nombre}
+                      onChange={e => setNuevoGrupoMod(p => ({ ...p, nombre: e.target.value }))}
+                      placeholder="Sopa, acompa?antes..."
+                      className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
                     />
-                    <button onClick={agregarOpcionPlato} disabled={guardandoOpcion} className="px-3 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white rounded-xl transition-colors">
-                      <Plus size={16} />
-                    </button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <select
+                        value={nuevoGrupoMod.tipo}
+                        onChange={e => setNuevoGrupoMod(p => ({ ...p, tipo: e.target.value as 'radio' | 'checkbox', tiene_opcion_todos: e.target.value === 'checkbox' ? p.tiene_opcion_todos : false }))}
+                        className="bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40">
+                        <option value="radio">Una opci?n</option>
+                        <option value="checkbox">Varias opciones</option>
+                      </select>
+                      <button onClick={agregarGrupoModificador} className="bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-1">
+                        <Plus size={15} /> Grupo
+                      </button>
+                    </div>
+                    {nuevoGrupoMod.tipo === 'checkbox' && (
+                      <label className="flex items-center gap-2 text-xs text-gray-700">
+                        <input type="checkbox" checked={nuevoGrupoMod.tiene_opcion_todos} onChange={e => setNuevoGrupoMod(p => ({ ...p, tiene_opcion_todos: e.target.checked }))} />
+                        Mostrar opci?n r?pida ?Todos los acompa?antes?
+                      </label>
+                    )}
                   </div>
 
-                  {platoOpciones.length === 0 ? (
+                  {gruposMod.length === 0 ? (
                     <p className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg p-3">
-                      Sin opciones. Si no agregas ninguna, el sistema descontará este plato como unidad normal.
+                      Sin modificadores. Este plato seguir? vendi?ndose normal.
                     </p>
                   ) : (
-                    <div className="space-y-2">
-                      {platoOpciones.map(opcion => (
-                        <div key={opcion.id} className="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <div>
-                              <p className="text-sm font-bold text-gray-900">{opcion.nombre}</p>
-                              {opcion.es_default && <p className="text-[11px] text-orange-600 font-semibold">Opción por defecto</p>}
+                    <div className="space-y-3">
+                      {gruposMod.map(grupo => {
+                        const form = nuevasOpcionesMod[grupo.id] || { nombre: '', componente_plato_id: '', no_aplica: false }
+                        return (
+                          <div key={grupo.id} className="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-bold text-gray-900">{grupo.nombre}</p>
+                                <p className="text-[11px] text-gray-500">{grupo.tipo === 'radio' ? 'Una opci?n' : 'Varias opciones'}{grupo.tiene_opcion_todos ? ' ? Todos disponible' : ''}</p>
+                              </div>
+                              <button onClick={() => eliminarGrupoModificador(grupo.id)} className="w-8 h-8 bg-red-50 hover:bg-red-100 rounded-lg flex items-center justify-center border border-red-100">
+                                <Trash2 size={14} className="text-red-500" />
+                              </button>
                             </div>
-                            <button onClick={() => eliminarOpcionPlato(opcion.id)} className="w-8 h-8 bg-red-50 hover:bg-red-100 rounded-lg flex items-center justify-center border border-red-100">
-                              <Trash2 size={14} className="text-red-500" />
-                            </button>
+
+                            <div className="space-y-1.5">
+                              {grupo.opciones.map(opcion => (
+                                <div key={opcion.id} className="flex items-center justify-between gap-2 bg-gray-50 border border-gray-100 rounded-lg px-2 py-1.5">
+                                  <div className="min-w-0">
+                                    <p className={`text-xs font-bold truncate ${opcion.activo ? 'text-gray-800' : 'text-gray-400 line-through'}`}>{opcion.nombre}</p>
+                                    <p className="text-[11px] text-gray-500">
+                                      {opcion.es_opcion_no_aplica ? 'No descuenta inventario' : `Descuenta: ${opcion.componente?.nombre || 'componente'} x${opcion.cantidad_descontar}`}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <button onClick={() => toggleOpcionModificador(opcion)} className="text-[11px] px-2 py-1 rounded-lg bg-gray-100 text-gray-600">
+                                      {opcion.activo ? 'Ocultar' : 'Activar'}
+                                    </button>
+                                    <button onClick={() => eliminarOpcionModificador(opcion.id)} className="w-7 h-7 bg-red-50 rounded-lg flex items-center justify-center"><Trash2 size={12} className="text-red-500" /></button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-2 border-t border-gray-100 pt-2">
+                              <input
+                                type="text"
+                                value={form.nombre}
+                                onChange={e => setNuevasOpcionesMod(prev => ({ ...prev, [grupo.id]: { ...form, nombre: e.target.value } }))}
+                                placeholder="Nombre opci?n: Sancocho, arroz, No deseo sopa..."
+                                className="bg-gray-50 border border-gray-200 rounded-lg px-2 py-2 text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+                              />
+                              <div className="grid grid-cols-[1fr_auto] gap-2">
+                                <select
+                                  value={form.componente_plato_id}
+                                  disabled={form.no_aplica}
+                                  onChange={e => setNuevasOpcionesMod(prev => ({ ...prev, [grupo.id]: { ...form, componente_plato_id: e.target.value } }))}
+                                  className="bg-gray-50 border border-gray-200 rounded-lg px-2 py-2 text-xs text-gray-900 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-orange-500/30">
+                                  <option value="">Componente inventariable</option>
+                                  {platos.filter(p => p.id !== platoEditandoId && (p.controla_inventario ?? true)).map(p => (
+                                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                                  ))}
+                                </select>
+                                <button onClick={() => agregarOpcionModificador(grupo)} className="px-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg">
+                                  <Plus size={14} />
+                                </button>
+                              </div>
+                              <label className="flex items-center gap-2 text-[11px] text-gray-600">
+                                <input type="checkbox" checked={form.no_aplica} onChange={e => setNuevasOpcionesMod(prev => ({ ...prev, [grupo.id]: { ...form, no_aplica: e.target.checked, componente_plato_id: e.target.checked ? '' : form.componente_plato_id } }))} />
+                                Esta opci?n no descuenta inventario
+                              </label>
+                            </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-1">
-                            {platos
-                              .filter(p => p.id !== platoEditandoId && (p.controla_inventario ?? true))
-                              .map(componente => {
-                                const actual = opcion.componentes.find(c => c.componente_plato_id === componente.id)?.cantidad || 0
-                                return (
-                                  <label key={componente.id} className="text-xs text-gray-700">
-                                    <span className="block truncate mb-1">{componente.nombre}</span>
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      value={actual || ''}
-                                      onChange={e => setComponenteOpcion(opcion.id, componente.id, parseInt(e.target.value) || 0)}
-                                      placeholder="0"
-                                      className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-gray-900 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500/30"
-                                    />
-                                  </label>
-                                )
-                              })}
-                          </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
                 </>

@@ -11,6 +11,14 @@ import {
   Bike, UtensilsCrossed, AlertTriangle, ArrowRight,
   Loader2, Send, ChevronRight, Upload, X, Banknote, CreditCard
 } from 'lucide-react'
+import {
+  ItemConModificadores,
+  elegirModificadoresPrompt,
+  itemKey,
+  itemPedidoPayload,
+  modificadoresPedidoPayload,
+  tieneModificadores,
+} from '@/lib/modificadores'
 
 // ─── TIPOS ─────────────────────────────────────────────────────────────────
 interface Negocio { id: string; nombre: string; plan: string }
@@ -18,10 +26,11 @@ interface Categoria { id: number; nombre: string; orden: number }
 interface Plato {
   id: string; nombre: string; descripcion: string | null
   precio: number; imagen_url: string | null; activo: boolean; categoria_id: number
+  modificadores?: unknown[]
 }
 interface InvInfo { cantidad_disponible: number; alerta_minima: number }
 type PlatoConInv = Plato & { inv?: InvInfo }
-interface ItemCarrito { plato: Plato; cantidad: number; notas: string }
+type ItemCarrito = ItemConModificadores
 interface Resena { id: string; nombre: string; puntuacion: number; comentario: string; created_at: string }
 
 type Vista = 'home' | 'menu' | 'resenas' | 'pqrs' | 'reservas'
@@ -132,7 +141,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   // ── Carga ────────────────────────────────────────────────────
   const cargar = useCallback(async () => {
     setCargando(true)
-    const [{ data: neg }, { data: cats }, { data: pls }, { data: cfg }, { data: res }, { data: turnoData }, { data: mesasData }] = await Promise.all([
+    const [{ data: neg }, { data: cats }, { data: pls }, { data: cfg }, { data: res }, { data: turnoData }, { data: mesasData }, { data: mods }] = await Promise.all([
       supabase.from('negocios').select('id, nombre, plan').eq('id', negocioId).single(),
       supabase.from('categorias').select('*').eq('negocio_id', negocioId).order('orden'),
       supabase.from('platos').select('*').eq('negocio_id', negocioId).eq('activo', true),
@@ -145,6 +154,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
       supabase.from('turnos').select('id, abierto_en').eq('negocio_id', negocioId).is('cerrado_en', null)
         .order('abierto_en', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('mesas').select('id, numero, estado').eq('negocio_id', negocioId).order('numero'),
+      supabase.from('grupos_modificadores').select('*, opciones:opciones_modificador(*, componente:platos(nombre))').eq('negocio_id', negocioId).order('orden'),
     ])
     if (!neg) { setNoEncontrado(true); setCargando(false); return }
     setNegocio(neg as Negocio)
@@ -191,7 +201,13 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
       }
     }
     setTurnoConInventario(platosEnTurnoSet.size > 0)
-    if (pls) setPlatos((pls as Plato[]).map(p => ({ ...p, inv: invMap[p.id] })))
+    if (pls) {
+      const modsPorPlato = new Map<string, unknown[]>()
+      ;((mods || []) as { plato_id: string }[]).forEach(g => {
+        modsPorPlato.set(g.plato_id, [...(modsPorPlato.get(g.plato_id) || []), g])
+      })
+      setPlatos((pls as Plato[]).map(p => ({ ...p, inv: invMap[p.id], modificadores: modsPorPlato.get(p.id) || [] })))
+    }
     if (cfg) {
       const m: Record<string, string> = {}
       cfg.forEach((r: { clave: string; valor: string }) => { m[r.clave] = r.valor })
@@ -248,20 +264,23 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   // ── Helpers ──────────────────────────────────────────────────
   const totalCarrito = carrito.reduce((s, i) => s + i.cantidad * i.plato.precio, 0)
   const cantTotal    = carrito.reduce((s, i) => s + i.cantidad, 0)
-  const cantPlato    = (id: string) => carrito.find(i => i.plato.id === id)?.cantidad ?? 0
+  const cantPlato    = (id: string) => carrito.filter(i => i.plato.id === id).reduce((a, i) => a + i.cantidad, 0)
 
   function agregar(platoRaw: Plato) {
     const platoConInv = platos.find(p => p.id === platoRaw.id)
+    const modificadores = tieneModificadores(platoRaw as never) ? elegirModificadoresPrompt(platoRaw as never) : []
+    if (modificadores === null) return
+    const keyNuevo = itemKey({ plato: platoRaw as never, cantidad: 1, notas: '', modificadores })
     if (turnoConInventario && platoConInv?.inv) {
       const disp = platoConInv.inv.cantidad_disponible
-      if (disp === 0) { toast.error(`${platoRaw.nombre} no está disponible`); return }
-      const enCarrito = carrito.find(i => i.plato.id === platoRaw.id)?.cantidad ?? 0
+      if (disp === 0) { toast.error(`${platoRaw.nombre} no est? disponible`); return }
+      const enCarrito = carrito.find(i => itemKey(i) === keyNuevo)?.cantidad ?? 0
       if (enCarrito >= disp) { toast.error(`Solo quedan ${disp} unidad(es) de ${platoRaw.nombre}`); return }
     }
     setCarrito(prev => {
-      const ex = prev.find(i => i.plato.id === platoRaw.id)
-      if (ex) return prev.map(i => i.plato.id === platoRaw.id ? { ...i, cantidad: i.cantidad + 1 } : i)
-      return [...prev, { plato: platoRaw, cantidad: 1, notas: '' }]
+      const ex = prev.find(i => itemKey(i) === keyNuevo)
+      if (ex) return prev.map(i => itemKey(i) === keyNuevo ? { ...i, cantidad: i.cantidad + 1 } : i)
+      return [...prev, { plato: platoRaw as never, cantidad: 1, notas: '', modificadores }]
     })
   }
   function cambiarCant(id: string, delta: number) {
@@ -412,13 +431,16 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
       setEnviando(false); return
     }
 
-    const { error: itemsError } = await supabase.from('items_pedido').insert(
-      carrito.map(i => ({
-        pedido_id: pedido.id, plato_id: i.plato.id,
-        cantidad: i.cantidad, precio_unitario: i.plato.precio, notas: i.notas || null
-      }))
-    )
-    if (itemsError) console.error('Error insertando items:', itemsError)
+    for (const item of carrito) {
+      const { data: itemCreado, error: itemError } = await supabase.from('items_pedido')
+        .insert(itemPedidoPayload(item, pedido.id, null))
+        .select('id').single()
+      if (itemError) console.error('Error insertando item:', itemError)
+      if (itemCreado?.id) {
+        const mods = modificadoresPedidoPayload(itemCreado.id, item)
+        if (mods.length > 0) await supabase.from('items_pedido_modificadores').insert(mods)
+      }
+    }
 
     if (mesaId) await supabase.from('mesas').update({ estado: 'ocupada' }).eq('id', mesaId)
 

@@ -3,11 +3,19 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Plato, Categoria, Inventario } from '@/types'
+import {
+  ItemConModificadores,
+  elegirModificadoresPrompt,
+  itemKey,
+  itemPedidoPayload,
+  modificadoresPedidoPayload,
+  tieneModificadores,
+} from '@/lib/modificadores'
 import toast from 'react-hot-toast'
 import { Plus, Minus, ShoppingBag, CheckCircle, ChevronLeft, User, Bell, RefreshCw } from 'lucide-react'
 import { use } from 'react'
 
-type ItemCarrito    = { plato: Plato; cantidad: number; notas: string }
+type ItemCarrito    = ItemConModificadores
 type ItemSeguimiento = { id: string; nombre: string; cantidad: number; estado: string }
 
 const ESTADO_CONFIG: Record<string, { label: string; dot: string; texto: string }> = {
@@ -54,17 +62,23 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
 
   // ── CARGA DEL MENÚ ──────────────────────────────────────────────────────────
   const cargarMenu = useCallback(async () => {
-    const [{ data: cats }, { data: pls }, { data: mesaData }, { data: invData }] = await Promise.all([
+    const [{ data: cats }, { data: pls }, { data: mesaData }, { data: invData }, { data: mods }] = await Promise.all([
       supabase.from('categorias').select('*').order('orden'),
       supabase.from('platos').select('*').eq('activo', true),
       supabase.from('mesas').select('numero, estado, negocio:negocios(nombre)').eq('id', mesaId).single(),
       supabase.from('inventario').select('*'),
+      supabase.from('grupos_modificadores').select('*, opciones:opciones_modificador(*, componente:platos(nombre))').order('orden'),
     ])
     if (cats) { setCategorias(cats); if (cats[0]) setCategoriaActiva(cats[0].id) }
     if (pls) {
+      const modsPorPlato = new Map<string, unknown[]>()
+      ;((mods || []) as { plato_id: string }[]).forEach(g => {
+        modsPorPlato.set(g.plato_id, [...(modsPorPlato.get(g.plato_id) || []), g])
+      })
       setPlatos(pls.map(p => ({
         ...p,
         inventario: (invData || []).filter((i: Inventario) => i.plato_id === p.id),
+        modificadores: modsPorPlato.get(p.id) || [],
       })) as unknown as (Plato & { inventario: Inventario[] })[])
     }
     if (mesaData) {
@@ -159,10 +173,13 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
     return plato.inventario?.[0]?.cantidad_disponible ?? 0
   }
   function agregar(plato: Plato) {
+    const modificadores = tieneModificadores(plato) ? elegirModificadoresPrompt(plato) : []
+    if (modificadores === null) return
+    const keyNuevo = itemKey({ plato, cantidad: 1, notas: '', modificadores })
     setCarrito(prev => {
-      const existe = prev.find(i => i.plato.id === plato.id)
-      if (existe) return prev.map(i => i.plato.id === plato.id ? { ...i, cantidad: i.cantidad + 1 } : i)
-      return [...prev, { plato, cantidad: 1, notas: '' }]
+      const existe = prev.find(i => itemKey(i) === keyNuevo)
+      if (existe) return prev.map(i => itemKey(i) === keyNuevo ? { ...i, cantidad: i.cantidad + 1 } : i)
+      return [...prev, { plato, cantidad: 1, notas: '', modificadores }]
     })
   }
   function cambiarCantidad(id: string, delta: number) {
@@ -170,6 +187,18 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
       prev.map(i => i.plato.id === id ? { ...i, cantidad: Math.max(0, i.cantidad + delta) } : i)
           .filter(i => i.cantidad > 0)
     )
+  }
+
+  async function insertarItemsPedido(pedidoId: string) {
+    for (const item of carrito) {
+      const { data: itemCreado } = await supabase.from('items_pedido')
+        .insert(itemPedidoPayload(item, pedidoId, null))
+        .select('id').single()
+      if (itemCreado?.id) {
+        const mods = modificadoresPedidoPayload(itemCreado.id, item)
+        if (mods.length > 0) await supabase.from('items_pedido_modificadores').insert(mods)
+      }
+    }
   }
 
   // ── ENVIAR PEDIDO NUEVO ─────────────────────────────────────────────────────
@@ -218,15 +247,7 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
       setEnviando(false); return
     }
 
-    await supabase.from('items_pedido').insert(
-      carrito.map(i => ({
-        pedido_id:       pedido.id,
-        plato_id:        i.plato.id,
-        cantidad:        i.cantidad,
-        precio_unitario: i.plato.precio,
-        notas:           i.notas || null,
-      }))
-    )
+    await insertarItemsPedido(pedido.id)
     await supabase.from('mesas').update({ estado: 'ocupada' }).eq('id', mesaId)
 
     setPedidoActualId(pedido.id)
@@ -240,15 +261,7 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
   async function agregarAlPedidoActual() {
     if (!pedidoActualId || carrito.length === 0) return
     setEnviando(true)
-    await supabase.from('items_pedido').insert(
-      carrito.map(i => ({
-        pedido_id:       pedidoActualId,
-        plato_id:        i.plato.id,
-        cantidad:        i.cantidad,
-        precio_unitario: i.plato.precio,
-        notas:           i.notas || null,
-      }))
-    )
+    await insertarItemsPedido(pedidoActualId)
     await cargarItemsSeguimiento(pedidoActualId)
     setCarrito([])
     setPaso('seguimiento')

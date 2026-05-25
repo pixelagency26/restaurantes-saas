@@ -3,6 +3,14 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Plato, Categoria, Inventario } from '@/types'
+import {
+  ItemConModificadores,
+  elegirModificadoresPrompt,
+  itemKey,
+  itemPedidoPayload,
+  modificadoresPedidoPayload,
+  tieneModificadores,
+} from '@/lib/modificadores'
 import toast from 'react-hot-toast'
 import {
   Bike, X, Plus, Minus, ShoppingBag,
@@ -10,7 +18,7 @@ import {
   ChefHat, CheckCircle,
 } from 'lucide-react'
 
-type ItemCarrito = { plato: Plato; cantidad: number; notas: string }
+type ItemCarrito = ItemConModificadores
 
 interface PedidoDomi {
   id: string
@@ -107,13 +115,14 @@ export default function DomiPage() {
 
   // ── CARGAR MENÚ ───────────────────────────────────────────────
   const cargarMenu = useCallback(async () => {
-    const [{ data: cats }, { data: pls }, { data: inv }, { data: turnoData }, { data: negData }] = await Promise.all([
+    const [{ data: cats }, { data: pls }, { data: inv }, { data: turnoData }, { data: negData }, { data: mods }] = await Promise.all([
       supabase.from('categorias').select('*').order('orden'),
       supabase.from('platos').select('*').eq('activo', true),
       supabase.from('inventario').select('*'),
       supabase.from('turnos').select('id, abierto_en').is('cerrado_en', null)
         .order('abierto_en', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('negocios').select('id').single(),
+      supabase.from('grupos_modificadores').select('*, opciones:opciones_modificador(*, componente:platos(nombre))').order('orden'),
     ])
 
     // Guardar negocio_id para usar en pedidos (RLS)
@@ -134,7 +143,13 @@ export default function DomiPage() {
     setTurnoInventarioIds(platoIdsConInv)
 
     if (cats) { setCategorias(cats); if (!categoriaActiva && cats[0]) setCategoriaActiva(cats[0].id) }
-    if (pls) setPlatos(pls.map(p => ({ ...p, inventario: (inv || []).filter((i: Inventario) => i.plato_id === p.id) })) as unknown as (Plato & { inventario: Inventario[] })[])
+    if (pls) {
+      const modsPorPlato = new Map<string, unknown[]>()
+      ;((mods || []) as { plato_id: string }[]).forEach(g => {
+        modsPorPlato.set(g.plato_id, [...(modsPorPlato.get(g.plato_id) || []), g])
+      })
+      setPlatos(pls.map(p => ({ ...p, inventario: (inv || []).filter((i: Inventario) => i.plato_id === p.id), modificadores: modsPorPlato.get(p.id) || [] })) as unknown as (Plato & { inventario: Inventario[] })[])
+    }
   }, [supabase, categoriaActiva])
 
   useEffect(() => {
@@ -276,17 +291,20 @@ export default function DomiPage() {
   }
 
   function agregarAlCarrito(plato: Plato) {
+    const modificadores = tieneModificadores(plato) ? elegirModificadoresPrompt(plato) : []
+    if (modificadores === null) return
+    const keyNuevo = itemKey({ plato, cantidad: 1, notas: '', modificadores })
     // Solo limitar si el plato tiene inventario de turno configurado
     if (turnoInventarioIds.has(plato.id)) {
       const disp = stockDisponible(plato.id)
       if (disp === 0) { toast.error(`${plato.nombre} no está disponible`); return }
-      const enCarrito = carrito.find(i => i.plato.id === plato.id)?.cantidad ?? 0
+      const enCarrito = carrito.find(i => itemKey(i) === keyNuevo)?.cantidad ?? 0
       if (enCarrito >= disp) { toast.error(`Solo hay ${disp} unidad(es) de ${plato.nombre}`); return }
     }
     setCarrito(prev => {
-      const existe = prev.find(i => i.plato.id === plato.id)
-      if (existe) return prev.map(i => i.plato.id === plato.id ? { ...i, cantidad: i.cantidad + 1 } : i)
-      return [...prev, { plato, cantidad: 1, notas: '' }]
+      const existe = prev.find(i => itemKey(i) === keyNuevo)
+      if (existe) return prev.map(i => itemKey(i) === keyNuevo ? { ...i, cantidad: i.cantidad + 1 } : i)
+      return [...prev, { plato, cantidad: 1, notas: '', modificadores }]
     })
     toast.success(`${plato.nombre} agregado`)
   }
@@ -295,7 +313,7 @@ export default function DomiPage() {
     if (delta > 0 && turnoInventarioIds.has(id)) {
       const disp = stockDisponible(id)
       if (disp <= 0) { toast.error('No hay más unidades disponibles'); return }
-      const enCarrito = carrito.find(i => i.plato.id === id)?.cantidad ?? 0
+      const enCarrito = carrito.filter(i => i.plato.id === id).reduce((a, i) => a + i.cantidad, 0)
       if (enCarrito >= disp) { toast.error('No hay más unidades disponibles'); return }
     }
     setCarrito(prev => prev.map(i => i.plato.id === id ? { ...i, cantidad: Math.max(0, i.cantidad + delta) } : i).filter(i => i.cantidad > 0))
@@ -355,15 +373,15 @@ export default function DomiPage() {
 
     if (error || !pedido) { toast.error('Error al crear el pedido'); setEnviando(false); return }
 
-    await supabase.from('items_pedido').insert(
-      carrito.map(item => ({
-        pedido_id: pedido.id,
-        plato_id: item.plato.id,
-        cantidad: item.cantidad,
-        precio_unitario: item.plato.precio,
-        notas: item.notas || null,
-      }))
-    )
+    for (const item of carrito) {
+      const { data: itemCreado } = await supabase.from('items_pedido')
+        .insert(itemPedidoPayload(item, pedido.id, user?.id))
+        .select('id').single()
+      if (itemCreado?.id) {
+        const mods = modificadoresPedidoPayload(itemCreado.id, item)
+        if (mods.length > 0) await supabase.from('items_pedido_modificadores').insert(mods)
+      }
+    }
     toast.success('🛵 ¡Domi enviado a cocina!')
     setCarrito([]); setClienteDomi({ nombre: '', telefono: '', direccion: '', cedula: '' })
     setNotaGeneral(''); setVista('pedidos')
@@ -428,7 +446,7 @@ export default function DomiPage() {
           const alerta = invRow?.alerta_minima ?? 3
           const sinStock = tieneInv && disp === 0
           const stockBajo = tieneInv && !sinStock && disp <= alerta
-          const enCarrito = carrito.find(i => i.plato.id === plato.id)
+          const enCarrito = tieneModificadores(plato) ? null : carrito.find(i => i.plato.id === plato.id)
           return (
             <div key={plato.id}
               className={`rounded-2xl border flex items-center gap-3 p-3 transition-all ${
@@ -494,18 +512,22 @@ export default function DomiPage() {
       <div className="flex-1 p-4 space-y-3 pb-36">
         {/* Items carrito */}
         {carrito.map(item => {
+          const key = itemKey(item)
           const dispCarrito = stockDisponible(item.plato.id)
           return (
-            <div key={item.plato.id} className="bg-gray-900/70 rounded-2xl p-4 border border-gray-800">
+            <div key={key} className="bg-gray-900/70 rounded-2xl p-4 border border-gray-800">
               <div className="flex items-center justify-between mb-2">
-                <p className="font-bold text-white">{item.plato.nombre}</p>
+                <div>
+                  <p className="font-bold text-white">{item.plato.nombre}</p>
+                  {item.modificadores.length > 0 && <p className="text-xs text-gray-400">{item.modificadores.map(m => `${m.nombre_grupo}: ${m.nombre_opcion}`).join(' · ')}</p>}
+                </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => cambiarCantidad(item.plato.id, -1)}
+                  <button onClick={() => setCarrito(prev => prev.map(i => itemKey(i) === key ? { ...i, cantidad: Math.max(0, i.cantidad - 1) } : i).filter(i => i.cantidad > 0))}
                     className="w-7 h-7 bg-gray-800 hover:bg-gray-700 rounded-full flex items-center justify-center text-gray-300 transition-colors">
                     <Minus size={12} />
                   </button>
                   <span className="font-black text-white w-5 text-center">{item.cantidad}</span>
-                  <button onClick={() => cambiarCantidad(item.plato.id, 1)}
+                  <button onClick={() => setCarrito(prev => prev.map(i => itemKey(i) === key ? { ...i, cantidad: i.cantidad + 1 } : i))}
                     disabled={item.cantidad >= dispCarrito}
                     className="w-7 h-7 bg-orange-500 hover:bg-orange-400 text-white rounded-full flex items-center justify-center disabled:opacity-40 transition-colors">
                     <Plus size={12} />
@@ -514,7 +536,7 @@ export default function DomiPage() {
               </div>
               <p className="text-orange-400 text-sm font-bold">${(item.plato.precio * item.cantidad).toLocaleString('es-CO')}</p>
               <input type="text" placeholder="Nota (ej: sin sal)" value={item.notas}
-                onChange={e => setCarrito(prev => prev.map(i => i.plato.id === item.plato.id ? { ...i, notas: e.target.value } : i))}
+                onChange={e => setCarrito(prev => prev.map(i => itemKey(i) === key ? { ...i, notas: e.target.value } : i))}
                 className="mt-2 w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
             </div>
           )

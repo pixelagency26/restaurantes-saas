@@ -4,13 +4,21 @@ import { useEffect, useState, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Plato, Categoria, Inventario } from '@/types'
+import {
+  ItemConModificadores,
+  elegirModificadoresPrompt,
+  itemKey,
+  itemPedidoPayload,
+  modificadoresPedidoPayload,
+  tieneModificadores,
+} from '@/lib/modificadores'
 import toast from 'react-hot-toast'
 import {
   Plus, Minus, ShoppingBag, CheckCircle, ChevronLeft,
   Bike, Upload, X, Navigation
 } from 'lucide-react'
 
-type ItemCarrito = { plato: Plato; cantidad: number; notas: string }
+type ItemCarrito = ItemConModificadores
 type Paso = 'menu' | 'carrito' | 'datos' | 'pago' | 'comprobante' | 'seguimiento'
 type MetodoPago = 'efectivo' | 'nequi' | 'daviplata'
 type EstadoItem = { id: string; nombre: string; cantidad: number; estado: string }
@@ -66,11 +74,20 @@ function DomiPedidoInner() {
     const platosQuery = negocioId
       ? supabase.from('platos').select('*').eq('negocio_id', negocioId).eq('activo', true)
       : supabase.from('platos').select('*').eq('activo', true)
-    const [{ data: cats }, { data: pls }, { data: inv }] = await Promise.all([
-      catQuery, platosQuery, supabase.from('inventario').select('*'),
+    const modsQuery = negocioId
+      ? supabase.from('grupos_modificadores').select('*, opciones:opciones_modificador(*, componente:platos(nombre))').eq('negocio_id', negocioId).order('orden')
+      : supabase.from('grupos_modificadores').select('*, opciones:opciones_modificador(*, componente:platos(nombre))').order('orden')
+    const [{ data: cats }, { data: pls }, { data: inv }, { data: mods }] = await Promise.all([
+      catQuery, platosQuery, supabase.from('inventario').select('*'), modsQuery,
     ])
     if (cats) { setCategorias(cats); if (cats[0]) setCatActiva(cats[0].id) }
-    if (pls) setPlatos(pls.map(p => ({ ...p, inventario: (inv || []).filter((i: Inventario) => i.plato_id === p.id) })) as unknown as (Plato & { inventario: Inventario[] })[])
+    if (pls) {
+      const modsPorPlato = new Map<string, unknown[]>()
+      ;((mods || []) as { plato_id: string }[]).forEach(g => {
+        modsPorPlato.set(g.plato_id, [...(modsPorPlato.get(g.plato_id) || []), g])
+      })
+      setPlatos(pls.map(p => ({ ...p, inventario: (inv || []).filter((i: Inventario) => i.plato_id === p.id), modificadores: modsPorPlato.get(p.id) || [] })) as unknown as (Plato & { inventario: Inventario[] })[])
+    }
   }, [supabase, negocioId])
 
   useEffect(() => { cargarMenu() }, [cargarMenu])
@@ -121,29 +138,41 @@ function DomiPedidoInner() {
   }
 
   function agregar(plato: Plato) {
+    const modificadores = tieneModificadores(plato) ? elegirModificadoresPrompt(plato) : []
+    if (modificadores === null) return
+    const keyNuevo = itemKey({ plato, cantidad: 1, notas: '', modificadores })
     const disp = stockDisponible(plato.id)
-    const enCarrito = carrito.find(i => i.plato.id === plato.id)?.cantidad ?? 0
+    const enCarrito = carrito.find(i => itemKey(i) === keyNuevo)?.cantidad ?? 0
     if (enCarrito >= disp) {
       toast.error('No hay más unidades disponibles')
       return
     }
     setCarrito(prev => {
-      const existe = prev.find(i => i.plato.id === plato.id)
-      if (existe) return prev.map(i => i.plato.id === plato.id ? { ...i, cantidad: i.cantidad + 1 } : i)
-      return [...prev, { plato, cantidad: 1, notas: '' }]
+      const existe = prev.find(i => itemKey(i) === keyNuevo)
+      if (existe) return prev.map(i => itemKey(i) === keyNuevo ? { ...i, cantidad: i.cantidad + 1 } : i)
+      return [...prev, { plato, cantidad: 1, notas: '', modificadores }]
     })
   }
 
   function cambiarCantidad(id: string, delta: number) {
     if (delta > 0) {
       const disp = stockDisponible(id)
-      const enCarrito = carrito.find(i => i.plato.id === id)?.cantidad ?? 0
+      const enCarrito = carrito.filter(i => i.plato.id === id).reduce((a, i) => a + i.cantidad, 0)
       if (enCarrito >= disp) {
         toast.error('No hay más unidades disponibles')
         return
       }
     }
     setCarrito(prev => prev.map(i => i.plato.id === id ? { ...i, cantidad: Math.max(0, i.cantidad + delta) } : i).filter(i => i.cantidad > 0))
+  }
+
+  function cambiarCantidadItem(key: string, delta: number) {
+    const item = carrito.find(i => itemKey(i) === key)
+    if (delta > 0 && item) {
+      const disp = stockDisponible(item.plato.id)
+      if (item.cantidad >= disp) { toast.error('No hay más unidades disponibles'); return }
+    }
+    setCarrito(prev => prev.map(i => itemKey(i) === key ? { ...i, cantidad: Math.max(0, i.cantidad + delta) } : i).filter(i => i.cantidad > 0))
   }
 
   // ── SELECCIONAR COMPROBANTE ───────────────────────────────────
@@ -241,15 +270,15 @@ function DomiPedidoInner() {
       setEnviando(false); return
     }
 
-    await supabase.from('items_pedido').insert(
-      carrito.map(i => ({
-        pedido_id: pedido.id,
-        plato_id: i.plato.id,
-        cantidad: i.cantidad,
-        precio_unitario: i.plato.precio,
-        notas: i.notas || null,
-      }))
-    )
+    for (const item of carrito) {
+      const { data: itemCreado } = await supabase.from('items_pedido')
+        .insert(itemPedidoPayload(item, pedido.id, null))
+        .select('id').single()
+      if (itemCreado?.id) {
+        const mods = modificadoresPedidoPayload(itemCreado.id, item)
+        if (mods.length > 0) await supabase.from('items_pedido_modificadores').insert(mods)
+      }
+    }
 
     setPedidoId(pedido.id)
     await cargarItemsSeg(pedido.id)
@@ -500,20 +529,24 @@ function DomiPedidoInner() {
             <button onClick={() => setPaso('menu')} className="mt-3 text-blue-500 font-semibold text-sm">← Volver al menú</button>
           </div>
         ) : carrito.map(item => {
+          const key = itemKey(item)
           const dispCarrito = stockDisponible(item.plato.id)
           return (
-          <div key={item.plato.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+          <div key={key} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-2">
-              <p className="font-semibold text-gray-900">{item.plato.nombre}</p>
+              <div>
+                <p className="font-semibold text-gray-900">{item.plato.nombre}</p>
+                {item.modificadores.length > 0 && <p className="text-xs text-gray-500">{item.modificadores.map(m => `${m.nombre_grupo}: ${m.nombre_opcion}`).join(' · ')}</p>}
+              </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => cambiarCantidad(item.plato.id, -1)} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><Minus size={12} /></button>
+                <button onClick={() => cambiarCantidadItem(key, -1)} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><Minus size={12} /></button>
                 <span className="font-bold w-5 text-center">{item.cantidad}</span>
-                <button onClick={() => cambiarCantidad(item.plato.id, 1)} disabled={item.cantidad >= dispCarrito} className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center disabled:opacity-40"><Plus size={12} /></button>
+                <button onClick={() => cambiarCantidadItem(key, 1)} disabled={item.cantidad >= dispCarrito} className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center disabled:opacity-40"><Plus size={12} /></button>
               </div>
             </div>
             <p className="text-blue-500 text-sm font-bold">${(item.plato.precio * item.cantidad).toLocaleString('es-CO')}</p>
             <input type="text" placeholder="Nota especial (ej: sin cebolla)" value={item.notas}
-              onChange={e => setCarrito(prev => prev.map(i => i.plato.id === item.plato.id ? { ...i, notas: e.target.value } : i))}
+              onChange={e => setCarrito(prev => prev.map(i => itemKey(i) === key ? { ...i, notas: e.target.value } : i))}
               className="mt-2 w-full text-sm border border-gray-100 rounded-xl px-3 py-2.5 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300" />
           </div>
           )
@@ -565,7 +598,7 @@ function DomiPedidoInner() {
           const alerta = invRow?.alerta_minima ?? 3
           const sinStock = disp === 0
           const ultimasUnidades = !sinStock && disp <= alerta
-          const enCarrito = carrito.find(i => i.plato.id === plato.id)
+          const enCarrito = tieneModificadores(plato) ? null : carrito.find(i => i.plato.id === plato.id)
           return (
             <div key={plato.id} className={`bg-white rounded-2xl p-4 border flex items-center gap-3 shadow-sm ${sinStock ? 'opacity-50' : 'border-gray-100'}`}>
               {plato.imagen_url && <img src={plato.imagen_url} alt={plato.nombre} className="w-16 h-16 rounded-xl object-cover shrink-0" />}

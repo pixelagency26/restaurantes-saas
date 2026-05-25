@@ -84,6 +84,11 @@ interface ItemPlatoExtended extends Omit<ItemPedido, 'plato'> {
   pedido_por_usuario?: { nombre: string } | null
   opcion_nombre?: string | null
   acompanantes?: string[] | null
+  modificadores?: {
+    nombre_grupo: string
+    nombre_opcion: string
+    descuenta_inventario: boolean
+  }[] | null
 }
 
 // ── Pantalla de selección de cocinero (login) ──────────────────────────────────
@@ -310,7 +315,7 @@ export default function CocinaPage() {
   const cargarPedidos = useCallback(async () => {
     const { data } = await supabase
       .from('pedidos')
-      .select(`*, mesa:mesas(numero), mesera:usuarios!mesera_id(nombre), items:items_pedido(*, plato:platos(nombre), pedido_por_usuario:usuarios!pedido_por(nombre))`)
+      .select(`*, mesa:mesas(numero), mesera:usuarios!mesera_id(nombre), items:items_pedido(*, plato:platos(nombre), pedido_por_usuario:usuarios!pedido_por(nombre), modificadores:items_pedido_modificadores(nombre_grupo, nombre_opcion, descuenta_inventario))`)
       .in('estado', ['pendiente', 'en_preparacion'])
       .order('created_at', { ascending: true })
     if (data) setPedidos(data as unknown as Pedido[])
@@ -322,6 +327,7 @@ export default function CocinaPage() {
     const canal = supabase.channel('cocina-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, cargarPedidos)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'items_pedido' }, cargarPedidos)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'items_pedido_modificadores' }, cargarPedidos)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'configuracion' }, cargarConfig)
       .subscribe()
     const intervalo = setInterval(cargarPedidos, 15000)
@@ -634,6 +640,20 @@ export default function CocinaPage() {
                               <p className="text-xs text-gray-300 mt-0.5">
                                 Incluye: {item.acompanantes.join(' · ')}
                               </p>
+                            )}
+                            {item.modificadores && item.modificadores.length > 0 && (
+                              <div className="mt-1 space-y-0.5">
+                                {Object.entries(
+                                  item.modificadores.reduce<Record<string, string[]>>((acc, mod) => {
+                                    acc[mod.nombre_grupo] = [...(acc[mod.nombre_grupo] || []), mod.nombre_opcion]
+                                    return acc
+                                  }, {})
+                                ).map(([grupo, opciones]) => (
+                                  <p key={grupo} className="text-xs text-gray-300">
+                                    <span className="text-orange-300 font-bold">{grupo}:</span> {opciones.join(', ')}
+                                  </p>
+                                ))}
+                              </div>
                             )}
                             {item.notas && (
                               <p className="text-xs text-amber-400 mt-0.5">⚠️ {item.notas}</p>
