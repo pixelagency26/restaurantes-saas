@@ -1,6 +1,6 @@
 -- Blindaje en base de datos para el flujo correcto:
 -- 1. Domi en efectivo entra directo a cocina.
--- 2. Domi con pago digital queda en Gerencia como pendiente_pago.
+-- 2. Domi con pago digital queda en Gerencia con pago_domi_aprobado = false.
 -- 3. Solo Gerencia lo manda a cocina poniendo pago_domi_aprobado = true
 --    y estado = 'pendiente'.
 
@@ -9,19 +9,15 @@ RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.tipo = 'domi' THEN
     IF NEW.metodo_pago_cliente IN ('transferencia', 'nequi', 'daviplata', 'bancolombia') THEN
-      IF COALESCE(NEW.pago_domi_aprobado, false) = true THEN
-        IF NEW.estado = 'pendiente_pago' THEN
-          NEW.estado := 'pendiente';
-        END IF;
-      ELSE
+      IF COALESCE(NEW.pago_domi_aprobado, false) <> true THEN
         NEW.pago_domi_aprobado := false;
-        NEW.estado := 'pendiente_pago';
       END IF;
     ELSIF NEW.metodo_pago_cliente = 'efectivo' THEN
       NEW.pago_domi_aprobado := true;
-      IF NEW.estado = 'pendiente_pago' THEN
-        NEW.estado := 'pendiente';
-      END IF;
+    END IF;
+
+    IF NEW.estado = 'pendiente_pago' THEN
+      NEW.estado := 'pendiente';
     END IF;
   END IF;
 
@@ -39,7 +35,7 @@ CREATE TRIGGER trigger_asegurar_domi_pago_digital_pendiente
 -- Si alguno ya fue confirmado manualmente en gerencia, puedes volver a aprobarlo desde Gerencia.
 UPDATE pedidos
 SET pago_domi_aprobado = false,
-    estado = 'pendiente_pago'
+    estado = 'pendiente'
 WHERE tipo = 'domi'
   AND metodo_pago_cliente IN ('transferencia', 'nequi', 'daviplata', 'bancolombia')
   AND estado IN ('pendiente', 'en_preparacion')

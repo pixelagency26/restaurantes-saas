@@ -272,7 +272,7 @@ function DomiPedidoInner() {
       cliente_direccion:  direccion.trim(),
       metodo_pago_cliente: metodoPago,
       comprobante_url:    comprob_url,
-      estado:             metodoPago === 'efectivo' ? 'pendiente' : 'pendiente_pago',
+      estado:             'pendiente',
       pago_domi_aprobado: metodoPago === 'efectivo',
     }).select().single()
 
