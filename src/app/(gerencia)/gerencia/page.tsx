@@ -1312,7 +1312,7 @@ export default function GerenciaPage() {
         plato_id: platoId,
         cantidad: qty,
       }))
-      const { error: invError } = await supabase.rpc('preparar_inventario_turno', {
+      const { error: invError } = await supabase.rpc('preparar_inventario_turno_v2', {
         p_items: inventarioBase,
         p_negocio_id: myNegocioId,
       })
@@ -1350,19 +1350,16 @@ export default function GerenciaPage() {
     if (!turnoActivo) { toast.error('No hay turno activo'); return }
     setCerrandoTurno(true)
     const montoFinalTotal = Object.values(conteoFinal).reduce((a, v) => a + (parseFloat(v) || 0), 0)
-    const { data, error } = await supabase
-      .from('turnos')
-      .update({ cerrado_en: new Date().toISOString(), monto_final: montoFinalTotal })
-      .eq('id', turnoActivo.id)
-      .is('cerrado_en', null)
-      .select('id')
-      .maybeSingle()
+    const { data, error } = await supabase.rpc('cerrar_turno_seguro', {
+      p_turno_id: turnoActivo.id,
+      p_monto_final: montoFinalTotal,
+    })
     if (error) {
       toast.error('Error al cerrar turno: ' + error.message)
       setCerrandoTurno(false)
       return
     }
-    if (!data?.id) {
+    if (data === false) {
       await cargarDatos()
       toast.success('Turno ya estaba cerrado')
       setModalCaja(null); setConteoFinal({})

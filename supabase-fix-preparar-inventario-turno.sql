@@ -1,10 +1,12 @@
--- Fix: preparar inventario de turno sin chocar con RLS ni IDs obsoletos.
+-- Fix definitivo: inventario/cierre de turno por RPC sin sobrecargas.
 -- Ejecutar TODO en Supabase SQL Editor.
 
 DROP FUNCTION IF EXISTS preparar_inventario_turno(UUID, JSONB);
 DROP FUNCTION IF EXISTS preparar_inventario_turno(JSONB, UUID);
+DROP FUNCTION IF EXISTS preparar_inventario_turno_v2(JSONB, UUID);
+DROP FUNCTION IF EXISTS cerrar_turno_seguro(UUID, NUMERIC);
 
-CREATE OR REPLACE FUNCTION preparar_inventario_turno(
+CREATE OR REPLACE FUNCTION preparar_inventario_turno_v2(
   p_items JSONB,
   p_negocio_id UUID
 )
@@ -36,7 +38,28 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
-GRANT EXECUTE ON FUNCTION preparar_inventario_turno(JSONB, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION preparar_inventario_turno_v2(JSONB, UUID) TO authenticated;
+
+CREATE OR REPLACE FUNCTION cerrar_turno_seguro(
+  p_turno_id UUID,
+  p_monto_final NUMERIC
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_updated INT;
+BEGIN
+  UPDATE turnos
+  SET cerrado_en = COALESCE(cerrado_en, NOW()),
+      monto_final = p_monto_final
+  WHERE id = p_turno_id
+    AND cerrado_en IS NULL;
+
+  GET DIAGNOSTICS v_updated = ROW_COUNT;
+  RETURN v_updated > 0;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+GRANT EXECUTE ON FUNCTION cerrar_turno_seguro(UUID, NUMERIC) TO authenticated;
 
 -- Fuerza a la API de Supabase/PostgREST a recargar el schema cache.
 NOTIFY pgrst, 'reload schema';
