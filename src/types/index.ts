@@ -103,7 +103,7 @@ export interface GrupoModificador {
 
 export interface ModificadorSeleccionado {
   grupo_id: string
-  opcion_id: string
+  opcion_id: string | null
   nombre_grupo: string
   nombre_opcion: string
   cantidad_descontada: number

@@ -7,6 +7,7 @@ import {
   ItemConModificadores,
   SeleccionModificadores,
   gruposDelPlato,
+  consumoInventarioCarrito,
   itemKey,
   itemPedidoPayload,
   modificadoresPedidoPayload,
@@ -241,12 +242,35 @@ export default function MeseraPage() {
     return inv?.[0]?.cantidad_disponible ?? null
   }
 
+  function cantidadEnCarrito(platoId: string) {
+    return carrito.filter(i => i.plato.id === platoId).reduce((total, i) => total + i.cantidad, 0)
+  }
+
+  function stockDisponiblePorId(platoId: string): number | null {
+    const plato = platos.find(p => p.id === platoId)
+    return plato?.inventario?.[0]?.cantidad_disponible ?? null
+  }
+
+  function validarConsumo(items: ItemCarrito[]) {
+    const consumo = consumoInventarioCarrito(items)
+    for (const [platoId, cantidad] of consumo.entries()) {
+      const disp = stockDisponiblePorId(platoId)
+      if (disp !== null && cantidad > disp) {
+        const nombre = platos.find(p => p.id === platoId)?.nombre || 'este producto'
+        return `Solo hay ${disp} unidad(es) de ${nombre}`
+      }
+    }
+    return null
+  }
+
   function agregarItem(item: ItemCarrito) {
     const disp = stockDisponible(item.plato)
     const key = itemKey(item)
+    const errorConsumo = validarConsumo([...carrito, item])
+    if (errorConsumo) { toast.error(errorConsumo); return }
     if (disp !== null) {
       if (disp === 0) { toast.error(`${item.plato.nombre} no está disponible`); return }
-      const enCarrito = carrito.find(i => itemKey(i) === key)?.cantidad ?? 0
+      const enCarrito = cantidadEnCarrito(item.plato.id)
       if (enCarrito >= disp) { toast.error(`Solo hay ${disp} unidad(es) de ${item.plato.nombre}`); return }
     }
     setCarrito(prev => {
@@ -284,7 +308,7 @@ export default function MeseraPage() {
     const itemActual = carrito.find(i => itemKey(i) === key)
     if (delta > 0 && itemActual) {
       const disp = stockDisponible(itemActual.plato)
-      if (disp !== null && itemActual.cantidad >= disp) { toast.error('No hay mas unidades disponibles'); return }
+      if (disp !== null && cantidadEnCarrito(itemActual.plato.id) >= disp) { toast.error('No hay mas unidades disponibles'); return }
     }
     setCarrito(prev => prev
       .map(i => itemKey(i) === key ? { ...i, cantidad: Math.max(0, i.cantidad + delta) } : i)
@@ -323,14 +347,12 @@ export default function MeseraPage() {
 
     // ── VERIFICACIÓN DE STOCK EN DB (previene sobre-pedidos por estado local desactualizado) ──
     // Verificaci?n r?pida del plato principal. Los modificadores se descuentan por trigger estructurado.
-    for (const item of carrito) {
-      const disp = stockDisponible(item.plato)
-      if (disp !== null && disp < item.cantidad) {
-        toast.error(`Solo quedan ${disp} de "${item.plato.nombre}"`, { duration: 5000 })
-        await cargarDatos()
-        setEnviando(false)
-        return
-      }
+    const errorConsumo = validarConsumo(carrito)
+    if (errorConsumo) {
+      toast.error(errorConsumo, { duration: 5000 })
+      await cargarDatos()
+      setEnviando(false)
+      return
     }
 
     async function insertarItemsPedido(pedidoId: string) {
@@ -841,6 +863,7 @@ export default function MeseraPage() {
         {carrito.map(item => {
           const key = itemKey(item)
           const dispCarrito = stockDisponible(item.plato) ?? Infinity
+          const cantidadPlato = cantidadEnCarrito(item.plato.id)
           return (
           <div key={key} className="bg-white rounded-2xl p-4 border border-gray-100">
             <div className="flex items-center justify-between mb-2">
@@ -855,7 +878,7 @@ export default function MeseraPage() {
               <div className="flex items-center gap-2">
                 <button onClick={() => cambiarCantidad(key, -1)} className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center"><Minus size={12} /></button>
                 <span className="font-bold">{item.cantidad}</span>
-                <button onClick={() => cambiarCantidad(key, 1)} disabled={item.cantidad >= dispCarrito} className="w-7 h-7 bg-orange-500 text-white rounded-full flex items-center justify-center disabled:opacity-40"><Plus size={12} /></button>
+                <button onClick={() => cambiarCantidad(key, 1)} disabled={cantidadPlato >= dispCarrito} className="w-7 h-7 bg-orange-500 text-white rounded-full flex items-center justify-center disabled:opacity-40"><Plus size={12} /></button>
               </div>
             </div>
             <p className="text-orange-600 text-sm font-semibold mb-2">${(item.plato.precio * item.cantidad).toLocaleString('es-CO')}</p>

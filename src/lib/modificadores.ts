@@ -9,17 +9,34 @@ export type ItemConModificadores = {
 
 export type SeleccionModificadores = Record<string, Set<string>>
 
+const NO_APLICA_PREFIX = '__no_aplica__'
+
 export function gruposDelPlato(plato: Plato): GrupoModificador[] {
   return (plato.modificadores || [])
     .slice()
     .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
-    .map(g => ({
-      ...g,
-      opciones: (g.opciones || [])
+    .map(g => {
+      const opciones = (g.opciones || [])
         .filter(o => o.activo !== false)
         .slice()
-        .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0)),
-    }))
+        .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
+      const tieneNoAplica = opciones.some(o => o.es_opcion_no_aplica)
+      if (g.tipo === 'radio' && !tieneNoAplica) {
+        opciones.push({
+          id: `${NO_APLICA_PREFIX}${g.id}`,
+          negocio_id: g.negocio_id,
+          grupo_id: g.id,
+          nombre: `No deseo ${g.nombre.toLowerCase()}`,
+          componente_plato_id: null,
+          cantidad_descontar: 0,
+          descuenta_inventario: false,
+          es_opcion_no_aplica: true,
+          orden: 9999,
+          activo: true,
+        })
+      }
+      return { ...g, opciones }
+    })
 }
 
 export function tieneModificadores(plato: Plato): boolean {
@@ -50,7 +67,7 @@ export function seleccionAmodificadores(plato: Plato, seleccion: SeleccionModifi
       .filter(opcion => ids.has(opcion.id))
       .map(opcion => ({
         grupo_id: grupo.id,
-        opcion_id: opcion.id,
+        opcion_id: opcion.id.startsWith(NO_APLICA_PREFIX) ? null : opcion.id,
         nombre_grupo: grupo.nombre,
         nombre_opcion: opcion.nombre,
         cantidad_descontada: opcion.descuenta_inventario ? opcion.cantidad_descontar : 0,
@@ -75,8 +92,31 @@ export function validarSeleccion(plato: Plato, seleccion: SeleccionModificadores
 }
 
 export function itemKey(item: ItemConModificadores): string {
-  const mods = item.modificadores.map(m => m.opcion_id).sort().join(',')
+  const mods = item.modificadores.map(m => m.opcion_id || `${m.grupo_id}:no_aplica`).sort().join(',')
   return `${item.plato.id}:${mods || 'normal'}`
+}
+
+export function consumoInventarioItem(item: ItemConModificadores): Map<string, number> {
+  const consumo = new Map<string, number>()
+  consumo.set(item.plato.id, (consumo.get(item.plato.id) || 0) + item.cantidad)
+  item.modificadores.forEach(mod => {
+    if (!mod.descuenta_inventario || !mod.componente_plato_id || mod.cantidad_descontada <= 0) return
+    consumo.set(
+      mod.componente_plato_id,
+      (consumo.get(mod.componente_plato_id) || 0) + (mod.cantidad_descontada * item.cantidad),
+    )
+  })
+  return consumo
+}
+
+export function consumoInventarioCarrito(items: ItemConModificadores[]): Map<string, number> {
+  const consumo = new Map<string, number>()
+  items.forEach(item => {
+    consumoInventarioItem(item).forEach((cantidad, platoId) => {
+      consumo.set(platoId, (consumo.get(platoId) || 0) + cantidad)
+    })
+  })
+  return consumo
 }
 
 export function itemPedidoPayload(item: ItemConModificadores, pedidoId: string, pedidoPor?: string | null) {

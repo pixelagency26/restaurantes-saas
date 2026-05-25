@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Plato, Categoria, Inventario } from '@/types'
 import { ModificadorSeleccionado } from '@/types'
-import { ItemConModificadores, itemKey, itemPedidoPayload, modificadoresPedidoPayload, tieneModificadores } from '@/lib/modificadores'
+import { ItemConModificadores, consumoInventarioCarrito, itemKey, itemPedidoPayload, modificadoresPedidoPayload, tieneModificadores } from '@/lib/modificadores'
 import ModificadorModal from '@/components/ModificadorModal'
 import toast from 'react-hot-toast'
 import {
@@ -132,10 +132,23 @@ function DomiPedidoInner() {
     const p = platos.find(pl => pl.id === platoId)
     return p?.inventario?.[0]?.cantidad_disponible ?? 0
   }
+  function validarConsumo(items: ItemCarrito[]) {
+    const consumo = consumoInventarioCarrito(items)
+    for (const [platoId, cantidad] of consumo.entries()) {
+      const disp = stockDisponible(platoId)
+      if (cantidad > disp) {
+        const nombre = platos.find(p => p.id === platoId)?.nombre || 'este producto'
+        return `Solo hay ${disp} unidad(es) de ${nombre}`
+      }
+    }
+    return null
+  }
 
   function agregar(plato: Plato, modificadores?: ModificadorSeleccionado[]) {
     if (!modificadores && tieneModificadores(plato)) { setPlatoConfig(plato); return }
     const mods = modificadores || []
+    const errorConsumo = validarConsumo([...carrito, { plato, cantidad: 1, notas: '', modificadores: mods }])
+    if (errorConsumo) { toast.error(errorConsumo); return }
     const keyNuevo = itemKey({ plato, cantidad: 1, notas: '', modificadores: mods })
     const disp = stockDisponible(plato.id)
     const enCarrito = carrito.find(i => itemKey(i) === keyNuevo)?.cantidad ?? 0
@@ -165,8 +178,8 @@ function DomiPedidoInner() {
   function cambiarCantidadItem(key: string, delta: number) {
     const item = carrito.find(i => itemKey(i) === key)
     if (delta > 0 && item) {
-      const disp = stockDisponible(item.plato.id)
-      if (item.cantidad >= disp) { toast.error('No hay más unidades disponibles'); return }
+      const errorConsumo = validarConsumo(carrito.map(i => itemKey(i) === key ? { ...i, cantidad: i.cantidad + 1 } : i))
+      if (errorConsumo) { toast.error(errorConsumo); return }
     }
     setCarrito(prev => prev.map(i => itemKey(i) === key ? { ...i, cantidad: Math.max(0, i.cantidad + delta) } : i).filter(i => i.cantidad > 0))
   }
@@ -640,3 +653,4 @@ export default function DomiPedidoPage() {
     </Suspense>
   )
 }
+

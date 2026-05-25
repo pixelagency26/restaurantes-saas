@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Plato, Categoria, Inventario, ModificadorSeleccionado } from '@/types'
 import {
   ItemConModificadores,
+  consumoInventarioCarrito,
   itemKey,
   itemPedidoPayload,
   modificadoresPedidoPayload,
@@ -291,15 +292,34 @@ export default function DomiPage() {
     return p?.inventario?.[0]?.cantidad_disponible ?? 0
   }
 
+  function cantidadEnCarrito(platoId: string) {
+    return carrito.filter(i => i.plato.id === platoId).reduce((total, i) => total + i.cantidad, 0)
+  }
+
+  function validarConsumo(items: ItemCarrito[]) {
+    const consumo = consumoInventarioCarrito(items)
+    for (const [platoId, cantidad] of consumo.entries()) {
+      if (!turnoInventarioIds.has(platoId)) continue
+      const disp = stockDisponible(platoId)
+      if (cantidad > disp) {
+        const nombre = platos.find(p => p.id === platoId)?.nombre || 'este producto'
+        return `Solo hay ${disp} unidad(es) de ${nombre}`
+      }
+    }
+    return null
+  }
+
   function agregarAlCarrito(plato: Plato, modificadores?: ModificadorSeleccionado[]) {
     if (!modificadores && tieneModificadores(plato)) { setPlatoConfig(plato); return }
     const mods = modificadores || []
     const keyNuevo = itemKey({ plato, cantidad: 1, notas: '', modificadores: mods })
+    const errorConsumo = validarConsumo([...carrito, { plato, cantidad: 1, notas: '', modificadores: mods }])
+    if (errorConsumo) { toast.error(errorConsumo); return }
     // Solo limitar si el plato tiene inventario de turno configurado
     if (turnoInventarioIds.has(plato.id)) {
       const disp = stockDisponible(plato.id)
       if (disp === 0) { toast.error(`${plato.nombre} no está disponible`); return }
-      const enCarrito = carrito.find(i => itemKey(i) === keyNuevo)?.cantidad ?? 0
+      const enCarrito = cantidadEnCarrito(plato.id)
       if (enCarrito >= disp) { toast.error(`Solo hay ${disp} unidad(es) de ${plato.nombre}`); return }
     }
     setCarrito(prev => {
@@ -314,13 +334,22 @@ export default function DomiPage() {
     if (delta > 0 && turnoInventarioIds.has(id)) {
       const disp = stockDisponible(id)
       if (disp <= 0) { toast.error('No hay más unidades disponibles'); return }
-      const enCarrito = carrito.filter(i => i.plato.id === id).reduce((a, i) => a + i.cantidad, 0)
+      const enCarrito = cantidadEnCarrito(id)
       if (enCarrito >= disp) { toast.error('No hay más unidades disponibles'); return }
     }
     setCarrito(prev => prev.map(i => i.plato.id === id ? { ...i, cantidad: Math.max(0, i.cantidad + delta) } : i).filter(i => i.cantidad > 0))
   }
 
   // ── ENVIAR PEDIDO ─────────────────────────────────────────────
+  function cambiarCantidadItem(key: string, delta: number) {
+    const itemActual = carrito.find(i => itemKey(i) === key)
+    if (delta > 0 && itemActual && turnoInventarioIds.has(itemActual.plato.id)) {
+      const disp = stockDisponible(itemActual.plato.id)
+      if (cantidadEnCarrito(itemActual.plato.id) >= disp) { toast.error('No hay mÃ¡s unidades disponibles'); return }
+    }
+    setCarrito(prev => prev.map(i => itemKey(i) === key ? { ...i, cantidad: Math.max(0, i.cantidad + delta) } : i).filter(i => i.cantidad > 0))
+  }
+
   async function enviarPedido() {
     if (carrito.length === 0) return
     if (!clienteDomi.nombre.trim() || !clienteDomi.telefono.trim() || !clienteDomi.direccion.trim()) {
@@ -334,16 +363,18 @@ export default function DomiPage() {
 
     // ── VERIFICACIÓN DE STOCK EN DB ──────────────────────────────
     if (turnoInventarioIds.size > 0) {
-      const itemsConLimite = carrito.filter(item => turnoInventarioIds.has(item.plato.id))
-      if (itemsConLimite.length > 0) {
+      const cantidadesPorPlato = consumoInventarioCarrito(carrito)
+      if (cantidadesPorPlato.size > 0) {
         const { data: invActual } = await supabase
           .from('inventario').select('plato_id, cantidad_disponible')
-          .in('plato_id', itemsConLimite.map(i => i.plato.id))
+          .in('plato_id', [...cantidadesPorPlato.keys()].filter(id => turnoInventarioIds.has(id)))
         const invMap = Object.fromEntries(((invActual || []) as { plato_id: string; cantidad_disponible: number }[]).map(i => [i.plato_id, i.cantidad_disponible]))
-        for (const item of itemsConLimite) {
-          const disp = invMap[item.plato.id] ?? 0
-          if (disp < item.cantidad) {
-            toast.error(`Solo quedan ${disp} de "${item.plato.nombre}"`, { duration: 5000 })
+        for (const [platoId, cantidad] of cantidadesPorPlato.entries()) {
+          if (!turnoInventarioIds.has(platoId)) continue
+          const disp = invMap[platoId] ?? 0
+          if (disp < cantidad) {
+            const nombre = platos.find(p => p.id === platoId)?.nombre || 'este producto'
+            toast.error(`Solo quedan ${disp} de "${nombre}"`, { duration: 5000 })
             await cargarMenu()
             setEnviando(false)
             return
@@ -524,6 +555,7 @@ export default function DomiPage() {
         {carrito.map(item => {
           const key = itemKey(item)
           const dispCarrito = stockDisponible(item.plato.id)
+          const cantidadPlato = cantidadEnCarrito(item.plato.id)
           return (
             <div key={key} className="bg-gray-900/70 rounded-2xl p-4 border border-gray-800">
               <div className="flex items-center justify-between mb-2">
@@ -537,8 +569,8 @@ export default function DomiPage() {
                     <Minus size={12} />
                   </button>
                   <span className="font-black text-white w-5 text-center">{item.cantidad}</span>
-                  <button onClick={() => setCarrito(prev => prev.map(i => itemKey(i) === key ? { ...i, cantidad: i.cantidad + 1 } : i))}
-                    disabled={item.cantidad >= dispCarrito}
+                  <button onClick={() => cambiarCantidadItem(key, 1)}
+                    disabled={cantidadPlato >= dispCarrito}
                     className="w-7 h-7 bg-orange-500 hover:bg-orange-400 text-white rounded-full flex items-center justify-center disabled:opacity-40 transition-colors">
                     <Plus size={12} />
                   </button>

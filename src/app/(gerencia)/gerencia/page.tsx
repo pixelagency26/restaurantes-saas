@@ -15,7 +15,7 @@ import {
   PieChart, Pie, Cell, LineChart, Line, CartesianGrid
 } from 'recharts'
 import ModificadorModal from '@/components/ModificadorModal'
-import { ItemConModificadores, itemKey, itemPedidoPayload, modificadoresPedidoPayload, tieneModificadores } from '@/lib/modificadores'
+import { ItemConModificadores, consumoInventarioCarrito, itemKey, itemPedidoPayload, modificadoresPedidoPayload, tieneModificadores } from '@/lib/modificadores'
 import { ModificadorSeleccionado } from '@/types'
 
 // ─── TIPOS ───────────────────────────────────────────────────
@@ -1787,13 +1787,28 @@ export default function GerenciaPage() {
   function agregarNuevoOrdenPlato(plato: Plato, modificadores?: ModificadorSeleccionado[]) {
     if (!modificadores && tieneModificadores(plato as never)) { setPlatoConfigNuevoOrden(plato); return }
     const mods = modificadores || []
+    const itemNuevo: ItemConModificadores = { plato: plato as never, cantidad: 1, notas: '', modificadores: mods }
+    const consumoProyectado = consumoInventarioCarrito([
+      ...nuevoOrdenItemsMod,
+      ...Object.entries(nuevoOrdenCarrito)
+        .filter(([, qty]) => qty > 0)
+        .map(([platoId, qty]) => ({ plato: platos.find(p => p.id === platoId)! as never, cantidad: qty, notas: '', modificadores: [] })),
+      itemNuevo,
+    ])
+    for (const [platoId, cantidad] of consumoProyectado.entries()) {
+      const inv = inventarioModalMap[platoId]
+      if (inv && cantidad > inv.cantidad) {
+        const nombre = platos.find(p => p.id === platoId)?.nombre || 'este producto'
+        toast.error(`Solo hay ${inv.cantidad} unidad(es) de ${nombre}`)
+        return
+      }
+    }
     if (mods.length > 0) {
-      const nuevoItem: ItemConModificadores = { plato: plato as never, cantidad: 1, notas: '', modificadores: mods }
-      const keyNuevo = itemKey(nuevoItem)
+      const keyNuevo = itemKey(itemNuevo)
       setNuevoOrdenItemsMod(prev => {
         const existe = prev.find(i => itemKey(i) === keyNuevo)
         if (existe) return prev.map(i => itemKey(i) === keyNuevo ? { ...i, cantidad: i.cantidad + 1 } : i)
-        return [...prev, nuevoItem]
+        return [...prev, itemNuevo]
       })
       return
     }
@@ -1824,9 +1839,10 @@ export default function GerenciaPage() {
       // ── Verificación de stock en tiempo real (previene sobre-pedidos) ──
       if (turnoConInventario) {
         const platoIdsConInv = Object.keys(inventarioModalMap)
-        const cantidadesPorPlato = new Map<string, number>()
-        itemsCarrito.forEach(([platoId, qty]) => cantidadesPorPlato.set(platoId, (cantidadesPorPlato.get(platoId) || 0) + qty))
-        nuevoOrdenItemsMod.forEach(item => cantidadesPorPlato.set(item.plato.id, (cantidadesPorPlato.get(item.plato.id) || 0) + item.cantidad))
+        const cantidadesPorPlato = consumoInventarioCarrito([
+          ...nuevoOrdenItemsMod,
+          ...itemsCarrito.map(([platoId, qty]) => ({ plato: platos.find(pl => pl.id === platoId)! as never, cantidad: qty, notas: '', modificadores: [] })),
+        ])
         const itemsConLimite = [...cantidadesPorPlato.entries()].filter(([platoId]) => platoIdsConInv.includes(platoId))
         if (itemsConLimite.length > 0) {
           const { data: invActual } = await supabase

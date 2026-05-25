@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import {
   ItemConModificadores,
+  consumoInventarioCarrito,
   itemKey,
   itemPedidoPayload,
   modificadoresPedidoPayload,
@@ -267,11 +268,23 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   const totalCarrito = carrito.reduce((s, i) => s + i.cantidad * i.plato.precio, 0)
   const cantTotal    = carrito.reduce((s, i) => s + i.cantidad, 0)
   const cantPlato    = (id: string) => carrito.filter(i => i.plato.id === id).reduce((a, i) => a + i.cantidad, 0)
+  function validarConsumo(items: ItemCarrito[]) {
+    const consumo = consumoInventarioCarrito(items)
+    for (const [platoId, cantidad] of consumo.entries()) {
+      const plato = platos.find(p => p.id === platoId)
+      if (turnoConInventario && plato?.inv && cantidad > plato.inv.cantidad_disponible) {
+        return `Solo hay ${plato.inv.cantidad_disponible} unidad(es) de ${plato.nombre}`
+      }
+    }
+    return null
+  }
 
   function agregar(platoRaw: Plato, modificadores?: ModificadorSeleccionado[]) {
     const platoConInv = platos.find(p => p.id === platoRaw.id)
     if (!modificadores && tieneModificadores(platoRaw as never)) { setPlatoConfig(platoRaw); return }
     const mods = modificadores || []
+    const errorConsumo = validarConsumo([...carrito, { plato: platoRaw as never, cantidad: 1, notas: '', modificadores: mods }])
+    if (errorConsumo) { toast.error(errorConsumo); return }
     const keyNuevo = itemKey({ plato: platoRaw as never, cantidad: 1, notas: '', modificadores: mods })
     if (turnoConInventario && platoConInv?.inv) {
       const disp = platoConInv.inv.cantidad_disponible
@@ -352,6 +365,8 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
     if (tipoConsumo === 'domi' && metodoPagoDomi === 'transferencia' && !comprobanteFile) {
       toast.error('Adjunta el comprobante'); return
     }
+    const errorConsumo = validarConsumo(carrito)
+    if (errorConsumo) { toast.error(errorConsumo, { duration: 5000 }); return }
     setEnviando(true)
 
     // Subir comprobante

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Plato, Categoria, Inventario, ModificadorSeleccionado } from '@/types'
 import {
   ItemConModificadores,
+  consumoInventarioCarrito,
   itemKey,
   itemPedidoPayload,
   modificadoresPedidoPayload,
@@ -173,9 +174,26 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
   function disponibilidad(plato: Plato & { inventario: Inventario[] }) {
     return plato.inventario?.[0]?.cantidad_disponible ?? 0
   }
+  function stockDisponiblePorId(platoId: string): number | null {
+    const plato = platos.find(p => p.id === platoId)
+    return plato?.inventario?.[0]?.cantidad_disponible ?? null
+  }
+  function validarConsumo(items: ItemCarrito[]) {
+    const consumo = consumoInventarioCarrito(items)
+    for (const [platoId, cantidad] of consumo.entries()) {
+      const disp = stockDisponiblePorId(platoId)
+      if (disp !== null && cantidad > disp) {
+        const nombre = platos.find(p => p.id === platoId)?.nombre || 'este producto'
+        return `Solo hay ${disp} unidad(es) de ${nombre}`
+      }
+    }
+    return null
+  }
   function agregar(plato: Plato, modificadores?: ModificadorSeleccionado[]) {
     if (!modificadores && tieneModificadores(plato)) { setPlatoConfig(plato); return }
     const mods = modificadores || []
+    const errorConsumo = validarConsumo([...carrito, { plato, cantidad: 1, notas: '', modificadores: mods }])
+    if (errorConsumo) { toast.error(errorConsumo); return }
     const keyNuevo = itemKey({ plato, cantidad: 1, notas: '', modificadores: mods })
     setCarrito(prev => {
       const existe = prev.find(i => itemKey(i) === keyNuevo)
@@ -190,6 +208,11 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
     )
   }
   function cambiarCantidadItem(key: string, delta: number) {
+    const itemActual = carrito.find(i => itemKey(i) === key)
+    if (delta > 0 && itemActual) {
+      const errorConsumo = validarConsumo(carrito.map(i => itemKey(i) === key ? { ...i, cantidad: i.cantidad + 1 } : i))
+      if (errorConsumo) { toast.error(errorConsumo); return }
+    }
     setCarrito(prev =>
       prev.map(i => itemKey(i) === key ? { ...i, cantidad: Math.max(0, i.cantidad + delta) } : i)
           .filter(i => i.cantidad > 0)
@@ -214,6 +237,8 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
       toast.error('Completa todos los campos'); return
     }
     if (carrito.length === 0) return
+    const errorConsumo = validarConsumo(carrito)
+    if (errorConsumo) { toast.error(errorConsumo, { duration: 5000 }); return }
     setEnviando(true)
 
     const { data: turno } = await supabase
@@ -267,6 +292,8 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
   // ── AGREGAR MÁS AL PEDIDO EXISTENTE ────────────────────────────────────────
   async function agregarAlPedidoActual() {
     if (!pedidoActualId || carrito.length === 0) return
+    const errorConsumo = validarConsumo(carrito)
+    if (errorConsumo) { toast.error(errorConsumo, { duration: 5000 }); return }
     setEnviando(true)
     await insertarItemsPedido(pedidoActualId)
     await cargarItemsSeguimiento(pedidoActualId)
