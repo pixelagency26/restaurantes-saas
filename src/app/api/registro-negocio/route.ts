@@ -48,7 +48,7 @@ export async function POST(req: Request) {
       { negocio_id: negocio.id, nombre: 'Postres', orden: 4 },
     ])
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, plan: planInicial, negocio_id: negocio.id })
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })
   }

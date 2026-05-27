@@ -624,6 +624,12 @@ export default function GerenciaPage() {
   function puedeAcceder(planReq: 'starter' | 'basico' | 'pro') {
     return (PLAN_NIVEL[negocioPlan] ?? 0) >= (PLAN_NIVEL[planReq] ?? 0)
   }
+  const puedeQRConsumo = puedeAcceder('basico')
+  const puedeQRDomi = puedeAcceder('pro')
+  useEffect(() => {
+    if (!puedeQRConsumo && qrConsumoActivo) setQrConsumoActivo(false)
+    if (!puedeQRDomi && qrDomiActivo) setQrDomiActivo(false)
+  }, [puedeQRConsumo, puedeQRDomi, qrConsumoActivo, qrDomiActivo])
   const pasosGuia = GUIA_GERENCIA.filter(p => puedeAcceder(p.planReq))
   const pasoGuiaActual = pasosGuia[guiaPaso] || pasosGuia[0]
   function iniciarGuia() {
@@ -820,11 +826,15 @@ export default function GerenciaPage() {
 
   async function guardarConfiguracion() {
     setGuardandoPermisos(true)
+    const qrConsumoPermitido = puedeQRConsumo && qrConsumoActivo
+    const qrDomiPermitido = puedeQRDomi && qrDomiActivo
+    if (qrConsumoActivo && !puedeQRConsumo) setQrConsumoActivo(false)
+    if (qrDomiActivo && !puedeQRDomi) setQrDomiActivo(false)
     const ok = await upsertConfig([
       { clave: 'bloqueo_cocina_activo',   valor: String(bloqueoActivo)   },
       { clave: 'bloqueo_cocina_cantidad', valor: String(bloqueoCantidad) },
-      { clave: 'qr_consumo_activo',       valor: String(qrConsumoActivo) },
-      { clave: 'qr_domi_activo',          valor: String(qrDomiActivo)    },
+      { clave: 'qr_consumo_activo',       valor: String(qrConsumoPermitido) },
+      { clave: 'qr_domi_activo',          valor: String(qrDomiPermitido) },
     ])
     if (ok) toast.success('✅ Permisos guardados')
     setGuardandoPermisos(false)
@@ -4013,7 +4023,7 @@ export default function GerenciaPage() {
             </div>
 
             {/* QR — solo basico/pro */}
-            <div className={`bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-5 ${!puedeAcceder('basico') ? 'opacity-60' : ''}`}>
+            <div className={`bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-5 ${!puedeQRConsumo ? 'opacity-60' : ''}`}>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
@@ -4024,11 +4034,11 @@ export default function GerenciaPage() {
                     <p className="text-xs text-gray-400">Permite que los clientes pidan desde su celular</p>
                   </div>
                 </div>
-                {!puedeAcceder('basico') && (
+                {!puedeQRConsumo && (
                   <span className="text-[10px] bg-orange-500/20 text-orange-300 font-bold px-2 py-1 rounded-full">Plan Profesional</span>
                 )}
               </div>
-              {!puedeAcceder('basico') ? (
+              {!puedeQRConsumo ? (
                 <p className="text-xs text-gray-500 bg-gray-50 rounded-xl p-3">
                   🔒 Disponible desde el plan Profesional ($89.900/mes). Actualiza tu plan para habilitar pedidos por QR.
                 </p>
@@ -4046,12 +4056,15 @@ export default function GerenciaPage() {
                   </div>
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex-1">
-                      <p className="font-semibold text-gray-800 text-sm">Pedido QR — Domicilio</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-gray-800 text-sm">Pedido QR — Domicilio</p>
+                        {!puedeQRDomi && <span className="text-[10px] bg-orange-100 text-orange-600 font-bold px-2 py-0.5 rounded-full">Plan Pro</span>}
+                      </div>
                       <p className="text-xs text-gray-400 mt-0.5">Los clientes pueden hacer pedidos a domicilio escaneando el QR de tu página pública</p>
                     </div>
-                    <button onClick={() => setQrDomiActivo(v => !v)}
-                      className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${qrDomiActivo ? 'bg-orange-500' : 'bg-gray-300'}`}>
-                      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${qrDomiActivo ? 'translate-x-6' : 'translate-x-1'}`} />
+                    <button onClick={() => puedeQRDomi ? setQrDomiActivo(v => !v) : abrirUpgrade()}
+                      className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${puedeQRDomi && qrDomiActivo ? 'bg-orange-500' : 'bg-gray-300'}`}>
+                      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${puedeQRDomi && qrDomiActivo ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                   </div>
                   {(qrConsumoActivo || qrDomiActivo) && (
@@ -6056,7 +6069,7 @@ export default function GerenciaPage() {
                   </div>
 
                   {/* QR — solo basico/pro */}
-                  <div className={`bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-4 ${!puedeAcceder('basico') ? 'opacity-60' : ''}`}>
+                  <div className={`bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-4 ${!puedeQRConsumo ? 'opacity-60' : ''}`}>
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
@@ -6067,11 +6080,11 @@ export default function GerenciaPage() {
                           <p className="text-xs text-gray-400">Clientes piden desde su celular</p>
                         </div>
                       </div>
-                      {!puedeAcceder('basico') && (
+                      {!puedeQRConsumo && (
                         <span className="text-[10px] bg-orange-100 text-orange-600 font-bold px-2 py-1 rounded-full shrink-0">Plan Profesional</span>
                       )}
                     </div>
-                    {!puedeAcceder('basico') ? (
+                    {!puedeQRConsumo ? (
                       <p className="text-xs text-gray-500 bg-gray-50 rounded-xl p-3">🔒 Disponible desde el plan Profesional.</p>
                     ) : (
                       <>
@@ -6087,12 +6100,15 @@ export default function GerenciaPage() {
                         </div>
                         <div className="flex items-center justify-between gap-4">
                           <div className="flex-1">
-                            <p className="font-semibold text-gray-800 text-sm">QR — Domicilio</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold text-gray-800 text-sm">QR — Domicilio</p>
+                              {!puedeQRDomi && <span className="text-[10px] bg-orange-100 text-orange-600 font-bold px-2 py-0.5 rounded-full">Plan Pro</span>}
+                            </div>
                             <p className="text-xs text-gray-400 mt-0.5">Pedidos a domicilio desde la página pública</p>
                           </div>
-                          <button onClick={() => setQrDomiActivo(v => !v)}
-                            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${qrDomiActivo ? 'bg-orange-500' : 'bg-gray-300'}`}>
-                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${qrDomiActivo ? 'translate-x-6' : 'translate-x-1'}`} />
+                          <button onClick={() => puedeQRDomi ? setQrDomiActivo(v => !v) : abrirUpgrade()}
+                            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${puedeQRDomi && qrDomiActivo ? 'bg-orange-500' : 'bg-gray-300'}`}>
+                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${puedeQRDomi && qrDomiActivo ? 'translate-x-6' : 'translate-x-1'}`} />
                           </button>
                         </div>
                       </>

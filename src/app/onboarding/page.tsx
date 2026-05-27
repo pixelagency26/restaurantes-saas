@@ -33,7 +33,8 @@ function OnboardingForm() {
   const supabase = createClient()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const plan = searchParams.get('plan') // 'basico' | 'pro' | null
+  const plan = searchParams.get('plan') // 'starter' | 'basico' | 'pro' | null
+  const planSeleccionado = (['starter', 'basico', 'pro'].includes(plan || '') ? plan : null) as 'starter' | 'basico' | 'pro' | null
   const esTrial = searchParams.get('trial') === '1'
   const [paso, setPaso] = useState(0)
   const [negocioId, setNegocioId] = useState<string | null>(null)
@@ -60,10 +61,15 @@ function OnboardingForm() {
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) { router.push('/login'); return }
       const { data: u } = await supabase.from('usuarios')
-        .select('negocio_id, negocio:negocios(id, nombre, onboarding_completo)')
+        .select('negocio_id, negocio:negocios(id, nombre, plan, onboarding_completo)')
         .eq('id', data.user.id).single()
       if (!u) { router.push('/login'); return }
-      const neg = u.negocio as { id: string; nombre: string; onboarding_completo: boolean } | null
+      const neg = u.negocio as { id: string; nombre: string; plan?: string; onboarding_completo: boolean } | null
+      if (esTrial && planSeleccionado && neg?.plan !== planSeleccionado) {
+        await supabase.from('negocios')
+          .update({ plan: planSeleccionado, suscripcion_activa: true })
+          .eq('id', u.negocio_id)
+      }
       if (neg?.onboarding_completo) { router.push('/gerencia'); return }
       setNegocioId(u.negocio_id)
       setNegocioNombre(neg?.nombre || '')

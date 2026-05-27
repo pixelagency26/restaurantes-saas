@@ -214,8 +214,8 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
     if (cfg) {
       const m: Record<string, string> = {}
       cfg.forEach((r: { clave: string; valor: string }) => { m[r.clave] = r.valor })
-      setQrConsumo(m['qr_consumo_activo'] === 'true')
-      setQrDomi(m['qr_domi_activo'] === 'true')
+      setQrConsumo(planGte((neg as Negocio).plan || 'starter', 'basico') && m['qr_consumo_activo'] === 'true')
+      setQrDomi(planGte((neg as Negocio).plan || 'starter', 'pro') && m['qr_domi_activo'] === 'true')
       if (m['social_whatsapp']) setSocialWa(m['social_whatsapp'])
       if (m['sugerido_activo'] === 'true' && m['sugerido_nombre']) {
         setSugeridoNombre(m['sugerido_nombre'] || '')
