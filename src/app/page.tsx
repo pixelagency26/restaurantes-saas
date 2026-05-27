@@ -245,7 +245,7 @@ export default async function HomePage() {
               </div>
               <div className="pt-2 border-t border-gray-700">
                 <p className="text-xs text-gray-500 mb-3">Con verificación de pago incluida</p>
-                <Link href="/registro"
+                <Link href="/registro?plan=pro"
                   className="inline-block bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors">
                   ⬆️ Quiero Plan Pro →
                 </Link>
@@ -271,7 +271,7 @@ export default async function HomePage() {
               </div>
               <div className="pt-2 border-t border-gray-700">
                 <p className="text-xs text-gray-500 mb-3">Análisis avanzado de rentabilidad</p>
-                <Link href="/registro"
+                <Link href="/registro?plan=pro"
                   className="inline-block bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors">
                   ⬆️ Quiero Plan Pro →
                 </Link>
@@ -506,7 +506,7 @@ export default async function HomePage() {
                   </li>
                 ))}
               </ul>
-              <Link href="/registro"
+              <Link href="/registro?plan=starter"
                 className="block text-center border-2 border-gray-300 hover:border-gray-400 text-gray-700 font-bold py-3.5 rounded-2xl transition-colors text-sm">
                 Probar gratis 14 días →
               </Link>
@@ -545,7 +545,7 @@ export default async function HomePage() {
                   </li>
                 ))}
               </ul>
-              <Link href="/registro"
+              <Link href="/registro?plan=basico"
                 className="block text-center bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-2xl transition-colors text-sm shadow-lg shadow-orange-200">
                 Probar gratis 14 días →
               </Link>
@@ -584,7 +584,7 @@ export default async function HomePage() {
                   </li>
                 ))}
               </ul>
-              <Link href="/registro"
+              <Link href="/registro?plan=pro"
                 className="block text-center bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-2xl transition-colors text-sm">
                 Probar gratis 14 días →
               </Link>
@@ -715,7 +715,7 @@ export default async function HomePage() {
                     </li>
                   ))}
                 </ul>
-                <Link href="/registro"
+                <Link href="/registro?plan=pro"
                   className="inline-block bg-orange-500 hover:bg-orange-600 text-white font-black px-8 py-3.5 rounded-2xl transition-colors shadow-lg shadow-orange-200 text-sm">
                   Probar gratis 14 días →
                 </Link>

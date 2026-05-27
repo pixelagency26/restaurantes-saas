@@ -9,6 +9,7 @@ function RegistroForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const plan = searchParams.get('plan') // 'basico' | 'pro' | null
+  const planSeleccionado = ['starter', 'basico', 'pro'].includes(plan || '') ? plan : 'basico'
   const supabase = createClient()
   const [form, setForm] = useState({ nombreNegocio: '', nombreDueno: '', email: '', password: '', confirmar: '' })
   const [cargando, setCargando] = useState(false)
@@ -23,7 +24,7 @@ function RegistroForm() {
       const res = await fetch('/api/registro-negocio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombreNegocio: form.nombreNegocio, nombreDueno: form.nombreDueno, email: form.email, password: form.password }),
+        body: JSON.stringify({ nombreNegocio: form.nombreNegocio, nombreDueno: form.nombreDueno, email: form.email, password: form.password, plan: planSeleccionado }),
       })
       const data = await res.json()
       if (!res.ok) { toast.error(data.error || 'Error al registrar'); setCargando(false); return }
@@ -32,7 +33,7 @@ function RegistroForm() {
       const { error } = await supabase.auth.signInWithPassword({ email: form.email, password: form.password })
       if (error) { toast.error('Cuenta creada. Inicia sesión manualmente.'); router.push('/login'); return }
       toast.success('¡Bienvenido! Vamos a configurar tu restaurante 🎉')
-      router.push(plan ? `/onboarding?plan=${plan}` : '/onboarding')
+      router.push(`/onboarding?plan=${planSeleccionado}&trial=1`)
     } catch (e) {
       toast.error('Error de conexión: ' + String(e))
       setCargando(false)

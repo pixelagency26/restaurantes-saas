@@ -3,9 +3,10 @@ import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
   try {
-    const { nombreNegocio, nombreDueno, email, password } = await req.json()
+    const { nombreNegocio, nombreDueno, email, password, plan } = await req.json()
     if (!nombreNegocio || !nombreDueno || !email || !password)
       return NextResponse.json({ error: 'Faltan datos' }, { status: 400 })
+    const planInicial = ['starter', 'basico', 'pro'].includes(plan) ? plan : 'basico'
 
     const admin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
     // 1. Crear negocio con trial de 14 días
     const trialHasta = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
     const { data: negocio, error: errN } = await admin
-      .from('negocios').insert({ nombre: nombreNegocio, suscripcion_hasta: trialHasta, suscripcion_activa: false }).select('id').single()
+      .from('negocios').insert({ nombre: nombreNegocio, plan: planInicial, suscripcion_hasta: trialHasta, suscripcion_activa: true }).select('id').single()
     if (errN || !negocio)
       return NextResponse.json({ error: errN?.message || 'Error al crear negocio' }, { status: 400 })
 

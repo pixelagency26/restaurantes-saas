@@ -34,6 +34,7 @@ function OnboardingForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const plan = searchParams.get('plan') // 'basico' | 'pro' | null
+  const esTrial = searchParams.get('trial') === '1'
   const [paso, setPaso] = useState(0)
   const [negocioId, setNegocioId] = useState<string | null>(null)
   const [negocioNombre, setNegocioNombre] = useState('')
@@ -147,7 +148,7 @@ function OnboardingForm() {
     if (!negocioId) return
     await supabase.from('negocios').update({ onboarding_completo: true }).eq('id', negocioId)
     toast.success('¡Tu restaurante está listo! 🎉')
-    if (plan) {
+    if (plan && !esTrial) {
       router.push(`/checkout?plan=${plan}`)
     } else {
       router.push('/gerencia')
