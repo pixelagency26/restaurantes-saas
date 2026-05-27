@@ -14,12 +14,14 @@ import {
 import {
   ItemConModificadores,
   consumoInventarioCarrito,
+  hayConfigPendiente,
   itemKey,
   itemPedidoPayload,
   modificadoresPedidoPayload,
   tieneModificadores,
 } from '@/lib/modificadores'
 import ModificadorModal from '@/components/ModificadorModal'
+import ConfigurarModificadoresPedido from '@/components/ConfigurarModificadoresPedido'
 import { ModificadorSeleccionado } from '@/types'
 
 // ─── TIPOS ─────────────────────────────────────────────────────────────────
@@ -97,6 +99,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   const [catActiva, setCatActiva]           = useState<number | null>(null)
   const [carrito, setCarrito]               = useState<ItemCarrito[]>([])
   const [platoConfig, setPlatoConfig]       = useState<Plato | null>(null)
+  const [configurandoComplementos, setConfigurandoComplementos] = useState(false)
   const [turnoConInventario, setTurnoConInventario] = useState(false)
   const [pasoOrden, setPasoOrden]   = useState<PasoOrden>('browse')
   const [tipoConsumo, setTipoConsumo] = useState<TipoConsumo>(null)
@@ -281,7 +284,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
 
   function agregar(platoRaw: Plato, modificadores?: ModificadorSeleccionado[]) {
     const platoConInv = platos.find(p => p.id === platoRaw.id)
-    if (!modificadores && tieneModificadores(platoRaw as never)) { setPlatoConfig(platoRaw); return }
+    const requiereConfig = !modificadores && tieneModificadores(platoRaw as never)
     const mods = modificadores || []
     const errorConsumo = validarConsumo([...carrito, { plato: platoRaw as never, cantidad: 1, notas: '', modificadores: mods }])
     if (errorConsumo) { toast.error(errorConsumo); return }
@@ -297,6 +300,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
       if (ex) return prev.map(i => itemKey(i) === keyNuevo ? { ...i, cantidad: i.cantidad + 1 } : i)
       return [...prev, { plato: platoRaw as never, cantidad: 1, notas: '', modificadores: mods }]
     })
+    if (requiereConfig) toast('Puedes escoger los complementos al confirmar el pedido')
   }
   function cambiarCant(id: string, delta: number) {
     if (delta > 0 && turnoConInventario) {
@@ -350,6 +354,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   // ── Checkout ─────────────────────────────────────────────────
   function irACheckout() {
     if (carrito.length === 0) { toast.error('Agrega algo primero'); return }
+    if (hayConfigPendiente(carrito)) { setConfigurandoComplementos(true); return }
     if (mesa && qrConsumo) { setTipoConsumo('consumo'); setPasoOrden('datos'); return }
     if (qrConsumo && qrDomi) { setPasoOrden('tipo'); return }
     setTipoConsumo(qrConsumo ? 'consumo' : 'domi')
@@ -382,6 +387,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
     if (tipoConsumo === 'domi' && metodoPagoDomi === 'transferencia' && !comprobanteFile) {
       toast.error('Adjunta el comprobante'); return
     }
+    if (hayConfigPendiente(carrito)) { setConfigurandoComplementos(true); return }
     const errorConsumo = validarConsumo(carrito)
     if (errorConsumo) { toast.error(errorConsumo, { duration: 5000 }); return }
     setEnviando(true)
@@ -602,6 +608,17 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
       onConfirm={mods => { agregar(platoConfig, mods); setPlatoConfig(null) }}
     />
   )
+  const modalConfigPedido = configurandoComplementos && (
+    <ConfigurarModificadoresPedido
+      items={carrito}
+      onCancel={() => setConfigurandoComplementos(false)}
+      onConfirm={items => {
+        setCarrito(items)
+        setConfigurandoComplementos(false)
+        toast.success('Complementos configurados')
+      }}
+    />
+  )
 
   // ═══════════════════════════════════════════
   // HOME
@@ -610,6 +627,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <PopupSugerido />
       {modalModificadores}
+      {modalConfigPedido}
 
       {/* Hero naranja */}
       <div className="relative overflow-hidden bg-gradient-to-br from-orange-600 via-orange-500 to-amber-500 px-6 pt-14 pb-16 text-center">
@@ -743,6 +761,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
     <div className="min-h-screen bg-gray-50">
       <PopupSugerido />
       {modalModificadores}
+      {modalConfigPedido}
       <Header titulo={negocio?.nombre || ''} subtitulo={puedeOrdenar ? 'Toca + para agregar' : 'Solo lectura'} />
 
       {/* BROWSE */}

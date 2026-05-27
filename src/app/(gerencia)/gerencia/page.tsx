@@ -15,7 +15,8 @@ import {
   PieChart, Pie, Cell, LineChart, Line, CartesianGrid
 } from 'recharts'
 import ModificadorModal from '@/components/ModificadorModal'
-import { ItemConModificadores, consumoInventarioCarrito, itemKey, itemPedidoPayload, modificadoresPedidoPayload, tieneModificadores } from '@/lib/modificadores'
+import ConfigurarModificadoresPedido from '@/components/ConfigurarModificadoresPedido'
+import { ItemConModificadores, consumoInventarioCarrito, hayConfigPendiente, itemKey, itemPedidoPayload, modificadoresPedidoPayload, tieneModificadores } from '@/lib/modificadores'
 import { ModificadorSeleccionado } from '@/types'
 
 // ─── TIPOS ───────────────────────────────────────────────────
@@ -293,6 +294,7 @@ export default function GerenciaPage() {
   const [nuevoOrdenCarrito, setNuevoOrdenCarrito] = useState<Record<string, number>>({})
   const [nuevoOrdenItemsMod, setNuevoOrdenItemsMod] = useState<ItemConModificadores[]>([])
   const [platoConfigNuevoOrden, setPlatoConfigNuevoOrden] = useState<Plato | null>(null)
+  const [configurandoNuevoOrden, setConfigurandoNuevoOrden] = useState(false)
   const [nuevoOrdenNotas, setNuevoOrdenNotas] = useState('')
   const [nuevoOrdenDomi, setNuevoOrdenDomi] = useState({ nombre: '', telefono: '', direccion: '' })
   const [nuevoOrdenCategoria, setNuevoOrdenCategoria] = useState<number | 'todas'>('todas')
@@ -2146,7 +2148,7 @@ export default function GerenciaPage() {
   }
 
   function agregarNuevoOrdenPlato(plato: Plato, modificadores?: ModificadorSeleccionado[]) {
-    if (!modificadores && tieneModificadores(plato as never)) { setPlatoConfigNuevoOrden(plato); return }
+    const requiereConfig = !modificadores && tieneModificadores(plato as never)
     const mods = modificadores || []
     const itemNuevo: ItemConModificadores = { plato: plato as never, cantidad: 1, notas: '', modificadores: mods }
     const consumoProyectado = consumoInventarioCarrito([
@@ -2164,13 +2166,14 @@ export default function GerenciaPage() {
         return
       }
     }
-    if (mods.length > 0) {
+    if (requiereConfig || mods.length > 0) {
       const keyNuevo = itemKey(itemNuevo)
       setNuevoOrdenItemsMod(prev => {
         const existe = prev.find(i => itemKey(i) === keyNuevo)
         if (existe) return prev.map(i => itemKey(i) === keyNuevo ? { ...i, cantidad: i.cantidad + 1 } : i)
         return [...prev, itemNuevo]
       })
+      if (requiereConfig) toast('Puedes escoger los complementos al confirmar el pedido')
       return
     }
     setNuevoOrdenCarrito(prev => ({ ...prev, [plato.id]: (prev[plato.id] ?? 0) + 1 }))
@@ -2195,6 +2198,7 @@ export default function GerenciaPage() {
     if (itemsCarrito.length === 0 && nuevoOrdenItemsMod.length === 0) { toast.error('Agrega al menos un plato al pedido'); return }
     if (!turnoActivo) { toast.error('No hay turno activo — abre el turno primero'); return }
     if (nuevoOrdenTipo === 'mesa' && !nuevoOrdenMesaId) { toast.error('Selecciona una mesa'); return }
+    if (hayConfigPendiente(nuevoOrdenItemsMod)) { setConfigurandoNuevoOrden(true); return }
     setTomandoPedido(true)
     try {
       // ── Verificación de stock en tiempo real (previene sobre-pedidos) ──
@@ -2563,6 +2567,17 @@ export default function GerenciaPage() {
           plato={platoConfigNuevoOrden as never}
           onCancel={() => setPlatoConfigNuevoOrden(null)}
           onConfirm={mods => { agregarNuevoOrdenPlato(platoConfigNuevoOrden, mods); setPlatoConfigNuevoOrden(null) }}
+        />
+      )}
+      {configurandoNuevoOrden && (
+        <ConfigurarModificadoresPedido
+          items={nuevoOrdenItemsMod}
+          onCancel={() => setConfigurandoNuevoOrden(false)}
+          onConfirm={items => {
+            setNuevoOrdenItemsMod(items)
+            setConfigurandoNuevoOrden(false)
+            toast.success('Complementos configurados')
+          }}
         />
       )}
 

@@ -78,6 +78,27 @@ export function seleccionAmodificadores(plato: Plato, seleccion: SeleccionModifi
   })
 }
 
+export function seleccionDesdeModificadores(plato: Plato, modificadores: ModificadorSeleccionado[]): SeleccionModificadores {
+  if (!modificadores.length) return seleccionInicial(plato)
+  const seleccion = seleccionInicial(plato)
+  gruposDelPlato(plato).forEach(grupo => {
+    const ids = modificadores
+      .filter(m => m.grupo_id === grupo.id)
+      .map(m => m.opcion_id)
+      .filter((id): id is string => Boolean(id))
+    if (ids.length > 0) seleccion[grupo.id] = new Set(ids)
+  })
+  return seleccion
+}
+
+export function itemRequiereConfig(item: ItemConModificadores): boolean {
+  return tieneModificadores(item.plato) && item.modificadores.length === 0
+}
+
+export function hayConfigPendiente(items: ItemConModificadores[]): boolean {
+  return items.some(itemRequiereConfig)
+}
+
 export function validarSeleccion(plato: Plato, seleccion: SeleccionModificadores): string | null {
   for (const grupo of gruposDelPlato(plato)) {
     const total = seleccion[grupo.id]?.size || 0

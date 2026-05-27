@@ -6,12 +6,14 @@ import { Plato, Categoria, Inventario, ModificadorSeleccionado } from '@/types'
 import {
   ItemConModificadores,
   consumoInventarioCarrito,
+  hayConfigPendiente,
   itemKey,
   itemPedidoPayload,
   modificadoresPedidoPayload,
   tieneModificadores,
 } from '@/lib/modificadores'
 import ModificadorModal from '@/components/ModificadorModal'
+import ConfigurarModificadoresPedido from '@/components/ConfigurarModificadoresPedido'
 import toast from 'react-hot-toast'
 import { Plus, Minus, ShoppingBag, CheckCircle, ChevronLeft, User, Bell, RefreshCw } from 'lucide-react'
 import { use } from 'react'
@@ -46,6 +48,7 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
   const [categoriaActiva, setCategoriaActiva] = useState<number | null>(null)
   const [carrito, setCarrito]             = useState<ItemCarrito[]>([])
   const [platoConfig, setPlatoConfig]     = useState<Plato | null>(null)
+  const [configurandoComplementos, setConfigurandoComplementos] = useState(false)
   const [mesa, setMesa]                   = useState<{ numero: number; estado: string } | null>(null)
   const [negocioNombre, setNegocioNombre] = useState('Restaurant Pix')
   const [enviando, setEnviando]           = useState(false)
@@ -190,7 +193,7 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
     return null
   }
   function agregar(plato: Plato, modificadores?: ModificadorSeleccionado[]) {
-    if (!modificadores && tieneModificadores(plato)) { setPlatoConfig(plato); return }
+    const requiereConfig = !modificadores && tieneModificadores(plato)
     const mods = modificadores || []
     const errorConsumo = validarConsumo([...carrito, { plato, cantidad: 1, notas: '', modificadores: mods }])
     if (errorConsumo) { toast.error(errorConsumo); return }
@@ -200,6 +203,7 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
       if (existe) return prev.map(i => itemKey(i) === keyNuevo ? { ...i, cantidad: i.cantidad + 1 } : i)
       return [...prev, { plato, cantidad: 1, notas: '', modificadores: mods }]
     })
+    if (requiereConfig) toast('Puedes escoger los complementos al confirmar el pedido')
   }
   function cambiarCantidad(id: string, delta: number) {
     setCarrito(prev =>
@@ -237,6 +241,7 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
       toast.error('Completa todos los campos'); return
     }
     if (carrito.length === 0) return
+    if (hayConfigPendiente(carrito)) { setConfigurandoComplementos(true); return }
     const errorConsumo = validarConsumo(carrito)
     if (errorConsumo) { toast.error(errorConsumo, { duration: 5000 }); return }
     setEnviando(true)
@@ -292,6 +297,7 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
   // ── AGREGAR MÁS AL PEDIDO EXISTENTE ────────────────────────────────────────
   async function agregarAlPedidoActual() {
     if (!pedidoActualId || carrito.length === 0) return
+    if (hayConfigPendiente(carrito)) { setConfigurandoComplementos(true); return }
     const errorConsumo = validarConsumo(carrito)
     if (errorConsumo) { toast.error(errorConsumo, { duration: 5000 }); return }
     setEnviando(true)
@@ -348,11 +354,23 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
       onConfirm={mods => { agregar(platoConfig, mods); setPlatoConfig(null) }}
     />
   )
+  const modalConfigPedido = configurandoComplementos && (
+    <ConfigurarModificadoresPedido
+      items={carrito}
+      onCancel={() => setConfigurandoComplementos(false)}
+      onConfirm={items => {
+        setCarrito(items)
+        setConfigurandoComplementos(false)
+        toast.success('Complementos configurados')
+      }}
+    />
+  )
 
   // ── SEGUIMIENTO ──────────────────────────────────────────────────────────────
   if (paso === 'seguimiento') return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 flex flex-col">
       {modalModificadores}
+      {modalConfigPedido}
       {/* Header */}
       <div className="bg-white border-b px-4 py-4 text-center shadow-sm">
         <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-2 ${todoEntregado ? 'bg-gray-400' : 'bg-green-500'}`}>
@@ -416,6 +434,7 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
   if (paso === 'identificacion') return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 flex flex-col">
       {modalModificadores}
+      {modalConfigPedido}
       <div className="bg-white border-b px-4 py-3 flex items-center gap-3 sticky top-0 shadow-sm">
         <button onClick={() => setPaso('carrito')} className="text-gray-400 hover:text-gray-600">
           <ChevronLeft size={22} />
@@ -480,6 +499,7 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
   if (paso === 'carrito') return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {modalModificadores}
+      {modalConfigPedido}
       <div className="bg-white border-b px-4 py-3 flex items-center gap-3 sticky top-0 z-10 shadow-sm">
         <button onClick={() => setPaso('menu')} className="text-gray-400 hover:text-gray-600"><ChevronLeft size={22} /></button>
         <h2 className="font-bold text-gray-900">Tu pedido</h2>
@@ -544,6 +564,7 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {modalModificadores}
+      {modalConfigPedido}
       <div className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm">
         <div>
           <h1 className="font-bold text-gray-900">{negocioNombre}</h1>

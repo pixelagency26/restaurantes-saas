@@ -5,8 +5,9 @@ import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Plato, Categoria, Inventario } from '@/types'
 import { ModificadorSeleccionado } from '@/types'
-import { ItemConModificadores, consumoInventarioCarrito, itemKey, itemPedidoPayload, modificadoresPedidoPayload, tieneModificadores } from '@/lib/modificadores'
+import { ItemConModificadores, consumoInventarioCarrito, hayConfigPendiente, itemKey, itemPedidoPayload, modificadoresPedidoPayload, tieneModificadores } from '@/lib/modificadores'
 import ModificadorModal from '@/components/ModificadorModal'
+import ConfigurarModificadoresPedido from '@/components/ConfigurarModificadoresPedido'
 import toast from 'react-hot-toast'
 import {
   Plus, Minus, ShoppingBag, CheckCircle, ChevronLeft,
@@ -34,6 +35,7 @@ function DomiPedidoInner() {
   const [catActiva, setCatActiva]   = useState<number | null>(null)
   const [carrito, setCarrito]       = useState<ItemCarrito[]>([])
   const [platoConfig, setPlatoConfig] = useState<Plato | null>(null)
+  const [configurandoComplementos, setConfigurandoComplementos] = useState(false)
 
   // Datos del cliente
   const [nombre, setNombre]         = useState('')
@@ -159,7 +161,7 @@ function DomiPedidoInner() {
   }
 
   function agregar(plato: Plato, modificadores?: ModificadorSeleccionado[]) {
-    if (!modificadores && tieneModificadores(plato)) { setPlatoConfig(plato); return }
+    const requiereConfig = !modificadores && tieneModificadores(plato)
     const mods = modificadores || []
     const errorConsumo = validarConsumo([...carrito, { plato, cantidad: 1, notas: '', modificadores: mods }])
     if (errorConsumo) { toast.error(errorConsumo); return }
@@ -175,6 +177,7 @@ function DomiPedidoInner() {
       if (existe) return prev.map(i => itemKey(i) === keyNuevo ? { ...i, cantidad: i.cantidad + 1 } : i)
       return [...prev, { plato, cantidad: 1, notas: '', modificadores: mods }]
     })
+    if (requiereConfig) toast('Puedes escoger los complementos al confirmar el pedido')
   }
 
   function cambiarCantidad(id: string, delta: number) {
@@ -236,6 +239,7 @@ function DomiPedidoInner() {
     if (!nombre.trim() || !telefono.trim() || !direccion.trim()) {
       toast.error('Completa todos los campos'); return
     }
+    if (hayConfigPendiente(carrito)) { setConfigurandoComplementos(true); return }
     if ((metodoPago === 'nequi' || metodoPago === 'daviplata') && !comprobante) {
       toast.error('Debes adjuntar el comprobante de pago'); return
     }
@@ -331,11 +335,23 @@ function DomiPedidoInner() {
       onConfirm={mods => { agregar(platoConfig, mods); setPlatoConfig(null) }}
     />
   )
+  const modalConfigPedido = configurandoComplementos && (
+    <ConfigurarModificadoresPedido
+      items={carrito}
+      onCancel={() => setConfigurandoComplementos(false)}
+      onConfirm={items => {
+        setCarrito(items)
+        setConfigurandoComplementos(false)
+        toast.success('Complementos configurados')
+      }}
+    />
+  )
 
   // ── SEGUIMIENTO ───────────────────────────────────────────────
   if (paso === 'seguimiento') return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex flex-col">
       {modalModificadores}
+      {modalConfigPedido}
       <div className="bg-white border-b px-4 py-4 text-center shadow-sm">
         <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-2 bg-blue-600">
           <Bike size={28} className="text-white" />
@@ -390,6 +406,7 @@ function DomiPedidoInner() {
   // ── COMPROBANTE ───────────────────────────────────────────────
   if (paso === 'comprobante') return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex flex-col">
+      {modalConfigPedido}
       <div className="bg-white border-b px-4 py-3 flex items-center gap-3 sticky top-0 shadow-sm">
         <button onClick={() => setPaso('pago')} className="text-gray-400 hover:text-gray-600"><ChevronLeft size={22} /></button>
         <h2 className="font-bold text-gray-900">Comprobante de pago</h2>
@@ -442,6 +459,7 @@ function DomiPedidoInner() {
   // ── PAGO ──────────────────────────────────────────────────────
   if (paso === 'pago') return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex flex-col">
+      {modalConfigPedido}
       <div className="bg-white border-b px-4 py-3 flex items-center gap-3 sticky top-0 shadow-sm">
         <button onClick={() => setPaso('datos')} className="text-gray-400 hover:text-gray-600"><ChevronLeft size={22} /></button>
         <h2 className="font-bold text-gray-900">¿Cómo vas a pagar?</h2>
@@ -510,6 +528,7 @@ function DomiPedidoInner() {
   // ── DATOS DEL CLIENTE ─────────────────────────────────────────
   if (paso === 'datos') return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex flex-col">
+      {modalConfigPedido}
       <div className="bg-white border-b px-4 py-3 flex items-center gap-3 sticky top-0 shadow-sm">
         <button onClick={() => setPaso('carrito')} className="text-gray-400 hover:text-gray-600"><ChevronLeft size={22} /></button>
         <h2 className="font-bold text-gray-900">Datos de entrega</h2>
@@ -611,6 +630,7 @@ function DomiPedidoInner() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {modalModificadores}
+      {modalConfigPedido}
       <div className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 shadow-sm">
         <div>
           <h1 className="font-bold text-gray-900">{negocioNombre}</h1>

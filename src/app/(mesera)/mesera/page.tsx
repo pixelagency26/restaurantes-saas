@@ -8,6 +8,7 @@ import {
   SeleccionModificadores,
   gruposDelPlato,
   consumoInventarioCarrito,
+  hayConfigPendiente,
   itemKey,
   itemPedidoPayload,
   modificadoresPedidoPayload,
@@ -16,6 +17,7 @@ import {
   tieneModificadores,
   validarSeleccion,
 } from '@/lib/modificadores'
+import ConfigurarModificadoresPedido from '@/components/ConfigurarModificadoresPedido'
 import toast from 'react-hot-toast'
 import { UtensilsCrossed, ShoppingBag, Bell, CheckCircle, X, Plus, Minus, Bike } from 'lucide-react'
 
@@ -36,6 +38,7 @@ export default function MeseraPage() {
   const [domiCliente, setDomiCliente] = useState({ nombre: '', cedula: '', telefono: '', direccion: '' })
   const [platoConfig, setPlatoConfig] = useState<Plato | null>(null)
   const [seleccionMods, setSeleccionMods] = useState<SeleccionModificadores>({})
+  const [configurandoComplementos, setConfigurandoComplementos] = useState(false)
 
   // Mesa ocupada — pedido existente
   const [modalMesaOcupada, setModalMesaOcupada] = useState(false)
@@ -300,8 +303,8 @@ export default function MeseraPage() {
 
   function agregarAlCarrito(plato: Plato) {
     if (tieneModificadores(plato)) {
-      setPlatoConfig(plato)
-      setSeleccionMods(seleccionInicial(plato))
+      agregarItem({ plato, cantidad: 1, notas: '', modificadores: [] })
+      toast('Puedes escoger los complementos al confirmar el pedido')
       return
     }
     agregarItem({ plato, cantidad: 1, notas: '', modificadores: [] })
@@ -350,6 +353,7 @@ export default function MeseraPage() {
     if (!modoDomi && !mesaSeleccionada) return
     if (carrito.length === 0) return
     if (modoDomi && !domiCliente.nombre.trim()) { toast.error('El nombre del cliente es obligatorio para domicilios'); return }
+    if (hayConfigPendiente(carrito)) { setConfigurandoComplementos(true); return }
     setEnviando(true)
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -471,6 +475,17 @@ export default function MeseraPage() {
 
   const platosFiltrados = platos.filter(p => p.categoria_id === categoriaActiva)
   const totalCarrito = carrito.reduce((acc, i) => acc + i.plato.precio * i.cantidad, 0)
+  const modalConfigPedido = configurandoComplementos && (
+    <ConfigurarModificadoresPedido
+      items={carrito}
+      onCancel={() => setConfigurandoComplementos(false)}
+      onConfirm={items => {
+        setCarrito(items)
+        setConfigurandoComplementos(false)
+        toast.success('Complementos configurados')
+      }}
+    />
+  )
 
   // Paleta de tonos suaves por zona (se asigna por índice)
   const ZONA_TONOS = [
@@ -488,6 +503,7 @@ export default function MeseraPage() {
   // ── VISTA: MESAS ─────────────────────────────────────────────
   if (vista === 'mesas') return (
     <div className="min-h-screen bg-gray-950">
+      {modalConfigPedido}
 
       {/* Header sticky */}
       <div className="sticky top-0 z-10 bg-gray-950/95 backdrop-blur-md border-b border-gray-800 px-4 pt-4 pb-3">
@@ -698,6 +714,7 @@ export default function MeseraPage() {
   // ── VISTA: MENÚ ──────────────────────────────────────────────
   if (vista === 'menu') return (
     <div className="min-h-screen bg-gray-950 flex flex-col">
+      {modalConfigPedido}
       {/* Header */}
       <div className="bg-gray-950/95 backdrop-blur-md border-b border-gray-800 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
@@ -883,6 +900,7 @@ export default function MeseraPage() {
   // ── VISTA: CARRITO ───────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col">
+      {modalConfigPedido}
       <div className="bg-gray-950/95 backdrop-blur-md border-b border-gray-800 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
         <button onClick={() => setVista('menu')}
           className="w-8 h-8 bg-gray-800 hover:bg-gray-700 rounded-lg flex items-center justify-center text-gray-400 hover:text-white transition-colors">

@@ -6,12 +6,14 @@ import { Plato, Categoria, Inventario, ModificadorSeleccionado } from '@/types'
 import {
   ItemConModificadores,
   consumoInventarioCarrito,
+  hayConfigPendiente,
   itemKey,
   itemPedidoPayload,
   modificadoresPedidoPayload,
   tieneModificadores,
 } from '@/lib/modificadores'
 import ModificadorModal from '@/components/ModificadorModal'
+import ConfigurarModificadoresPedido from '@/components/ConfigurarModificadoresPedido'
 import toast from 'react-hot-toast'
 import {
   Bike, X, Plus, Minus, ShoppingBag,
@@ -57,6 +59,7 @@ export default function DomiPage() {
   const [categoriaActiva, setCategoriaActiva] = useState<number | null>(null)
   const [carrito, setCarrito] = useState<ItemCarrito[]>([])
   const [platoConfig, setPlatoConfig] = useState<Plato | null>(null)
+  const [configurandoComplementos, setConfigurandoComplementos] = useState(false)
   const [clienteDomi, setClienteDomi] = useState({ nombre: '', telefono: '', direccion: '', cedula: '' })
   const [notaGeneral, setNotaGeneral] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -329,7 +332,7 @@ export default function DomiPage() {
   }
 
   function agregarAlCarrito(plato: Plato, modificadores?: ModificadorSeleccionado[]) {
-    if (!modificadores && tieneModificadores(plato)) { setPlatoConfig(plato); return }
+    const requiereConfig = !modificadores && tieneModificadores(plato)
     const mods = modificadores || []
     const keyNuevo = itemKey({ plato, cantidad: 1, notas: '', modificadores: mods })
     const errorConsumo = validarConsumo([...carrito, { plato, cantidad: 1, notas: '', modificadores: mods }])
@@ -347,6 +350,7 @@ export default function DomiPage() {
       return [...prev, { plato, cantidad: 1, notas: '', modificadores: mods }]
     })
     toast.success(`${plato.nombre} agregado`)
+    if (requiereConfig) toast('Puedes escoger los complementos al confirmar el pedido')
   }
 
   function cambiarCantidad(id: string, delta: number) {
@@ -374,6 +378,7 @@ export default function DomiPage() {
     if (!clienteDomi.nombre.trim() || !clienteDomi.telefono.trim() || !clienteDomi.direccion.trim()) {
       toast.error('Nombre, teléfono y dirección son obligatorios'); return
     }
+    if (hayConfigPendiente(carrito)) { setConfigurandoComplementos(true); return }
     setEnviando(true)
     const { data: { user } } = await supabase.auth.getUser()
     const { data: turno } = await supabase.from('turnos').select('id').is('cerrado_en', null)
@@ -472,11 +477,23 @@ export default function DomiPage() {
       onConfirm={mods => { agregarAlCarrito(platoConfig, mods); setPlatoConfig(null) }}
     />
   )
+  const modalConfigPedido = configurandoComplementos && (
+    <ConfigurarModificadoresPedido
+      items={carrito}
+      onCancel={() => setConfigurandoComplementos(false)}
+      onConfirm={items => {
+        setCarrito(items)
+        setConfigurandoComplementos(false)
+        toast.success('Complementos configurados')
+      }}
+    />
+  )
 
   // ── VISTA: MENÚ ───────────────────────────────────────────────
   if (vista === 'menu') return (
     <div className="min-h-screen bg-gray-950 flex flex-col">
       {modalModificadores}
+      {modalConfigPedido}
       {/* Header */}
       <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
@@ -582,6 +599,7 @@ export default function DomiPage() {
   if (vista === 'carrito') return (
     <div className="min-h-screen bg-gray-950 flex flex-col">
       {modalModificadores}
+      {modalConfigPedido}
       {/* Header */}
       <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
         <button onClick={() => setVista('menu')}
@@ -670,6 +688,7 @@ export default function DomiPage() {
   return (
     <div className="min-h-screen bg-gray-950 pb-8">
       {modalModificadores}
+      {modalConfigPedido}
 
       {/* Header */}
       <div className="sticky top-0 z-10 bg-gray-950/95 backdrop-blur-md border-b border-gray-800 px-4 pt-4 pb-3">
