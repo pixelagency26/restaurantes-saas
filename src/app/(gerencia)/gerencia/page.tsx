@@ -79,7 +79,7 @@ interface InventarioTurnoItem {
 }
 
 type MetodoPago = 'efectivo' | 'nequi' | 'daviplata' | 'bancolombia'
-type Seccion = 'mesas' | 'carta' | 'resumen' | 'tiempos' | 'caja' | 'usuarios' | 'clientes' | 'permisos' | 'reservas'
+type Seccion = 'mesas' | 'carta' | 'resumen' | 'tiempos' | 'caja' | 'usuarios' | 'clientes' | 'permisos' | 'reservas' | 'marketing'
 type RangoResumen = 'hoy' | 'semana' | 'mes' | 'personalizado'
 
 const METODOS: { id: MetodoPago; label: string; color: string; emoji: string }[] = [
@@ -227,7 +227,7 @@ export default function GerenciaPage() {
 
   // Panel de configuración ⚙️
   const [modalSettings, setModalSettings] = useState(false)
-  const [seccionSettings, setSeccionSettings] = useState<'cuenta' | 'usuarios' | 'permisos' | 'restablecer' | 'facturacion' | 'marketing'>('cuenta')
+  const [seccionSettings, setSeccionSettings] = useState<'cuenta' | 'usuarios' | 'permisos' | 'restablecer' | 'facturacion'>('cuenta')
   // Facturación
   const [facturacion, setFacturacion] = useState<{ plan: string; activa: boolean; hasta: string | null; nombre: string } | null>(null)
   const [cargandoFact, setCargandoFact] = useState(false)
@@ -2281,6 +2281,7 @@ export default function GerenciaPage() {
     { id: 'tiempos',  label: 'Tiempos',  icon: <Timer size={16} />,           planReq: 'pro'     as const },
     { id: 'clientes', label: 'Clientes',  icon: <UserCircle size={16} />,      planReq: 'basico'  as const },
     { id: 'reservas', label: 'Reservas',  icon: <CalendarDays size={16} />,    planReq: 'basico'  as const },
+    { id: 'marketing', label: 'Marketing', icon: <TrendingUp size={16} />,      planReq: 'pro'     as const },
     { id: 'caja',     label: 'Caja',      icon: <DollarSign size={16} />,      planReq: 'starter' as const },
   ]
 
@@ -3857,6 +3858,79 @@ export default function GerenciaPage() {
           )
         )}
 
+        {seccion === 'marketing' && (!puedeAcceder('pro') ? renderPlanLock('pro') : (
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-orange-100 border border-orange-200 rounded-xl flex items-center justify-center text-xl">🌟</div>
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-sm">Sugerido del mes</h3>
+                    <p className="text-xs text-gray-400">Popup que aparece cuando el cliente abre el menu QR</p>
+                  </div>
+                </div>
+                <button onClick={() => setSugeridoActivo(v => !v)}
+                  className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${sugeridoActivo ? 'bg-orange-500' : 'bg-gray-300'}`}>
+                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${sugeridoActivo ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-1.5">Nombre del plato *</label>
+                <input value={sugeridoNombre} onChange={e => setSugeridoNombre(e.target.value)}
+                  placeholder="Ej: Bandeja especial, Burger Master..."
+                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-1.5">Precio (opcional)</label>
+                <input type="number" value={sugeridoPrecio} onChange={e => setSugeridoPrecio(e.target.value)}
+                  placeholder="Ej: 28900"
+                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-1.5">Descripcion corta (opcional)</label>
+                <input value={sugeridoDescripcion} onChange={e => setSugeridoDescripcion(e.target.value)}
+                  placeholder="Ej: Carne, queso doble, papas y bebida"
+                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-1.5">URL de imagen (opcional)</label>
+                <input value={sugeridoImagenUrl} onChange={e => setSugeridoImagenUrl(e.target.value)}
+                  placeholder="https://..."
+                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+                {sugeridoImagenUrl && (
+                  <img src={sugeridoImagenUrl} alt="preview" className="mt-2 h-24 w-full object-cover rounded-xl border border-gray-200" onError={() => setSugeridoImagenUrl('')} />
+                )}
+              </div>
+
+              {sugeridoNombre && (
+                <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4">
+                  <p className="text-xs text-gray-400 mb-3 font-semibold uppercase tracking-wide">Preview popup</p>
+                  <div className="bg-white rounded-2xl overflow-hidden max-w-[240px] mx-auto shadow-xl">
+                    <div className={`h-28 flex items-center justify-center ${sugeridoImagenUrl ? '' : 'bg-gradient-to-br from-amber-400 to-orange-500 text-4xl'}`}>
+                      {sugeridoImagenUrl ? <img src={sugeridoImagenUrl} alt={sugeridoNombre} className="w-full h-full object-cover" /> : '🍽️'}
+                    </div>
+                    <div className="p-3 text-center">
+                      <span className="inline-block bg-orange-100 text-orange-600 text-[9px] font-black px-2 py-0.5 rounded-full mb-1 uppercase">Sugerido del mes</span>
+                      <p className="font-black text-gray-900 text-sm leading-tight">{sugeridoNombre}</p>
+                      {sugeridoDescripcion && <p className="text-gray-500 text-[10px] mt-0.5 leading-snug">{sugeridoDescripcion}</p>}
+                      {sugeridoPrecio && <p className="text-orange-600 font-black text-base mt-1">${parseFloat(sugeridoPrecio).toLocaleString('es-CO')}</p>}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <button onClick={guardarSugerido} disabled={guardandoSugerido || !sugeridoNombre.trim()}
+                className="w-full bg-orange-600 hover:bg-orange-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-all">
+                {guardandoSugerido ? 'Guardando...' : sugeridoActivo ? 'Guardar y activar' : 'Guardar inactivo'}
+              </button>
+            </div>
+          </div>
+        ))}
+
       </div>
 
       {/* ══ MODAL DETALLE MESA ══════════════════════════════════════ */}
@@ -5195,10 +5269,9 @@ export default function GerenciaPage() {
                 ['cuenta',       '👤 Cuenta'],
                 ['facturacion',  '💳 Facturación'],
                 ['usuarios',     '👥 Usuarios'],
-                ['marketing',    '🌟 Marketing'],
                 ['permisos',     '🔒 Permisos'],
                 ['restablecer',  '⚠️ Restablecer'],
-              ] as ['cuenta'|'facturacion'|'usuarios'|'marketing'|'permisos'|'restablecer', string][]).map(([id, label]) => (
+              ] as ['cuenta'|'facturacion'|'usuarios'|'permisos'|'restablecer', string][]).map(([id, label]) => (
                 <button key={id} onClick={() => { setSeccionSettings(id); if (id === 'facturacion') cargarFacturacion() }}
                   className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                     seccionSettings === id
