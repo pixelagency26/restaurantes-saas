@@ -243,6 +243,8 @@ export default function GerenciaPage() {
   const [modoEdicionPedido, setModoEdicionPedido] = useState(false)
   const [itemReemplazando, setItemReemplazando] = useState<{ id: string; nombre: string } | null>(null)
   const [guardandoEdicion, setGuardandoEdicion] = useState(false)
+  const [guardandoPrecioItemId, setGuardandoPrecioItemId] = useState<string | null>(null)
+  const [preciosEditados, setPreciosEditados] = useState<Record<string, string>>({})
   const [categoriaReemplazo, setCategoriaReemplazo] = useState<number | 'todas'>('todas')
   const [cargoExtraNombre, setCargoExtraNombre] = useState('')
   const [cargoExtraMonto, setCargoExtraMonto] = useState('')
@@ -1990,7 +1992,7 @@ export default function GerenciaPage() {
     const plato = platos.find(p => p.id === nuevoPlatoId)
     if (!plato) return
     setGuardandoEdicion(true)
-    await ajustarInventarioItemPedido(itemId, 'restaurar')
+    const itemAnterior = await ajustarInventarioItemPedido(itemId, 'restaurar')
     const { error } = await supabase.from('items_pedido')
       .update({ plato_id: nuevoPlatoId, precio_unitario: plato.precio, estado: 'pendiente' })
       .eq('id', itemId)
@@ -2014,6 +2016,33 @@ export default function GerenciaPage() {
   }
 
   // ── TOMAR PEDIDO DESDE GERENCIA ───────────────────────────────
+  async function actualizarPrecioItem(item: ItemDetalle) {
+    if (!item.id) return
+    const valor = Math.round(Number(preciosEditados[item.id] ?? item.precio_unitario))
+    if (!Number.isFinite(valor) || valor < 0) { toast.error('Valor invalido'); return }
+    setGuardandoPrecioItemId(item.id)
+    const { error } = await supabase
+      .from('items_pedido')
+      .update({ precio_unitario: valor })
+      .eq('id', item.id)
+    setGuardandoPrecioItemId(null)
+    if (error) { toast.error('No se pudo cambiar el valor'); return }
+    setMesaDetalle(prev => prev ? {
+      ...prev,
+      pedido: {
+        ...prev.pedido,
+        items: prev.pedido.items.map(i => i.id === item.id ? { ...i, precio_unitario: valor } : i),
+      },
+    } : prev)
+    setPreciosEditados(prev => {
+      const next = { ...prev }
+      delete next[item.id!]
+      return next
+    })
+    toast.success('Valor actualizado')
+    cargarDatos()
+  }
+
   function agregarNuevoOrdenPlato(plato: Plato, modificadores?: ModificadorSeleccionado[]) {
     if (!modificadores && tieneModificadores(plato as never)) { setPlatoConfigNuevoOrden(plato); return }
     const mods = modificadores || []
@@ -4037,7 +4066,29 @@ export default function GerenciaPage() {
                             </span>
                           )}
                         </div>
-                        <span className="font-semibold shrink-0">${(item.cantidad * item.precio_unitario).toLocaleString('es-CO')}</span>
+                        <div className="shrink-0 text-right">
+                          <span className="font-semibold">${(item.cantidad * item.precio_unitario).toLocaleString('es-CO')}</span>
+                          {modoEdicionPedido && item.id && (
+                            <div className="mt-2 flex items-center justify-end gap-1.5">
+                              <input
+                                type="number"
+                                min="0"
+                                value={preciosEditados[item.id] ?? String(item.precio_unitario)}
+                                onChange={e => setPreciosEditados(prev => ({ ...prev, [item.id!]: e.target.value }))}
+                                className="w-24 bg-white border border-orange-200 rounded-lg px-2 py-1 text-xs font-bold text-gray-900 text-right focus:outline-none focus:ring-2 focus:ring-orange-400/30"
+                                aria-label={`Valor de ${item.nombre}`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => actualizarPrecioItem(item)}
+                                disabled={guardandoPrecioItemId === item.id}
+                                className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white text-xs font-bold px-2.5 py-1 rounded-lg transition-colors"
+                              >
+                                {guardandoPrecioItemId === item.id ? '...' : 'OK'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
