@@ -243,6 +243,9 @@ export default function GerenciaPage() {
   const [itemReemplazando, setItemReemplazando] = useState<{ id: string; nombre: string } | null>(null)
   const [guardandoEdicion, setGuardandoEdicion] = useState(false)
   const [categoriaReemplazo, setCategoriaReemplazo] = useState<number | 'todas'>('todas')
+  const [cargoExtraNombre, setCargoExtraNombre] = useState('')
+  const [cargoExtraMonto, setCargoExtraMonto] = useState('')
+  const [guardandoCargoExtra, setGuardandoCargoExtra] = useState(false)
 
   // Tomar pedido desde gerencia
   const [modalNuevoPedido, setModalNuevoPedido] = useState(false)
@@ -1201,8 +1204,8 @@ export default function GerenciaPage() {
       ...pedido,
       mesa: (pedido.mesa as unknown as { numero: number }),
       mesera: pedido.mesera as unknown as { nombre: string } | null,
-      items: (pedido.items as unknown as { id: string; plato_id: string | null; estado: string; cantidad: number; precio_unitario: number; notas: string | null; plato: { nombre: string }; pedido_por_usuario: { nombre: string } | null }[])
-        .map(i => ({ id: i.id, plato_id: i.plato_id, nombre: i.plato?.nombre || '', cantidad: i.cantidad, precio_unitario: i.precio_unitario, notas: i.notas, estado: i.estado, pedido_por_nombre: i.pedido_por_usuario?.nombre || null })),
+      items: (pedido.items as unknown as { id: string; plato_id: string | null; estado: string; cantidad: number; precio_unitario: number; notas: string | null; plato: { nombre: string } | null; pedido_por_usuario: { nombre: string } | null }[])
+        .map(i => ({ id: i.id, plato_id: i.plato_id, nombre: i.plato?.nombre || i.notas?.replace(/^Cargo extra:\s*/i, '') || 'Cargo extra', cantidad: i.cantidad, precio_unitario: i.precio_unitario, notas: i.plato_id ? i.notas : null, estado: i.estado, pedido_por_nombre: i.pedido_por_usuario?.nombre || null })),
       cliente_nombre:   p.cliente_nombre,
       cliente_cedula:   p.cliente_cedula,
       cliente_telefono: p.cliente_telefono,
@@ -1223,7 +1226,7 @@ export default function GerenciaPage() {
       id, estado, tipo, created_at, notas, cliente_nombre, cliente_cedula, cliente_telefono, cliente_direccion,
       comprobante_url, metodo_pago_cliente,
       mesera:usuarios(nombre),
-      items:items_pedido(estado, cantidad, precio_unitario, notas, plato:platos(nombre))
+      items:items_pedido(id, plato_id, estado, cantidad, precio_unitario, notas, plato:platos(nombre))
     `).eq('id', pedidoId).single()
     if (!pedido) { toast.error('No se encontró el domi'); return }
     const { data: pagos } = await supabase.from('pagos').select('*').eq('pedido_id', pedido.id).order('created_at')
@@ -1236,8 +1239,8 @@ export default function GerenciaPage() {
       ...pedido,
       mesa: { numero: 0 } as { numero: number },
       mesera: pedido.mesera as unknown as { nombre: string } | null,
-      items: (pedido.items as unknown as { estado: string; cantidad: number; precio_unitario: number; notas: string | null; plato: { nombre: string } }[])
-        .map(i => ({ nombre: i.plato?.nombre || '', cantidad: i.cantidad, precio_unitario: i.precio_unitario, notas: i.notas, estado: i.estado })),
+      items: (pedido.items as unknown as { id: string; plato_id: string | null; estado: string; cantidad: number; precio_unitario: number; notas: string | null; plato: { nombre: string } | null }[])
+        .map(i => ({ id: i.id, plato_id: i.plato_id, nombre: i.plato?.nombre || i.notas?.replace(/^Cargo extra:\s*/i, '') || 'Cargo extra', cantidad: i.cantidad, precio_unitario: i.precio_unitario, notas: i.plato_id ? i.notas : null, estado: i.estado })),
       cliente_nombre: p.cliente_nombre,
       cliente_cedula: p.cliente_cedula,
       cliente_telefono: p.cliente_telefono,
@@ -1290,6 +1293,59 @@ export default function GerenciaPage() {
     await supabase.from('pedidos').update({ pago_domi_aprobado: true }).eq('id', pedidoId)
     toast.success('✅ Pago confirmado — El domiciliario ya puede salir a entregar')
     cargarMesas()
+  }
+
+  async function agregarCargoExtra() {
+    if (!mesaDetalle) return
+    const nombre = cargoExtraNombre.trim()
+    const monto = Math.round(Number(cargoExtraMonto || 0))
+    if (!nombre) { toast.error('Escribe el concepto del cargo'); return }
+    if (!Number.isFinite(monto) || monto <= 0) { toast.error('Monto invalido'); return }
+
+    setGuardandoCargoExtra(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: itemCreado, error } = await supabase
+      .from('items_pedido')
+      .insert({
+        pedido_id: mesaDetalle.pedido.id,
+        plato_id: null,
+        pedido_por: user?.id ?? null,
+        cantidad: 1,
+        precio_unitario: monto,
+        notas: `Cargo extra: ${nombre}`,
+        estado: 'listo',
+      })
+      .select('id, plato_id, estado, cantidad, precio_unitario, notas')
+      .single()
+
+    setGuardandoCargoExtra(false)
+    if (error || !itemCreado) {
+      toast.error('No se pudo agregar el cargo')
+      return
+    }
+
+    setMesaDetalle(prev => prev ? {
+      ...prev,
+      pedido: {
+        ...prev.pedido,
+        items: [
+          ...prev.pedido.items,
+          {
+            id: itemCreado.id,
+            plato_id: null,
+            nombre,
+            cantidad: itemCreado.cantidad,
+            precio_unitario: itemCreado.precio_unitario,
+            notas: null,
+            estado: itemCreado.estado,
+          },
+        ],
+      },
+    } : prev)
+    setCargoExtraNombre('')
+    setCargoExtraMonto('')
+    toast.success('Cargo agregado a la cuenta')
+    cargarDatos()
   }
 
   async function agregarPago() {
@@ -3891,7 +3947,7 @@ export default function GerenciaPage() {
                 <div className="space-y-2">
                   {mesaDetalle.pedido.items.map((item, i) => (
                     <div key={item.id || i} className={`text-sm rounded-xl transition-all ${modoEdicionPedido ? 'bg-orange-50 border border-orange-200 p-2.5' : ''}`}>
-                      {modoEdicionPedido && item.id && (
+                      {modoEdicionPedido && item.id && item.plato_id && (
                         <div className="flex gap-1.5 mb-2">
                           <button
                             onClick={() => cancelarItem(item.id!)}
@@ -3910,8 +3966,9 @@ export default function GerenciaPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className={`w-2 h-2 rounded-full shrink-0 mt-0.5 ${item.estado === 'listo' || item.estado === 'entregado' ? 'bg-green-500' : item.estado === 'en_preparacion' ? 'bg-orange-400' : 'bg-gray-300'}`} />
+                            <span className={`w-2 h-2 rounded-full shrink-0 mt-0.5 ${!item.plato_id ? 'bg-sky-500' : item.estado === 'listo' || item.estado === 'entregado' ? 'bg-green-500' : item.estado === 'en_preparacion' ? 'bg-orange-400' : 'bg-gray-300'}`} />
                             <span>{item.cantidad}× {item.nombre}</span>
+                            {!item.plato_id && <span className="text-[10px] bg-sky-50 text-sky-600 border border-sky-200 px-1.5 py-0.5 rounded-full font-bold">cargo extra</span>}
                             {item.notas && <span className="text-yellow-600 text-xs">({item.notas})</span>}
                           </div>
                           {item.pedido_por_nombre && (
@@ -3925,6 +3982,34 @@ export default function GerenciaPage() {
                     </div>
                   ))}
                 </div>
+
+                <div className="mt-3 bg-sky-50 border border-sky-200 rounded-2xl p-3">
+                  <p className="text-xs font-black uppercase tracking-widest text-sky-700 mb-2">Cargo extra</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_112px_auto] gap-2">
+                    <input
+                      type="text"
+                      value={cargoExtraNombre}
+                      onChange={e => setCargoExtraNombre(e.target.value)}
+                      placeholder="Empaque, desechable, servicio extra..."
+                      className="min-w-0 bg-white border border-sky-200 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-400/30"
+                    />
+                    <input
+                      type="number"
+                      value={cargoExtraMonto}
+                      onChange={e => setCargoExtraMonto(e.target.value)}
+                      placeholder="$0"
+                      className="bg-white border border-sky-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-400/30"
+                    />
+                    <button
+                      type="button"
+                      onClick={agregarCargoExtra}
+                      disabled={guardandoCargoExtra || !cargoExtraNombre.trim() || !cargoExtraMonto}
+                      className="bg-sky-500 hover:bg-sky-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl px-3 font-bold text-sm transition-colors">
+                      {guardandoCargoExtra ? '...' : 'Agregar'}
+                    </button>
+                  </div>
+                </div>
+
                 <div className="flex justify-between font-black text-gray-900 text-base mt-3 pt-3 border-t">
                   <span>Total</span><span>${totalPedido.toLocaleString('es-CO')}</span>
                 </div>
