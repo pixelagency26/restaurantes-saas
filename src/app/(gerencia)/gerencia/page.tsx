@@ -68,6 +68,15 @@ interface MenuTurno {
   items: { plato_id: string; cantidad: number }[]
   created_at: string
 }
+interface InventarioTurnoItem {
+  plato_id: string
+  nombre: string
+  categoria: string
+  cantidad_inicial: number
+  cantidad_actual: number
+  alerta_minima: number
+  en_turno: boolean
+}
 
 type MetodoPago = 'efectivo' | 'nequi' | 'daviplata' | 'bancolombia'
 type Seccion = 'mesas' | 'carta' | 'resumen' | 'tiempos' | 'caja' | 'usuarios' | 'clientes' | 'permisos' | 'reservas'
@@ -133,6 +142,10 @@ export default function GerenciaPage() {
   const [pasoCaja, setPasoCaja] = useState<'efectivo' | 'inventario'>('efectivo')
   const [inventarioTurno, setInventarioTurno] = useState<Record<string, number>>({})
   const [resumenInventario, setResumenInventario] = useState<{ plato_id: string; nombre: string; categoria: string; precio: number; cantidad_inicial: number; cantidad_restante: number }[]>([])
+  const [modalAjusteInventario, setModalAjusteInventario] = useState(false)
+  const [inventarioTurnoItems, setInventarioTurnoItems] = useState<InventarioTurnoItem[]>([])
+  const [inventarioTurnoValores, setInventarioTurnoValores] = useState<Record<string, string>>({})
+  const [guardandoInventarioId, setGuardandoInventarioId] = useState<string | null>(null)
 
   // Usuarios
   const [modalUsuario, setModalUsuario] = useState(false)
@@ -848,6 +861,96 @@ export default function GerenciaPage() {
     }))
   }, [supabase])
 
+  const cargarInventarioTurnoActivo = useCallback(async () => {
+    if (!turnoActivo) { setInventarioTurnoItems([]); setInventarioTurnoValores({}); return }
+
+    const [{ data: snapshots }, { data: inventarioActual }] = await Promise.all([
+      supabase.from('turnos_inventario').select('plato_id, cantidad_inicial').eq('turno_id', turnoActivo.id),
+      supabase.from('inventario').select('plato_id, cantidad_disponible, alerta_minima'),
+    ])
+
+    const snapMap = new Map((snapshots || []).map((s: { plato_id: string; cantidad_inicial: number }) => [s.plato_id, s]))
+    const invMap = new Map((inventarioActual || []).map((i: { plato_id: string; cantidad_disponible: number; alerta_minima: number }) => [i.plato_id, i]))
+    const catMap = new Map(categorias.map(c => [c.id, c.nombre]))
+
+    const items = platos
+      .filter(p => p.controla_inventario ?? true)
+      .map(p => {
+        const snap = snapMap.get(p.id)
+        const inv = invMap.get(p.id)
+        return {
+          plato_id: p.id,
+          nombre: p.nombre,
+          categoria: catMap.get(p.categoria_id) || 'Sin categoria',
+          cantidad_inicial: snap?.cantidad_inicial ?? 0,
+          cantidad_actual: inv?.cantidad_disponible ?? 0,
+          alerta_minima: inv?.alerta_minima ?? 3,
+          en_turno: Boolean(snap),
+        }
+      })
+      .sort((a, b) => a.categoria.localeCompare(b.categoria) || a.nombre.localeCompare(b.nombre))
+
+    setInventarioTurnoItems(items)
+    setInventarioTurnoValores(Object.fromEntries(items.map(i => [i.plato_id, String(i.cantidad_actual)])))
+  }, [categorias, platos, supabase, turnoActivo])
+
+  async function guardarAjusteInventarioTurno(item: InventarioTurnoItem) {
+    if (!turnoActivo) { toast.error('No hay turno activo'); return }
+
+    const raw = inventarioTurnoValores[item.plato_id]
+    const nuevaCantidad = Math.max(0, Math.floor(Number(raw || 0)))
+    if (!Number.isFinite(nuevaCantidad)) { toast.error('Cantidad invalida'); return }
+
+    setGuardandoInventarioId(item.plato_id)
+    const delta = nuevaCantidad - item.cantidad_actual
+    const nuevaInicial = Math.max(0, item.cantidad_inicial + delta)
+
+    const { data: invActualizado, error: invUpdateError } = await supabase
+      .from('inventario')
+      .update({ cantidad_disponible: nuevaCantidad, alerta_minima: item.alerta_minima, updated_at: new Date().toISOString() })
+      .eq('plato_id', item.plato_id)
+      .select('plato_id')
+      .maybeSingle()
+
+    if (invUpdateError) {
+      setGuardandoInventarioId(null)
+      toast.error('No se pudo actualizar inventario')
+      return
+    }
+
+    if (!invActualizado) {
+      const { error: invInsertError } = await supabase
+        .from('inventario')
+        .insert({ plato_id: item.plato_id, cantidad_disponible: nuevaCantidad, alerta_minima: item.alerta_minima })
+      if (invInsertError) {
+        setGuardandoInventarioId(null)
+        toast.error('No se pudo crear inventario')
+        return
+      }
+    }
+
+    const { error: turnoInvError } = item.en_turno
+      ? await supabase
+        .from('turnos_inventario')
+        .update({ cantidad_inicial: nuevaInicial })
+        .eq('turno_id', turnoActivo.id)
+        .eq('plato_id', item.plato_id)
+      : await supabase
+        .from('turnos_inventario')
+        .insert({ turno_id: turnoActivo.id, plato_id: item.plato_id, cantidad_inicial: nuevaInicial })
+
+    setGuardandoInventarioId(null)
+    if (turnoInvError) {
+      toast.error('Inventario actualizado, pero no se pudo ajustar el turno')
+      return
+    }
+
+    toast.success('Inventario actualizado')
+    await cargarInventarioTurnoActivo()
+    await cargarResumenInventario(turnoActivo.id)
+    await cargarInventarioModal()
+  }
+
   // ── CARGAR ESTADÍSTICAS Y TIEMPOS ────────────────────────────
   const cargarDatos = useCallback(async () => {
     const [{ data: pedidos }, { data: itemsTiempos }, { data: turno }] = await Promise.all([
@@ -1023,6 +1126,16 @@ export default function GerenciaPage() {
       if (modalCaja === null) { setPasoCaja('efectivo') }
     }
   }, [modalCaja, turnoActivo, cargarResumenInventario])
+
+  useEffect(() => {
+    if (!modalAjusteInventario) return
+    cargarInventarioTurnoActivo()
+    const canal = supabase.channel('gerencia-inventario-turno')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventario' }, cargarInventarioTurnoActivo)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'turnos_inventario' }, cargarInventarioTurnoActivo)
+      .subscribe()
+    return () => { supabase.removeChannel(canal) }
+  }, [cargarInventarioTurnoActivo, modalAjusteInventario, supabase])
 
   // Cargar inventario cuando se abre el modal de nuevo pedido
   useEffect(() => {
@@ -3306,10 +3419,18 @@ export default function GerenciaPage() {
               )}
             </>}
 
-            {!turnoActivo
-              ? <button onClick={() => setModalCaja('abrir')} className="w-full bg-emerald-600/80 hover:bg-emerald-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 text-lg shadow-xl shadow-emerald-900/30 transition-all"><Play size={20} /> Abrir turno</button>
-              : <button onClick={() => setModalCaja('cerrar')} className="w-full bg-red-600/80 hover:bg-red-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 text-lg shadow-xl shadow-red-900/30 transition-all"><Square size={20} /> Cerrar turno</button>
-            }
+            {!turnoActivo ? (
+              <button onClick={() => setModalCaja('abrir')} className="w-full bg-emerald-600/80 hover:bg-emerald-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 text-lg shadow-xl shadow-emerald-900/30 transition-all"><Play size={20} /> Abrir turno</button>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => setModalAjusteInventario(true)} className="bg-white border border-orange-200 hover:border-orange-400 text-orange-600 font-bold py-4 rounded-2xl flex items-center justify-center gap-2 text-sm shadow-sm transition-all">
+                  <SlidersHorizontal size={18} /> Inventario
+                </button>
+                <button onClick={() => setModalCaja('cerrar')} className="bg-red-600/80 hover:bg-red-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 text-sm shadow-xl shadow-red-900/30 transition-all">
+                  <Square size={18} /> Cerrar turno
+                </button>
+              </div>
+            )}
           </div>
           )
         })()}
@@ -4209,6 +4330,89 @@ export default function GerenciaPage() {
       )}
 
       {/* ══ MODALES CAJA Y USUARIOS ══════════════════════════════════ */}
+      {modalAjusteInventario && turnoActivo && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden fade-in flex flex-col">
+            <div className="px-5 py-4 border-b flex items-center justify-between shrink-0">
+              <div>
+                <h2 className="font-black text-gray-900 text-lg">Inventario del turno</h2>
+                <p className="text-xs text-gray-500">Ajusta unidades disponibles si preparan mas o haces conteo.</p>
+              </div>
+              <button onClick={() => setModalAjusteInventario(false)} className="w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors">
+                <X size={18} className="text-gray-500" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto p-5 space-y-4">
+              {inventarioTurnoItems.length === 0 ? (
+                <div className="text-center py-10">
+                  <p className="font-bold text-gray-700">No hay productos con inventario</p>
+                  <p className="text-sm text-gray-400 mt-1">Activa control de inventario en la carta.</p>
+                </div>
+              ) : (
+                [...new Set(inventarioTurnoItems.map(i => i.categoria))].map(cat => (
+                  <div key={cat}>
+                    <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-2">{cat}</p>
+                    <div className="divide-y divide-gray-100 border border-gray-200 rounded-2xl overflow-hidden">
+                      {inventarioTurnoItems.filter(i => i.categoria === cat).map(item => {
+                        const valor = inventarioTurnoValores[item.plato_id] ?? String(item.cantidad_actual)
+                        const nuevo = Math.max(0, Math.floor(Number(valor || 0)))
+                        const delta = Number.isFinite(nuevo) ? nuevo - item.cantidad_actual : 0
+                        return (
+                          <div key={item.plato_id} className="px-4 py-3 bg-white flex items-center gap-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-gray-900 text-sm truncate">{item.nombre}</p>
+                              <div className="flex flex-wrap gap-x-3 gap-y-1 mt-0.5 text-xs text-gray-400">
+                                <span>Disponible: <strong className="text-gray-700">{item.cantidad_actual}</strong></span>
+                                <span>Inicial: <strong className="text-gray-700">{item.cantidad_inicial}</strong></span>
+                                {!item.en_turno && <span className="text-orange-600 font-bold">Se agregara al turno</span>}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setInventarioTurnoValores(p => ({ ...p, [item.plato_id]: String(Math.max(0, Number(valor || 0) - 1)) }))}
+                                className="w-9 h-9 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 flex items-center justify-center text-gray-600">
+                                <Minus size={14} />
+                              </button>
+                              <input
+                                type="number"
+                                min="0"
+                                value={valor}
+                                onChange={e => setInventarioTurnoValores(p => ({ ...p, [item.plato_id]: e.target.value }))}
+                                className="w-20 border-2 border-gray-200 focus:border-orange-400 rounded-xl px-3 py-2 text-center font-black text-gray-900 focus:outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setInventarioTurnoValores(p => ({ ...p, [item.plato_id]: String(Number(valor || 0) + 1) }))}
+                                className="w-9 h-9 rounded-xl border border-orange-200 bg-orange-50 hover:bg-orange-100 flex items-center justify-center text-orange-600">
+                                <Plus size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={guardandoInventarioId === item.plato_id || !Number.isFinite(nuevo) || delta === 0}
+                                onClick={() => guardarAjusteInventarioTurno(item)}
+                                className="h-9 px-3 rounded-xl bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white text-xs font-black transition-colors">
+                                {guardandoInventarioId === item.plato_id ? '...' : delta > 0 ? `+${delta}` : delta < 0 ? String(delta) : 'OK'}
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="px-5 py-3 border-t bg-gray-50 shrink-0">
+              <p className="text-xs text-gray-500">Los cambios actualizan la disponibilidad en Mesera, Domi y pagina publica en tiempo real.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {modalCaja === 'abrir' && (
         <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm fade-in max-h-[90vh] flex flex-col overflow-hidden">
@@ -5687,5 +5891,6 @@ export default function GerenciaPage() {
     </div>
   )
 }
+
 
 
