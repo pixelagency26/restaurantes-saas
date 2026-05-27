@@ -22,6 +22,7 @@ import {
 } from '@/lib/modificadores'
 import ModificadorModal from '@/components/ModificadorModal'
 import ConfigurarModificadoresPedido from '@/components/ConfigurarModificadoresPedido'
+import { itemDomicilioPayload, parseTarifaDomicilio } from '@/lib/domicilios'
 import { ModificadorSeleccionado } from '@/types'
 
 // ─── TIPOS ─────────────────────────────────────────────────────────────────
@@ -41,6 +42,7 @@ type Vista = 'home' | 'menu' | 'resenas' | 'pqrs' | 'reservas'
 type TipoConsumo = 'consumo' | 'domi' | null
 type PasoOrden = 'browse' | 'tipo' | 'datos' | 'pago' | 'seguimiento'
 type MetodoPagoDomi = 'efectivo' | 'transferencia' | null
+type PagoTarifaDomi = 'transferencia' | 'efectivo'
 
 const PLAN_NIVEL: Record<string, number> = { starter: 0, basico: 1, pro: 2 }
 function planGte(plan: string, req: string) {
@@ -122,6 +124,8 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
 
   // Pago domi
   const [metodoPagoDomi, setMetodoPagoDomi]     = useState<MetodoPagoDomi>(null)
+  const [pagoTarifaDomi, setPagoTarifaDomi]     = useState<PagoTarifaDomi>('transferencia')
+  const [tarifaDomicilio, setTarifaDomicilio]   = useState(0)
   const [comprobanteFile, setComprobanteFile]   = useState<File | null>(null)
   const [comprobantePreview, setComprobantePreview] = useState<string | null>(null)
   const [subiendoComprobante, setSubiendoComprobante] = useState(false)
@@ -154,7 +158,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
       supabase.from('configuracion').select('clave, valor').eq('negocio_id', negocioId)
         .in('clave', ['qr_consumo_activo', 'qr_domi_activo', 'social_whatsapp',
                       'sugerido_activo', 'sugerido_nombre', 'sugerido_precio',
-                      'sugerido_descripcion', 'sugerido_imagen_url']),
+                      'sugerido_descripcion', 'sugerido_imagen_url', 'tarifa_domicilio']),
       supabase.from('resenas').select('*').eq('negocio_id', negocioId)
         .order('created_at', { ascending: false }),
       supabase.from('turnos').select('id, abierto_en').eq('negocio_id', negocioId).is('cerrado_en', null)
@@ -219,6 +223,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
       cfg.forEach((r: { clave: string; valor: string }) => { m[r.clave] = r.valor })
       setQrConsumo(planGte((neg as Negocio).plan || 'starter', 'basico') && m['qr_consumo_activo'] === 'true')
       setQrDomi(planGte((neg as Negocio).plan || 'starter', 'pro') && m['qr_domi_activo'] === 'true')
+      setTarifaDomicilio(parseTarifaDomicilio(m['tarifa_domicilio']))
       if (m['social_whatsapp']) setSocialWa(m['social_whatsapp'])
       if (m['sugerido_activo'] === 'true' && m['sugerido_nombre']) {
         setSugeridoNombre(m['sugerido_nombre'] || '')
@@ -269,6 +274,10 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
 
   // ── Helpers ──────────────────────────────────────────────────
   const totalCarrito = carrito.reduce((s, i) => s + i.cantidad * i.plato.precio, 0)
+  const totalDomi = tipoConsumo === 'domi' ? totalCarrito + tarifaDomicilio : totalCarrito
+  const totalTransferenciaDomi = tipoConsumo === 'domi' && metodoPagoDomi === 'transferencia' && pagoTarifaDomi === 'efectivo'
+    ? totalCarrito
+    : totalDomi
   const cantTotal    = carrito.reduce((s, i) => s + i.cantidad, 0)
   const cantPlato    = (id: string) => carrito.filter(i => i.plato.id === id).reduce((a, i) => a + i.cantidad, 0)
   function validarConsumo(items: ItemCarrito[]) {
@@ -460,7 +469,12 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
       estado: 'pendiente',
       // Para transferencia el domi queda bloqueado hasta que gerencia confirme recepción del dinero
       ...(tipoConsumo === 'domi' ? { pago_domi_aprobado: metodoPagoDomi !== 'transferencia' } : {}),
-      notas: notasPedido.trim() || null,
+      notas: [
+        notasPedido.trim(),
+        tipoConsumo === 'domi' && tarifaDomicilio > 0 && metodoPagoDomi === 'transferencia' && pagoTarifaDomi === 'efectivo'
+          ? `Domicilio $${tarifaDomicilio.toLocaleString('es-CO')} se paga en efectivo al recibir`
+          : '',
+      ].filter(Boolean).join(' · ') || null,
       metodo_pago_cliente: tipoConsumo === 'domi' ? metodoPagoDomi : null,
       comprobante_url: comprobanteUrl,
     }).select().single()
@@ -480,6 +494,9 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
         const mods = modificadoresPedidoPayload(itemCreado.id, item)
         if (mods.length > 0) await supabase.from('items_pedido_modificadores').insert(mods)
       }
+    }
+    if (tipoConsumo === 'domi' && tarifaDomicilio > 0) {
+      await supabase.from('items_pedido').insert(itemDomicilioPayload(pedido.id, tarifaDomicilio, null))
     }
 
     if (mesaId) await supabase.from('mesas').update({ estado: 'ocupada' }).eq('id', mesaId)
@@ -1048,14 +1065,26 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
           </div>
 
           {/* Total */}
-          <div className="bg-gray-900 rounded-2xl p-4 flex justify-between items-center">
-            <span className="text-gray-400 font-semibold text-sm">Total a pagar</span>
-            <span className="text-orange-400 font-black text-2xl">${totalCarrito.toLocaleString('es-CO')}</span>
+          <div className="bg-gray-900 rounded-2xl p-4 space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400 font-semibold text-sm">Pedido</span>
+              <span className="text-white font-black">${totalCarrito.toLocaleString('es-CO')}</span>
+            </div>
+            {tarifaDomicilio > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400 font-semibold text-sm">Domicilio</span>
+                <span className="text-white font-black">${tarifaDomicilio.toLocaleString('es-CO')}</span>
+              </div>
+            )}
+            <div className="border-t border-white/10 pt-2 flex justify-between items-center">
+              <span className="text-gray-300 font-semibold text-sm">Total cuenta</span>
+              <span className="text-orange-400 font-black text-2xl">${totalDomi.toLocaleString('es-CO')}</span>
+            </div>
           </div>
 
           {/* Opciones */}
           <div className="grid grid-cols-2 gap-3">
-            <button onClick={() => { setMetodoPagoDomi('efectivo'); setComprobanteFile(null); setComprobantePreview(null) }}
+            <button onClick={() => { setMetodoPagoDomi('efectivo'); setComprobanteFile(null); setComprobantePreview(null); setPagoTarifaDomi('efectivo') }}
               className={`${CARD} p-5 flex flex-col items-center gap-3 transition-all hover:shadow-md ${
                 metodoPagoDomi === 'efectivo' ? 'border-orange-400 ring-2 ring-orange-400/30 bg-orange-50' : ''
               }`}>
@@ -1068,7 +1097,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
               </div>
             </button>
 
-            <button onClick={() => setMetodoPagoDomi('transferencia')}
+            <button onClick={() => { setMetodoPagoDomi('transferencia'); setPagoTarifaDomi('transferencia') }}
               className={`${CARD} p-5 flex flex-col items-center gap-3 transition-all hover:shadow-md ${
                 metodoPagoDomi === 'transferencia' ? 'border-orange-400 ring-2 ring-orange-400/30 bg-orange-50' : ''
               }`}>
@@ -1096,6 +1125,28 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
           {/* Comprobante */}
           {metodoPagoDomi === 'transferencia' && (
             <div className="space-y-3">
+              {tarifaDomicilio > 0 && (
+                <div className="bg-white border border-gray-200 rounded-2xl p-3 space-y-2">
+                  <p className="text-sm font-black text-gray-900">¿Cómo quieres pagar el domicilio?</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPagoTarifaDomi('transferencia')}
+                      className={`rounded-xl border px-3 py-2 text-xs font-bold ${pagoTarifaDomi === 'transferencia' ? 'bg-orange-50 border-orange-300 text-orange-700' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>
+                      Incluir en transferencia
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPagoTarifaDomi('efectivo')}
+                      className={`rounded-xl border px-3 py-2 text-xs font-bold ${pagoTarifaDomi === 'efectivo' ? 'bg-orange-50 border-orange-300 text-orange-700' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>
+                      Pagar domi en efectivo
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Transferencia ahora: <b>${totalTransferenciaDomi.toLocaleString('es-CO')}</b>
+                  </p>
+                </div>
+              )}
               <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-start gap-3">
                 <span className="text-2xl">📱</span>
                 <div>
@@ -1180,7 +1231,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
                 <span className="text-2xl">💵</span>
                 <div>
                   <p className="text-amber-800 font-bold text-sm">Recuerda tener listo</p>
-                  <p className="text-amber-600 text-sm font-black">${totalCarrito.toLocaleString('es-CO')}</p>
+                  <p className="text-amber-600 text-sm font-black">${totalDomi.toLocaleString('es-CO')}</p>
                 </div>
               </div>
             )}

@@ -8,6 +8,7 @@ import { ModificadorSeleccionado } from '@/types'
 import { ItemConModificadores, consumoInventarioCarrito, hayConfigPendiente, itemKey, itemPedidoPayload, modificadoresPedidoPayload, tieneModificadores } from '@/lib/modificadores'
 import ModificadorModal from '@/components/ModificadorModal'
 import ConfigurarModificadoresPedido from '@/components/ConfigurarModificadoresPedido'
+import { itemDomicilioPayload, parseTarifaDomicilio } from '@/lib/domicilios'
 import toast from 'react-hot-toast'
 import {
   Plus, Minus, ShoppingBag, CheckCircle, ChevronLeft,
@@ -17,6 +18,7 @@ import {
 type ItemCarrito = ItemConModificadores
 type Paso = 'menu' | 'carrito' | 'datos' | 'pago' | 'comprobante' | 'seguimiento'
 type MetodoPago = 'efectivo' | 'nequi' | 'daviplata'
+type PagoTarifaDomi = 'transferencia' | 'efectivo'
 type EstadoItem = { id: string; nombre: string; cantidad: number; estado: string }
 
 const ESTADO_CONFIG: Record<string, { label: string; dot: string; color: string }> = {
@@ -45,6 +47,8 @@ function DomiPedidoInner() {
 
   // Pago
   const [metodoPago, setMetodoPago] = useState<MetodoPago | null>(null)
+  const [pagoTarifaDomi, setPagoTarifaDomi] = useState<PagoTarifaDomi>('transferencia')
+  const [tarifaDomicilio, setTarifaDomicilio] = useState(0)
   const [comprobante, setComprobante] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [subiendoFoto, setSubiendoFoto] = useState(false)
@@ -79,6 +83,8 @@ function DomiPedidoInner() {
     if (negocioId) {
       const { data: neg } = await supabase.from('negocios').select('nombre').eq('id', negocioId).single()
       if (neg?.nombre) setNegocioNombre(neg.nombre)
+      const { data: cfg } = await supabase.from('configuracion').select('valor').eq('negocio_id', negocioId).eq('clave', 'tarifa_domicilio').maybeSingle()
+      setTarifaDomicilio(parseTarifaDomicilio(cfg?.valor))
     }
     const catQuery = negocioId
       ? supabase.from('categorias').select('*').eq('negocio_id', negocioId).order('orden')
@@ -299,6 +305,9 @@ function DomiPedidoInner() {
       comprobante_url:    comprob_url,
       estado:             'pendiente',
       pago_domi_aprobado: metodoPago === 'efectivo',
+      notas:              tarifaDomicilio > 0 && metodoPago !== 'efectivo' && pagoTarifaDomi === 'efectivo'
+        ? `Domicilio $${tarifaDomicilio.toLocaleString('es-CO')} se paga en efectivo al recibir`
+        : null,
     }).select().single()
 
     if (error || !pedido) {
@@ -315,6 +324,9 @@ function DomiPedidoInner() {
         if (mods.length > 0) await supabase.from('items_pedido_modificadores').insert(mods)
       }
     }
+    if (tarifaDomicilio > 0) {
+      await supabase.from('items_pedido').insert(itemDomicilioPayload(pedido.id, tarifaDomicilio, null))
+    }
 
     setPedidoId(pedido.id)
     await cargarItemsSeg(pedido.id)
@@ -324,6 +336,8 @@ function DomiPedidoInner() {
   }
 
   const total      = carrito.reduce((a, i) => a + i.plato.precio * i.cantidad, 0)
+  const totalConDomi = total + tarifaDomicilio
+  const totalTransferencia = metodoPago && metodoPago !== 'efectivo' && pagoTarifaDomi === 'efectivo' ? total : totalConDomi
   const totalItems = carrito.reduce((a, i) => a + i.cantidad, 0)
   const platosFiltrados = platos.filter(p => p.categoria_id === catActiva)
   const datosCompletos = nombre.trim() && telefono.trim() && direccion.trim()
@@ -423,6 +437,13 @@ function DomiPedidoInner() {
               <span className="font-bold text-blue-600 capitalize">{metodoPago}</span>
             </p>
           </div>
+          <div className="bg-white border border-blue-100 rounded-2xl p-3 text-center">
+            <p className="text-xs text-gray-500">Valor a transferir</p>
+            <p className="text-2xl font-black text-blue-600">${totalTransferencia.toLocaleString('es-CO')}</p>
+            {tarifaDomicilio > 0 && pagoTarifaDomi === 'efectivo' && (
+              <p className="text-xs text-gray-500 mt-1">El domicilio (${tarifaDomicilio.toLocaleString('es-CO')}) se paga en efectivo al recibir.</p>
+            )}
+          </div>
 
           {previewUrl ? (
             <div className="relative">
@@ -469,7 +490,7 @@ function DomiPedidoInner() {
           <p className="text-gray-500 text-sm text-center">Elige tu método de pago</p>
 
           {/* Efectivo */}
-          <button onClick={() => setMetodoPago('efectivo')}
+          <button onClick={() => { setMetodoPago('efectivo'); setPagoTarifaDomi('efectivo') }}
             className={`w-full p-5 rounded-2xl border-2 text-left transition-all ${metodoPago === 'efectivo' ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-white hover:border-green-300'}`}>
             <div className="flex items-center gap-3">
               <span className="text-3xl">💵</span>
@@ -482,7 +503,7 @@ function DomiPedidoInner() {
           </button>
 
           {/* Nequi */}
-          <button onClick={() => setMetodoPago('nequi')}
+          <button onClick={() => { setMetodoPago('nequi'); setPagoTarifaDomi('transferencia') }}
             className={`w-full p-5 rounded-2xl border-2 text-left transition-all ${metodoPago === 'nequi' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 bg-white hover:border-purple-300'}`}>
             <div className="flex items-center gap-3">
               <span className="text-3xl">💜</span>
@@ -495,7 +516,7 @@ function DomiPedidoInner() {
           </button>
 
           {/* Daviplata */}
-          <button onClick={() => setMetodoPago('daviplata')}
+          <button onClick={() => { setMetodoPago('daviplata'); setPagoTarifaDomi('transferencia') }}
             className={`w-full p-5 rounded-2xl border-2 text-left transition-all ${metodoPago === 'daviplata' ? 'border-red-500 bg-red-50' : 'border-gray-200 bg-white hover:border-red-300'}`}>
             <div className="flex items-center gap-3">
               <span className="text-3xl">❤️</span>
@@ -508,17 +529,35 @@ function DomiPedidoInner() {
           </button>
 
           {metodoPago && (
-            <button
-              onClick={() => {
-                if (metodoPago === 'efectivo') {
-                  enviarPedido()
-                } else {
-                  setPaso('comprobante')
-                }
-              }}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl text-base transition-colors mt-2">
-              {metodoPago === 'efectivo' ? 'Confirmar pedido →' : 'Adjuntar comprobante →'}
-            </button>
+            <>
+              {tarifaDomicilio > 0 && metodoPago !== 'efectivo' && (
+                <div className="bg-white border border-gray-200 rounded-2xl p-3 space-y-2">
+                  <p className="text-sm font-black text-gray-900">¿Cómo quieres pagar el domicilio?</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => setPagoTarifaDomi('transferencia')}
+                      className={`rounded-xl border px-3 py-2 text-xs font-bold ${pagoTarifaDomi === 'transferencia' ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>
+                      Incluir en transferencia
+                    </button>
+                    <button type="button" onClick={() => setPagoTarifaDomi('efectivo')}
+                      className={`rounded-xl border px-3 py-2 text-xs font-bold ${pagoTarifaDomi === 'efectivo' ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>
+                      Domi en efectivo
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500">Transferencia ahora: <b>${totalTransferencia.toLocaleString('es-CO')}</b></p>
+                </div>
+              )}
+              <button
+                onClick={() => {
+                  if (metodoPago === 'efectivo') {
+                    enviarPedido()
+                  } else {
+                    setPaso('comprobante')
+                  }
+                }}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl text-base transition-colors mt-2">
+                {metodoPago === 'efectivo' ? 'Confirmar pedido →' : 'Adjuntar comprobante →'}
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -615,7 +654,7 @@ function DomiPedidoInner() {
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 shadow-xl">
           <div className="flex justify-between items-center mb-3">
             <span className="text-gray-600 font-medium">Total estimado</span>
-            <span className="text-xl font-black">${total.toLocaleString('es-CO')}</span>
+            <span className="text-xl font-black">${totalConDomi.toLocaleString('es-CO')}</span>
           </div>
           <button onClick={() => setPaso('datos')}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl text-base">

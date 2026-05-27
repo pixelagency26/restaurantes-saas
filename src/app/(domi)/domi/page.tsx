@@ -14,6 +14,7 @@ import {
 } from '@/lib/modificadores'
 import ModificadorModal from '@/components/ModificadorModal'
 import ConfigurarModificadoresPedido from '@/components/ConfigurarModificadoresPedido'
+import { itemDomicilioPayload, parseTarifaDomicilio } from '@/lib/domicilios'
 import toast from 'react-hot-toast'
 import {
   Bike, X, Plus, Minus, ShoppingBag,
@@ -61,6 +62,8 @@ export default function DomiPage() {
   const [platoConfig, setPlatoConfig] = useState<Plato | null>(null)
   const [configurandoComplementos, setConfigurandoComplementos] = useState(false)
   const [clienteDomi, setClienteDomi] = useState({ nombre: '', telefono: '', direccion: '', cedula: '' })
+  const [domiGratis, setDomiGratis] = useState(false)
+  const [tarifaDomicilio, setTarifaDomicilio] = useState(0)
   const [notaGeneral, setNotaGeneral] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [marcandoId, setMarcandoId] = useState<string | null>(null)
@@ -150,7 +153,11 @@ export default function DomiPage() {
     ])
 
     // Guardar negocio_id para usar en pedidos (RLS)
-    if (negData?.id) setNegocioId(negData.id)
+    if (negData?.id) {
+      setNegocioId(negData.id)
+      const { data: cfg } = await supabase.from('configuracion').select('valor').eq('negocio_id', negData.id).eq('clave', 'tarifa_domicilio').maybeSingle()
+      setTarifaDomicilio(parseTarifaDomicilio(cfg?.valor))
+    }
 
     // Cargar plato_ids con inventario configurado en el turno activo
     let platoIdsConInv = new Set<string>()
@@ -460,8 +467,11 @@ export default function DomiPage() {
         if (mods.length > 0) await supabase.from('items_pedido_modificadores').insert(mods)
       }
     }
+    if (tarifaDomicilio > 0 && !domiGratis) {
+      await supabase.from('items_pedido').insert(itemDomicilioPayload(pedido.id, tarifaDomicilio, user?.id ?? null))
+    }
     toast.success('🛵 ¡Domi enviado a cocina!')
-    setCarrito([]); setClienteDomi({ nombre: '', telefono: '', direccion: '', cedula: '' })
+    setCarrito([]); setClienteDomi({ nombre: '', telefono: '', direccion: '', cedula: '' }); setDomiGratis(false)
     setNotaGeneral(''); setVista('pedidos')
     cargarPedidos()
     cargarMenu()   // refresca el stock local después de pedido
@@ -469,6 +479,7 @@ export default function DomiPage() {
   }
 
   const totalCarrito = carrito.reduce((a, i) => a + i.plato.precio * i.cantidad, 0)
+  const totalConDomi = totalCarrito + (domiGratis ? 0 : tarifaDomicilio)
   const platosFiltrados = platos.filter(p => p.categoria_id === categoriaActiva)
   const modalModificadores = platoConfig && (
     <ModificadorModal
@@ -665,6 +676,17 @@ export default function DomiPage() {
             onChange={e => setClienteDomi(p => ({ ...p, cedula: e.target.value }))}
             onBlur={e => buscarClienteDomi(e.target.value, 'cedula')}
             className="w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
+          {tarifaDomicilio > 0 && (
+            <button
+              type="button"
+              onClick={() => setDomiGratis(v => !v)}
+              className={`w-full flex items-center justify-between rounded-xl border px-3 py-2.5 text-sm font-bold transition-all ${
+                domiGratis ? 'bg-green-500/15 border-green-500/40 text-green-300' : 'bg-gray-800 border-gray-700 text-gray-300'
+              }`}>
+              <span>Free domi</span>
+              <span>{domiGratis ? 'Activado' : `$${tarifaDomicilio.toLocaleString('es-CO')}`}</span>
+            </button>
+          )}
           <textarea placeholder="Nota general..." value={notaGeneral} onChange={e => setNotaGeneral(e.target.value)} rows={2}
             className="w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50 resize-none" />
         </div>
@@ -674,7 +696,7 @@ export default function DomiPage() {
       <div className="fixed bottom-0 left-0 right-0 bg-gray-950 border-t border-gray-800 p-4">
         <div className="flex justify-between items-center mb-3">
           <span className="text-gray-400 font-medium text-sm">Total estimado</span>
-          <span className="text-xl font-black text-white">${totalCarrito.toLocaleString('es-CO')}</span>
+          <span className="text-xl font-black text-white">${totalConDomi.toLocaleString('es-CO')}</span>
         </div>
         <button onClick={enviarPedido} disabled={enviando || carrito.length === 0}
           className="w-full bg-orange-500 hover:bg-orange-400 active:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 text-base transition-all shadow-lg shadow-orange-900/30">

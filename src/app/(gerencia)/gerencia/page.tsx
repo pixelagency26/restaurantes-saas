@@ -17,6 +17,7 @@ import {
 import ModificadorModal from '@/components/ModificadorModal'
 import ConfigurarModificadoresPedido from '@/components/ConfigurarModificadoresPedido'
 import { ItemConModificadores, consumoInventarioCarrito, hayConfigPendiente, itemKey, itemPedidoPayload, modificadoresPedidoPayload, tieneModificadores } from '@/lib/modificadores'
+import { itemDomicilioPayload, parseTarifaDomicilio } from '@/lib/domicilios'
 import { ModificadorSeleccionado } from '@/types'
 
 // ─── TIPOS ───────────────────────────────────────────────────
@@ -257,6 +258,8 @@ export default function GerenciaPage() {
   // Permisos QR
   const [qrConsumoActivo, setQrConsumoActivo] = useState(false)
   const [qrDomiActivo, setQrDomiActivo] = useState(false)
+  const [tarifaDomicilio, setTarifaDomicilio] = useState('')
+  const [guardandoDomicilios, setGuardandoDomicilios] = useState(false)
 
   // Plan del negocio (para control de acceso)
   const [negocioPlan, setNegocioPlan] = useState<'starter' | 'basico' | 'pro'>('pro')
@@ -264,7 +267,7 @@ export default function GerenciaPage() {
 
   // Panel de configuración ⚙️
   const [modalSettings, setModalSettings] = useState(false)
-  const [seccionSettings, setSeccionSettings] = useState<'cuenta' | 'usuarios' | 'permisos' | 'restablecer' | 'facturacion'>('cuenta')
+  const [seccionSettings, setSeccionSettings] = useState<'cuenta' | 'usuarios' | 'permisos' | 'restablecer' | 'facturacion' | 'domicilios' | 'marketing'>('cuenta')
   // Facturación
   const [facturacion, setFacturacion] = useState<{ plan: string; activa: boolean; hasta: string | null; nombre: string } | null>(null)
   const [cargandoFact, setCargandoFact] = useState(false)
@@ -297,6 +300,7 @@ export default function GerenciaPage() {
   const [configurandoNuevoOrden, setConfigurandoNuevoOrden] = useState(false)
   const [nuevoOrdenNotas, setNuevoOrdenNotas] = useState('')
   const [nuevoOrdenDomi, setNuevoOrdenDomi] = useState({ nombre: '', telefono: '', direccion: '' })
+  const [nuevoOrdenDomiGratis, setNuevoOrdenDomiGratis] = useState(false)
   const [nuevoOrdenCategoria, setNuevoOrdenCategoria] = useState<number | 'todas'>('todas')
   const [tomandoPedido, setTomandoPedido] = useState(false)
   // Inventario activo para el modal de nuevo pedido
@@ -585,7 +589,7 @@ export default function GerenciaPage() {
       .from('configuracion')
       .select('clave, valor')
       .in('clave', ['bloqueo_cocina_activo', 'bloqueo_cocina_cantidad', 'qr_consumo_activo', 'qr_domi_activo', 'nombres_cocineros',
-                    'sugerido_activo', 'sugerido_nombre', 'sugerido_precio', 'sugerido_descripcion', 'sugerido_imagen_url'])
+                    'sugerido_activo', 'sugerido_nombre', 'sugerido_precio', 'sugerido_descripcion', 'sugerido_imagen_url', 'tarifa_domicilio'])
     if (data) {
       const cfg: Record<string, string> = {}
       data.forEach((r: { clave: string; valor: string }) => { cfg[r.clave] = r.valor })
@@ -599,6 +603,7 @@ export default function GerenciaPage() {
       if ('sugerido_precio' in cfg) setSugeridoPrecio(cfg['sugerido_precio'] || '')
       if ('sugerido_descripcion' in cfg) setSugeridoDescripcion(cfg['sugerido_descripcion'] || '')
       if ('sugerido_imagen_url' in cfg) setSugeridoImagenUrl(cfg['sugerido_imagen_url'] || '')
+      if ('tarifa_domicilio' in cfg) setTarifaDomicilio(String(parseTarifaDomicilio(cfg['tarifa_domicilio'])))
     }
   }, [supabase])
 
@@ -1044,6 +1049,17 @@ export default function GerenciaPage() {
     await cargarInventarioTurnoActivo()
     await cargarResumenInventario(turnoActivo.id)
     await cargarInventarioModal()
+  }
+
+  async function guardarDomicilios() {
+    const tarifa = parseTarifaDomicilio(tarifaDomicilio)
+    setGuardandoDomicilios(true)
+    const ok = await upsertConfig([{ clave: 'tarifa_domicilio', valor: String(tarifa) }])
+    setGuardandoDomicilios(false)
+    if (ok) {
+      setTarifaDomicilio(String(tarifa))
+      toast.success('Tarifa de domicilio guardada')
+    }
   }
 
   // ── CARGAR ESTADÍSTICAS Y TIEMPOS ────────────────────────────
@@ -2295,11 +2311,17 @@ export default function GerenciaPage() {
           if (mods.length > 0) await supabase.from('items_pedido_modificadores').insert(mods)
         }
       }
+      const tarifa = parseTarifaDomicilio(tarifaDomicilio)
+      if (nuevoOrdenTipo === 'domi' && tarifa > 0 && !nuevoOrdenDomiGratis) {
+        const { error: errDomi } = await supabase.from('items_pedido').insert(itemDomicilioPayload(pedidoId, tarifa, user?.id || null))
+        if (errDomi) throw new Error(errDomi.message)
+      }
 
       toast.success('✅ Pedido enviado a cocina')
       setModalNuevoPedido(false)
       setNuevoOrdenCarrito({}); setNuevoOrdenItemsMod([]); setNuevoOrdenMesaId(null); setNuevoOrdenNotas('')
       setNuevoOrdenDomi({ nombre: '', telefono: '', direccion: '' })
+      setNuevoOrdenDomiGratis(false)
       cargarMesas(); cargarDatos()
     } catch (e) {
       toast.error('Error: ' + (e instanceof Error ? e.message : String(e)))
@@ -5663,10 +5685,11 @@ export default function GerenciaPage() {
               {([
                 ['cuenta',       '👤 Cuenta'],
                 ['facturacion',  '💳 Facturación'],
+                ['domicilios',   '🛵 Domicilios'],
                 ['usuarios',     '👥 Usuarios'],
                 ['permisos',     '🔒 Permisos'],
                 ['restablecer',  '⚠️ Restablecer'],
-              ] as ['cuenta'|'facturacion'|'usuarios'|'permisos'|'restablecer', string][]).map(([id, label]) => (
+              ] as ['cuenta'|'facturacion'|'domicilios'|'usuarios'|'permisos'|'restablecer', string][]).map(([id, label]) => (
                 <button key={id} onClick={() => { setSeccionSettings(id); if (id === 'facturacion') cargarFacturacion() }}
                   className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                     seccionSettings === id
@@ -5834,6 +5857,45 @@ export default function GerenciaPage() {
                   })() : (
                     <p className="text-center text-gray-400 text-sm py-8">No se pudo cargar la información</p>
                   )}
+                </div>
+              )}
+
+              {/* ── DOMICILIOS ── */}
+              {seccionSettings === 'domicilios' && (
+                <div className="space-y-4">
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+                        <Bike size={20} className="text-orange-500" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-gray-900">Tarifa de domicilio</h3>
+                        <p className="text-xs text-gray-400">Se suma como cargo extra en pedidos a domicilio</p>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-1.5">Valor del domicilio</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={tarifaDomicilio}
+                        onChange={e => setTarifaDomicilio(e.target.value)}
+                        placeholder="Ej: 5000"
+                        className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                      />
+                    </div>
+                    <div className="bg-orange-50 border border-orange-100 rounded-xl p-3">
+                      <p className="text-xs text-orange-700 leading-relaxed">
+                        En pedidos online por transferencia, el cliente puede incluir el domicilio en la transferencia o pagarlo en efectivo al recibir. En pedidos internos puedes marcar domicilio gratis.
+                      </p>
+                    </div>
+                    <button
+                      onClick={guardarDomicilios}
+                      disabled={guardandoDomicilios}
+                      className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl transition-colors">
+                      {guardandoDomicilios ? 'Guardando...' : 'Guardar tarifa'}
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -6381,6 +6443,17 @@ export default function GerenciaPage() {
                   <input type="text" placeholder="Dirección" value={nuevoOrdenDomi.direccion}
                     onChange={e => setNuevoOrdenDomi(p => ({ ...p, direccion: e.target.value }))}
                     className="w-full bg-white/6 border border-white/12 rounded-xl px-3 py-2 text-white placeholder-white/25.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
+                  {parseTarifaDomicilio(tarifaDomicilio) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setNuevoOrdenDomiGratis(v => !v)}
+                      className={`w-full flex items-center justify-between rounded-xl border px-3 py-2.5 text-sm font-bold transition-all ${
+                        nuevoOrdenDomiGratis ? 'bg-green-500/15 border-green-500/40 text-green-300' : 'bg-white/6 border-white/12 text-white/70'
+                      }`}>
+                      <span>Free domi</span>
+                      <span>{nuevoOrdenDomiGratis ? 'Activado' : `$${parseTarifaDomicilio(tarifaDomicilio).toLocaleString('es-CO')}`}</span>
+                    </button>
+                  )}
                 </div>
               )}
 
