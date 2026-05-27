@@ -90,6 +90,7 @@ const METODOS: { id: MetodoPago; label: string; color: string; emoji: string }[]
 ]
 
 const METODOS_DIGITALES_DOMI = ['transferencia', 'nequi', 'daviplata', 'bancolombia']
+const CARGOS_EXTRA_RAPIDOS = ['Empaque', 'Desechables', 'Domi', 'Servicio extra', 'Daño', 'Otro']
 
 const PLATO_VACIO: Omit<Plato, 'id'> = {
   nombre: '', descripcion: '', precio: 0, costo: 0, categoria_id: 0, imagen_url: '',
@@ -4042,28 +4043,50 @@ export default function GerenciaPage() {
                   ))}
                 </div>
 
-                <div className="mt-3 bg-sky-50 border border-sky-200 rounded-2xl p-3">
-                  <p className="text-xs font-black uppercase tracking-widest text-sky-700 mb-2">Cargo extra</p>
+                <div className="mt-3 bg-orange-50 border-2 border-orange-200 rounded-2xl p-3">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-widest text-orange-700">Agregar a la cuenta</p>
+                      <p className="text-xs text-orange-600 mt-0.5">Item abierto para cargos que no estan en el menu.</p>
+                    </div>
+                    <span className="text-[10px] bg-white text-orange-600 border border-orange-200 px-2 py-0.5 rounded-full font-bold shrink-0">extra</span>
+                  </div>
+                  <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2">
+                    {CARGOS_EXTRA_RAPIDOS.map(nombre => (
+                      <button
+                        key={nombre}
+                        type="button"
+                        onClick={() => setCargoExtraNombre(nombre === 'Otro' ? '' : nombre)}
+                        className={`shrink-0 px-2.5 py-1.5 rounded-full border text-xs font-bold transition-all ${
+                          cargoExtraNombre === nombre
+                            ? 'bg-orange-500 border-orange-500 text-white'
+                            : 'bg-white border-orange-200 text-orange-700 hover:border-orange-400'
+                        }`}
+                      >
+                        {nombre}
+                      </button>
+                    ))}
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-[1fr_112px_auto] gap-2">
                     <input
                       type="text"
                       value={cargoExtraNombre}
                       onChange={e => setCargoExtraNombre(e.target.value)}
-                      placeholder="Empaque, desechable, servicio extra..."
-                      className="min-w-0 bg-white border border-sky-200 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-400/30"
+                      placeholder="Escribe el concepto"
+                      className="min-w-0 bg-white border border-orange-200 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30"
                     />
                     <input
                       type="number"
                       value={cargoExtraMonto}
                       onChange={e => setCargoExtraMonto(e.target.value)}
                       placeholder="$0"
-                      className="bg-white border border-sky-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-400/30"
+                      className="bg-white border border-orange-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30"
                     />
                     <button
                       type="button"
                       onClick={agregarCargoExtra}
                       disabled={guardandoCargoExtra || !cargoExtraNombre.trim() || !cargoExtraMonto}
-                      className="bg-sky-500 hover:bg-sky-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl px-3 font-bold text-sm transition-colors">
+                      className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl px-3 font-bold text-sm transition-colors">
                       {guardandoCargoExtra ? '...' : 'Agregar'}
                     </button>
                   </div>
