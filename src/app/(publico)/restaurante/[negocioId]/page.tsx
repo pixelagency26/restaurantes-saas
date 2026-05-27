@@ -323,10 +323,27 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   async function buscarClientePorTelefono(tel: string) {
     if (!tel || tel.replace(/\D/g, '').length < 7) return
     setBuscandoCliente(true)
-    const { data } = await supabase.from('clientes').select('id, nombre')
+    const { data } = await supabase.from('clientes').select('id, nombre, cedula, telefono')
       .eq('negocio_id', negocioId).eq('telefono', tel.trim()).maybeSingle()
-    if (data) { setClientePrevio(data); if (!nombre.trim()) setNombre(data.nombre) }
+    if (data) {
+      setClientePrevio(data)
+      if (!nombre.trim()) setNombre(data.nombre)
+      if (!cedula.trim() && data.cedula) setCedula(data.cedula)
+    }
     else setClientePrevio(null)
+    setBuscandoCliente(false)
+  }
+
+  async function buscarClientePorCedula(val: string) {
+    if (!val || val.replace(/\D/g, '').length < 5) return
+    setBuscandoCliente(true)
+    const { data } = await supabase.from('clientes').select('id, nombre, cedula, telefono')
+      .eq('negocio_id', negocioId).eq('cedula', val.trim()).maybeSingle()
+    if (data) {
+      setClientePrevio(data)
+      setNombre(data.nombre || '')
+      if (data.telefono) setTelefono(data.telefono)
+    }
     setBuscandoCliente(false)
   }
 
@@ -933,7 +950,10 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
             )}
 
             <input placeholder="Nombre *" value={nombre} onChange={e => setNombre(e.target.value)} className={INPUT} />
-            <input placeholder="Cédula (opcional)" value={cedula} onChange={e => setCedula(e.target.value)} className={INPUT} />
+            <input placeholder="Cédula (opcional)" value={cedula}
+              onChange={e => { setCedula(e.target.value); setClientePrevio(null) }}
+              onBlur={e => buscarClientePorCedula(e.target.value)}
+              className={INPUT} />
 
             {tipoConsumo === 'consumo' && (
               <div>

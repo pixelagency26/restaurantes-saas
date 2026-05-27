@@ -57,6 +57,20 @@ function DomiPedidoInner() {
 
   const supabase = createClient()
 
+  async function buscarCliente(valor: string, campo: 'cedula' | 'telefono') {
+    const limpio = valor.trim()
+    if (limpio.replace(/\D/g, '').length < (campo === 'cedula' ? 5 : 7)) return
+    let q = supabase.from('clientes').select('id, nombre, telefono, cedula').eq(campo, limpio)
+    if (negocioId) q = q.eq('negocio_id', negocioId)
+    const { data } = await q.maybeSingle()
+    if (data) {
+      setNombre(data.nombre || '')
+      if (data.telefono) setTelefono(data.telefono)
+      if (data.cedula) setCedula(data.cedula)
+      toast.success(`Cliente encontrado: ${data.nombre}`)
+    }
+  }
+
   // ── CARGAR MENÚ ───────────────────────────────────────────────
   const cargarMenu = useCallback(async () => {
     // Cargar nombre del negocio
@@ -247,20 +261,27 @@ function DomiPedidoInner() {
       setSubiendoFoto(false)
     }
 
-    // Crear cliente si tiene cédula
+    // Crear o vincular cliente por cedula o telefono
     let clienteId: string | null = null
     if (cedula.trim()) {
-      const { data: clData } = await supabase.from('clientes').select('id').eq('cedula', cedula.trim()).single()
-      if (clData) {
-        clienteId = clData.id
-      } else {
-        const { data: nuevo } = await supabase.from('clientes').insert({
-          cedula: cedula.trim(), nombre: nombre.trim(), telefono: telefono.trim(),
-        }).select('id').single()
-        clienteId = nuevo?.id || null
-      }
+      let q = supabase.from('clientes').select('id').eq('cedula', cedula.trim()).maybeSingle()
+      if (negocioId) q = q.eq('negocio_id', negocioId)
+      const { data: clData } = await q
+      if (clData) clienteId = clData.id
     }
-
+    if (!clienteId && telefono.trim()) {
+      let q = supabase.from('clientes').select('id').eq('telefono', telefono.trim()).maybeSingle()
+      if (negocioId) q = q.eq('negocio_id', negocioId)
+      const { data: clData } = await q
+      if (clData) clienteId = clData.id
+    }
+    if (!clienteId && (cedula.trim() || telefono.trim())) {
+      const { data: nuevo } = await supabase.from('clientes').insert({
+        ...(negocioId ? { negocio_id: negocioId } : {}),
+        cedula: cedula.trim() || null, nombre: nombre.trim(), telefono: telefono.trim() || null,
+      }).select('id').single()
+      clienteId = nuevo?.id || null
+    }
     // Crear pedido
     const { data: pedido, error } = await supabase.from('pedidos').insert({
       turno_id:           turno.id,
@@ -504,7 +525,7 @@ function DomiPedidoInner() {
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">Teléfono *</label>
-            <input type="tel" placeholder="Tu número de celular" value={telefono} onChange={e => setTelefono(e.target.value)}
+            <input type="tel" placeholder="Tu número de celular" value={telefono} onChange={e => setTelefono(e.target.value)} onBlur={e => buscarCliente(e.target.value, 'telefono')}
               className="w-full border border-gray-200 rounded-2xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
           </div>
           <div>
@@ -516,7 +537,7 @@ function DomiPedidoInner() {
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">
               Cédula <span className="text-gray-300 font-normal normal-case">(opcional)</span>
             </label>
-            <input type="number" placeholder="Número de cédula" value={cedula} onChange={e => setCedula(e.target.value)}
+            <input type="number" placeholder="Número de cédula" value={cedula} onChange={e => setCedula(e.target.value)} onBlur={e => buscarCliente(e.target.value, 'cedula')}
               className="w-full border border-gray-200 rounded-2xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
           </div>
 

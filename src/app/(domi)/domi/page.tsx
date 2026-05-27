@@ -81,6 +81,23 @@ export default function DomiPage() {
 
   const supabase = createClient()
 
+  async function buscarClienteDomi(valor: string, campo: 'cedula' | 'telefono') {
+    const limpio = valor.trim()
+    if (limpio.replace(/\D/g, '').length < (campo === 'cedula' ? 5 : 7)) return
+    let q = supabase.from('clientes').select('id, nombre, telefono, cedula').eq(campo, limpio)
+    if (negocioId) q = q.eq('negocio_id', negocioId)
+    const { data } = await q.maybeSingle()
+    if (data) {
+      setClienteDomi(p => ({
+        ...p,
+        nombre: data.nombre || p.nombre,
+        telefono: data.telefono || p.telefono,
+        cedula: data.cedula || p.cedula,
+      }))
+      toast.success(`Cliente encontrado: ${data.nombre}`)
+    }
+  }
+
   // ── CARGAR PEDIDOS DOMI ACTIVOS ───────────────────────────────
   const cargarPedidos = useCallback(async () => {
     const hoy = new Date().toISOString().split('T')[0]
@@ -393,11 +410,31 @@ export default function DomiPage() {
       if (myNegocioId) setNegocioId(myNegocioId)
     }
 
+    let clienteId: string | null = null
+    if (clienteDomi.cedula.trim() || clienteDomi.telefono.trim()) {
+      const campo = clienteDomi.cedula.trim() ? 'cedula' : 'telefono'
+      const valor = clienteDomi.cedula.trim() || clienteDomi.telefono.trim()
+      let q = supabase.from('clientes').select('id').eq(campo, valor).maybeSingle()
+      if (myNegocioId) q = q.eq('negocio_id', myNegocioId)
+      const { data: cl } = await q
+      if (cl?.id) clienteId = cl.id
+      else {
+        const { data: nuevo } = await supabase.from('clientes').insert({
+          nombre: clienteDomi.nombre.trim(),
+          cedula: clienteDomi.cedula.trim() || null,
+          telefono: clienteDomi.telefono.trim() || null,
+          ...(myNegocioId ? { negocio_id: myNegocioId } : {}),
+        }).select('id').single()
+        clienteId = nuevo?.id || null
+      }
+    }
+
     const { data: pedido, error } = await supabase.from('pedidos').insert({
       mesera_id: user?.id,
       turno_id: turno.id,
       tipo: 'domi',
       notas: notaGeneral || null,
+      cliente_id: clienteId,
       cliente_nombre:    clienteDomi.nombre.trim(),
       cliente_cedula:    clienteDomi.cedula.trim() || null,
       cliente_telefono:  clienteDomi.telefono.trim(),
@@ -601,12 +638,14 @@ export default function DomiPage() {
             className="w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
           <input type="tel" placeholder="Teléfono *" value={clienteDomi.telefono}
             onChange={e => setClienteDomi(p => ({ ...p, telefono: e.target.value }))}
+            onBlur={e => buscarClienteDomi(e.target.value, 'telefono')}
             className="w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
           <input type="text" placeholder="Dirección de entrega *" value={clienteDomi.direccion}
             onChange={e => setClienteDomi(p => ({ ...p, direccion: e.target.value }))}
             className="w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
           <input type="text" placeholder="Cédula (opcional)" value={clienteDomi.cedula}
             onChange={e => setClienteDomi(p => ({ ...p, cedula: e.target.value }))}
+            onBlur={e => buscarClienteDomi(e.target.value, 'cedula')}
             className="w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
           <textarea placeholder="Nota general..." value={notaGeneral} onChange={e => setNotaGeneral(e.target.value)} rows={2}
             className="w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50 resize-none" />

@@ -7,7 +7,7 @@ import {
   BarChart3, TrendingUp, Users, DollarSign, Clock, ChefHat,
   Plus, Minus, X, Play, Square, MapPin, CheckCircle, Banknote,
   Pencil, Trash2, UtensilsCrossed, Timer, UserCircle, Search, Bike,
-  Download, SlidersHorizontal, CalendarDays, Settings, Lock, ClipboardList,
+  Download, Upload, SlidersHorizontal, CalendarDays, Settings, Lock, ClipboardList,
   LogOut, AlertTriangle, RotateCcw, ShieldAlert
 } from 'lucide-react'
 import {
@@ -36,7 +36,8 @@ interface CocineroStat { nombre: string; platos: number; tiempoPromedio: number 
 interface Categoria { id: number; nombre: string; orden: number }
 interface ClienteStat {
   id: string; cedula: string | null; nombre: string; telefono: string | null
-  fecha_cumpleanos: string | null; pedidos: number; totalGastado: number; ultimaVisita: string | null
+  fecha_cumpleanos: string | null; notas?: string | null; advertencias?: string | null
+  pedidos: number; totalGastado: number; ultimaVisita: string | null
 }
 interface ClientePedidoItem { nombre: string; cantidad: number; precio_unitario: number }
 interface ClientePedido { id: string; created_at: string; total: number; tipo: string; estado: string; items: ClientePedidoItem[] }
@@ -95,6 +96,23 @@ const CARGOS_EXTRA_RAPIDOS = ['Empaque', 'Desechables', 'Domi', 'Servicio extra'
 const PLATO_VACIO: Omit<Plato, 'id'> = {
   nombre: '', descripcion: '', precio: 0, costo: 0, categoria_id: 0, imagen_url: '',
   activo: true, visible_menu: true, controla_inventario: true,
+}
+
+function desplazarFechaISO(fecha: string, dias: number) {
+  const d = new Date(`${fecha}T12:00:00`)
+  d.setDate(d.getDate() + dias)
+  return d.toISOString().split('T')[0]
+}
+
+function diasEntreInclusive(desde: string, hasta: string) {
+  const a = new Date(`${desde}T12:00:00`).getTime()
+  const b = new Date(`${hasta}T12:00:00`).getTime()
+  return Math.max(1, Math.round((b - a) / 86400000) + 1)
+}
+
+function porcentajeCambio(actual: number, anterior: number) {
+  if (anterior === 0) return actual > 0 ? 100 : 0
+  return Math.round(((actual - anterior) / anterior) * 100)
 }
 
 export default function GerenciaPage() {
@@ -176,13 +194,17 @@ export default function GerenciaPage() {
   const [ventasPorDia, setVentasPorDia] = useState<{ dia: string; ventas: number; domis: number }[]>([])
   const [datosPagosMetodo, setDatosPagosMetodo] = useState<{ name: string; value: number; color: string }[]>([])
   const [resumenStats, setResumenStats] = useState({ ventas: 0, pedidos: 0, utilidad: 0, domis: 0 })
+  const [resumenStatsAnterior, setResumenStatsAnterior] = useState({ ventas: 0, pedidos: 0, utilidad: 0, domis: 0 })
   const [cargandoResumen, setCargandoResumen] = useState(false)
 
   // Clientes
   const [clientes, setClientes] = useState<ClienteStat[]>([])
   const [busquedaCliente, setBusquedaCliente] = useState('')
   const [clienteDetalle, setClienteDetalle] = useState<{ cliente: ClienteStat; pedidos: ClientePedido[] } | null>(null)
+  const [clienteEditando, setClienteEditando] = useState<ClienteStat | null>(null)
+  const [clienteFormEdit, setClienteFormEdit] = useState({ nombre: '', cedula: '', telefono: '', fecha_cumpleanos: '', notas: '', advertencias: '' })
   const [cargandoClientes, setCargandoClientes] = useState(false)
+  const [importandoClientes, setImportandoClientes] = useState(false)
   const [ordenClientes, setOrdenClientes] = useState<'mayor_consumo' | 'menor_consumo' | 'az' | 'cumpleanos'>('mayor_consumo')
   const [filtroMesCumple, setFiltroMesCumple] = useState<number>(0) // 0 = todos los meses
 
@@ -404,6 +426,26 @@ export default function GerenciaPage() {
       if (ped.tipo === 'domi') totalDomis += sub
     })
     setResumenStats({ ventas: totalVentas, pedidos: (pedidos || []).length, utilidad: totalUtilidad, domis: totalDomis })
+
+    // Comparativa contra la misma ventana de dias de la semana anterior.
+    const diasPeriodo = diasEntreInclusive(desde, hasta)
+    const desdeAnterior = desplazarFechaISO(desde, -7)
+    const hastaAnterior = desplazarFechaISO(hasta, -7)
+    const { data: pedidosAnterior } = await supabase.from('pedidos')
+      .select('id, tipo, items:items_pedido(cantidad, precio_unitario, plato:platos(costo))')
+      .gte('created_at', `${desdeAnterior}T00:00:00`)
+      .lte('created_at', `${hastaAnterior}T23:59:59`)
+      .neq('estado', 'cancelado')
+    let ventasAnt = 0, utilidadAnt = 0, domisAnt = 0
+    ;(pedidosAnterior || []).forEach((p: unknown) => {
+      const ped = p as { tipo: string; items: { cantidad: number; precio_unitario: number; plato: { costo: number } }[] }
+      const sub = ped.items?.reduce((a, i) => a + i.cantidad * i.precio_unitario, 0) ?? 0
+      ventasAnt += sub
+      utilidadAnt += ped.items?.reduce((a, i) => a + i.cantidad * (i.precio_unitario - (i.plato?.costo || 0)), 0) ?? 0
+      if (ped.tipo === 'domi') domisAnt += sub
+    })
+    void diasPeriodo
+    setResumenStatsAnterior({ ventas: ventasAnt, pedidos: (pedidosAnterior || []).length, utilidad: utilidadAnt, domis: domisAnt })
 
     // Gráfico: por hora si es un solo día, por fecha si es rango
     if (esSoloDia) {
@@ -2243,35 +2285,152 @@ export default function GerenciaPage() {
   function exportarClientesCSV() {
     const lista = clientesFiltradosOrdenados
     if (lista.length === 0) { toast('No hay clientes para exportar'); return }
-    const encabezado = ['Nombre', 'Cédula', 'Teléfono', 'Cumpleaños', 'Visitas', 'Total gastado ($)', 'Última visita']
+    const encabezado = ['Nombre', 'Cedula', 'Telefono', 'Cumpleanos', 'Notas', 'Advertencias', 'Visitas', 'Total gastado ($)', 'Ultima visita']
     const filas = lista.map(c => [
       c.nombre,
       c.cedula || '',
       c.telefono || '',
-      c.fecha_cumpleanos
-        ? new Date(c.fecha_cumpleanos + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })
-        : '',
+      c.fecha_cumpleanos || '',
+      c.notas || '',
+      c.advertencias || '',
       String(c.pedidos),
       String(c.totalGastado),
       c.ultimaVisita
         ? new Date(c.ultimaVisita).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
         : '',
     ])
-    // Punto y coma como separador — Excel en español lo requiere así
-    const csv = [encabezado, ...filas].map(row => row.map(v => `"${v}"`).join(';')).join('\n')
-    // BOM para que Excel reconozca tildes y ñ correctamente
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const csv = [encabezado, ...filas].map(row => row.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(';')).join('\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `clientes_${new Date().toISOString().split('T')[0]}.csv`
+    a.download = 'clientes_' + new Date().toISOString().split('T')[0] + '.csv'
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-    toast.success(`${lista.length} clientes exportados ✓`)
+    toast.success(`${lista.length} clientes exportados`)
   }
 
+  function parseCSVClientes(texto: string) {
+    const sep = texto.includes(';') ? ';' : texto.includes('\t') ? '\t' : ','
+    const lineas = texto.replace(/^\uFEFF/, '').split(/\r?\n/).filter(l => l.trim())
+    if (lineas.length < 2) return []
+    const split = (linea: string) => {
+      const cols: string[] = []
+      let actual = '', comillas = false
+      for (let i = 0; i < linea.length; i++) {
+        const ch = linea[i]
+        if (ch === '"') { comillas = !comillas; continue }
+        if (ch === sep && !comillas) { cols.push(actual.trim()); actual = ''; continue }
+        actual += ch
+      }
+      cols.push(actual.trim())
+      return cols
+    }
+    const headers = split(lineas[0]).map(h => h.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
+    const idx = (nombres: string[]) => headers.findIndex(h => nombres.some(n => h.includes(n)))
+    const iNombre = idx(['nombre'])
+    const iCedula = idx(['cedula', 'documento'])
+    const iTelefono = idx(['telefono', 'celular'])
+    const iCumple = idx(['cumple', 'nacimiento'])
+    const iNotas = idx(['nota'])
+    const iAdv = idx(['advertencia', 'alerta'])
+    return lineas.slice(1).map(linea => {
+      const c = split(linea)
+      return {
+        nombre: iNombre >= 0 ? c[iNombre] || '' : '',
+        cedula: iCedula >= 0 ? c[iCedula] || '' : '',
+        telefono: iTelefono >= 0 ? c[iTelefono] || '' : '',
+        fecha_cumpleanos: iCumple >= 0 ? c[iCumple] || '' : '',
+        notas: iNotas >= 0 ? c[iNotas] || '' : '',
+        advertencias: iAdv >= 0 ? c[iAdv] || '' : '',
+      }
+    }).filter(c => c.nombre.trim())
+  }
+
+  async function importarClientesCSV(file: File | null) {
+    if (!file) return
+    setImportandoClientes(true)
+    try {
+      const texto = await file.text()
+      const filas = parseCSVClientes(texto)
+      if (filas.length === 0) { toast.error('El archivo no tiene clientes validos'); setImportandoClientes(false); return }
+      let creados = 0, actualizados = 0
+      for (const fila of filas) {
+        const ced = fila.cedula.trim() || null
+        const tel = fila.telefono.trim() || null
+        let existente: { id: string } | null = null
+        if (ced) {
+          const { data } = await supabase.from('clientes').select('id').eq('cedula', ced).maybeSingle()
+          existente = data
+        }
+        if (!existente && tel) {
+          const { data } = await supabase.from('clientes').select('id').eq('telefono', tel).maybeSingle()
+          existente = data
+        }
+        const payload = {
+          nombre: fila.nombre.trim(),
+          cedula: ced,
+          telefono: tel,
+          fecha_cumpleanos: fila.fecha_cumpleanos.trim() || null,
+          notas: fila.notas.trim() || null,
+          advertencias: fila.advertencias.trim() || null,
+          ...(negocioId ? { negocio_id: negocioId } : {}),
+        }
+        if (existente?.id) {
+          const { error } = await supabase.from('clientes').update(payload).eq('id', existente.id)
+          if (!error) actualizados++
+        } else {
+          const { error } = await supabase.from('clientes').insert(payload)
+          if (!error) creados++
+        }
+      }
+      toast.success(`Importados: ${creados} nuevos, ${actualizados} actualizados`)
+      await cargarClientes()
+    } catch (e) {
+      toast.error('Error al importar clientes: ' + String(e))
+    }
+    setImportandoClientes(false)
+  }
+
+  function abrirEditarCliente(cliente: ClienteStat) {
+    setClienteEditando(cliente)
+    setClienteFormEdit({
+      nombre: cliente.nombre || '',
+      cedula: cliente.cedula || '',
+      telefono: cliente.telefono || '',
+      fecha_cumpleanos: cliente.fecha_cumpleanos || '',
+      notas: cliente.notas || '',
+      advertencias: cliente.advertencias || '',
+    })
+  }
+
+  async function guardarClienteEditado() {
+    if (!clienteEditando || !clienteFormEdit.nombre.trim()) return
+    const { error } = await supabase.from('clientes').update({
+      nombre: clienteFormEdit.nombre.trim(),
+      cedula: clienteFormEdit.cedula.trim() || null,
+      telefono: clienteFormEdit.telefono.trim() || null,
+      fecha_cumpleanos: clienteFormEdit.fecha_cumpleanos || null,
+      notas: clienteFormEdit.notas.trim() || null,
+      advertencias: clienteFormEdit.advertencias.trim() || null,
+    }).eq('id', clienteEditando.id)
+    if (error) { toast.error('Error al guardar cliente'); return }
+    toast.success('Cliente actualizado')
+    setClienteEditando(null)
+    await cargarClientes()
+  }
+
+  async function eliminarCliente(cliente: ClienteStat) {
+    if (!confirm(`Eliminar cliente "${cliente.nombre}"? Sus pedidos quedan guardados, pero sin cliente vinculado.`)) return
+    await supabase.from('pedidos').update({ cliente_id: null }).eq('cliente_id', cliente.id)
+    const { error } = await supabase.from('clientes').delete().eq('id', cliente.id)
+    if (error) { toast.error('Error al borrar cliente'); return }
+    toast.success('Cliente eliminado')
+    setClienteDetalle(null)
+    await cargarClientes()
+  }
   // Zonas únicas derivadas de las mesas (orden alfabético, nulas al final)
   const zonasLista = [...new Set(mesas.map(m => m.zona || 'Sin zona'))].sort((a, b) =>
     a === 'Sin zona' ? 1 : b === 'Sin zona' ? -1 : a.localeCompare(b, 'es')
@@ -2877,15 +3036,24 @@ export default function GerenciaPage() {
             {/* KPIs */}
             <div className="grid grid-cols-2 gap-2">
               {[
-                { label: 'Ventas totales', valor: `$${resumenStats.ventas.toLocaleString('es-CO')}`, icon: <DollarSign size={18}/>, color: 'bg-emerald-500', glow: 'shadow-emerald-900/40' },
-                { label: 'Pedidos', valor: resumenStats.pedidos, icon: <ChefHat size={18}/>, color: 'bg-gray-500', glow: 'shadow-gray-900/30' },
-                { label: 'Utilidad', valor: `$${resumenStats.utilidad.toLocaleString('es-CO')}`, icon: <TrendingUp size={18}/>, color: 'bg-orange-500', glow: 'shadow-orange-900/30' },
-                { label: 'Domicilios', valor: `$${resumenStats.domis.toLocaleString('es-CO')}`, icon: <Bike size={18}/>, color: 'bg-gray-400', glow: 'shadow-gray-900/30' },
+                { label: 'Ventas totales', valor: `$${resumenStats.ventas.toLocaleString('es-CO')}`, actual: resumenStats.ventas, anterior: resumenStatsAnterior.ventas, icon: <DollarSign size={18}/>, color: 'bg-emerald-500', glow: 'shadow-emerald-900/40' },
+                { label: 'Pedidos', valor: resumenStats.pedidos, actual: resumenStats.pedidos, anterior: resumenStatsAnterior.pedidos, icon: <ChefHat size={18}/>, color: 'bg-gray-500', glow: 'shadow-gray-900/30' },
+                { label: 'Utilidad', valor: `$${resumenStats.utilidad.toLocaleString('es-CO')}`, actual: resumenStats.utilidad, anterior: resumenStatsAnterior.utilidad, icon: <TrendingUp size={18}/>, color: 'bg-orange-500', glow: 'shadow-orange-900/30' },
+                { label: 'Domicilios', valor: `$${resumenStats.domis.toLocaleString('es-CO')}`, actual: resumenStats.domis, anterior: resumenStatsAnterior.domis, icon: <Bike size={18}/>, color: 'bg-gray-400', glow: 'shadow-gray-900/30' },
               ].map(s => (
                 <div key={s.label} className="bg-white rounded-2xl p-3 border border-gray-200 shadow-sm text-center hover:bg-gray-50 transition-all">
                   <div className={`${s.color} shadow-lg ${s.glow} w-9 h-9 rounded-xl flex items-center justify-center text-white mx-auto mb-2`}>{s.icon}</div>
                   <p className="text-lg font-black text-gray-900 leading-tight">{s.valor}</p>
                   <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+                  {(() => {
+                    const pct = porcentajeCambio(s.actual, s.anterior)
+                    const positivo = pct >= 0
+                    return (
+                      <p className={`text-[11px] font-black mt-1 ${positivo ? 'text-emerald-600' : 'text-red-500'}`}>
+                        {positivo ? '+' : ''}{pct}% vs semana anterior
+                      </p>
+                    )
+                  })()}
                 </div>
               ))}
             </div>
@@ -3195,6 +3363,11 @@ export default function GerenciaPage() {
                 className="flex items-center gap-1.5 bg-emerald-600/80 hover:bg-emerald-600 text-white font-bold px-3 py-2.5 rounded-xl text-sm whitespace-nowrap shadow-lg shadow-emerald-900/30 transition-all">
                 <Download size={15} /> Excel
               </button>
+              <label className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white font-bold px-3 py-2.5 rounded-xl text-sm whitespace-nowrap shadow-lg shadow-orange-900/20 transition-all cursor-pointer">
+                <Upload size={15} /> {importandoClientes ? 'Importando...' : 'Importar'}
+                <input type="file" accept=".csv,.txt" className="hidden"
+                  onChange={e => { importarClientesCSV(e.target.files?.[0] || null); e.currentTarget.value = '' }} />
+              </label>
             </div>
 
             {/* Filtros */}
@@ -3339,6 +3512,32 @@ export default function GerenciaPage() {
                         </div>
                       )}
                     </div>
+                    {(clienteDetalle.cliente.advertencias || clienteDetalle.cliente.notas) && (
+                      <div className="space-y-2">
+                        {clienteDetalle.cliente.advertencias && (
+                          <div className="bg-red-500/12 border border-red-500/25 rounded-2xl p-4">
+                            <p className="text-xs font-black text-red-300 uppercase tracking-wider mb-1">Advertencia</p>
+                            <p className="text-sm text-red-50 whitespace-pre-wrap">{clienteDetalle.cliente.advertencias}</p>
+                          </div>
+                        )}
+                        {clienteDetalle.cliente.notas && (
+                          <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                            <p className="text-xs font-black text-white/40 uppercase tracking-wider mb-1">Notas</p>
+                            <p className="text-sm text-white/80 whitespace-pre-wrap">{clienteDetalle.cliente.notas}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button onClick={() => abrirEditarCliente(clienteDetalle.cliente)}
+                        className="bg-white/8 hover:bg-white/12 border border-white/10 text-white font-bold rounded-xl py-2 text-sm">
+                        Editar cliente
+                      </button>
+                      <button onClick={() => eliminarCliente(clienteDetalle.cliente)}
+                        className="bg-red-500/15 hover:bg-red-500/20 border border-red-500/25 text-red-200 font-bold rounded-xl py-2 text-sm">
+                        Borrar cliente
+                      </button>
+                    </div>
                     {/* Platos favoritos */}
                     {clienteDetalle.pedidos.length > 0 && (() => {
                       const conteo: Record<string, number> = {}
@@ -3400,6 +3599,35 @@ export default function GerenciaPage() {
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {clienteEditando && (
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-end md:items-center justify-center p-0 md:p-4">
+                <div className="bg-white w-full md:max-w-lg md:rounded-3xl rounded-t-3xl max-h-[90vh] overflow-y-auto p-5 space-y-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h2 className="text-lg font-black text-gray-900">Editar cliente</h2>
+                    <button onClick={() => setClienteEditando(null)} className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center"><X size={18} /></button>
+                  </div>
+                  <input value={clienteFormEdit.nombre} onChange={e => setClienteFormEdit(p => ({ ...p, nombre: e.target.value }))}
+                    placeholder="Nombre" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input value={clienteFormEdit.cedula} onChange={e => setClienteFormEdit(p => ({ ...p, cedula: e.target.value }))}
+                      placeholder="Cedula" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900" />
+                    <input value={clienteFormEdit.telefono} onChange={e => setClienteFormEdit(p => ({ ...p, telefono: e.target.value }))}
+                      placeholder="Telefono" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900" />
+                  </div>
+                  <input type="date" value={clienteFormEdit.fecha_cumpleanos} onChange={e => setClienteFormEdit(p => ({ ...p, fecha_cumpleanos: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900" />
+                  <textarea value={clienteFormEdit.notas} onChange={e => setClienteFormEdit(p => ({ ...p, notas: e.target.value }))}
+                    placeholder="Notas internas del cliente" rows={3} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 resize-none" />
+                  <textarea value={clienteFormEdit.advertencias} onChange={e => setClienteFormEdit(p => ({ ...p, advertencias: e.target.value }))}
+                    placeholder="Advertencias importantes" rows={3} className="w-full border border-red-200 bg-red-50 rounded-xl px-3 py-2.5 text-sm text-gray-900 resize-none" />
+                  <button onClick={guardarClienteEditado}
+                    className="w-full bg-orange-500 hover:bg-orange-600 text-white font-black rounded-2xl py-3">
+                    Guardar cambios
+                  </button>
                 </div>
               </div>
             )}

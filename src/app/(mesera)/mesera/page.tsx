@@ -64,6 +64,23 @@ export default function MeseraPage() {
 
   const supabase = createClient()
 
+  async function buscarClienteDomi(valor: string, campo: 'cedula' | 'telefono') {
+    const limpio = valor.trim()
+    if (limpio.replace(/\D/g, '').length < (campo === 'cedula' ? 5 : 7)) return
+    let q = supabase.from('clientes').select('id, nombre, telefono, cedula').eq(campo, limpio)
+    if (negocioId) q = q.eq('negocio_id', negocioId)
+    const { data } = await q.maybeSingle()
+    if (data) {
+      setDomiCliente(p => ({
+        ...p,
+        nombre: data.nombre || p.nombre,
+        telefono: data.telefono || p.telefono,
+        cedula: data.cedula || p.cedula,
+      }))
+      toast.success(`Cliente encontrado: ${data.nombre}`)
+    }
+  }
+
   const cargarDatos = useCallback(async () => {
     const [{ data: mesasData }, { data: catData }, { data: platosData }, { data: invData }, { data: turnoData }, { data: modsData }] = await Promise.all([
       supabase.from('mesas').select('*').order('numero'),
@@ -355,6 +372,25 @@ export default function MeseraPage() {
       return
     }
 
+    let clienteDomiId: string | null = null
+    if (modoDomi && (domiCliente.cedula.trim() || domiCliente.telefono.trim())) {
+      const campo = domiCliente.cedula.trim() ? 'cedula' : 'telefono'
+      const valor = domiCliente.cedula.trim() || domiCliente.telefono.trim()
+      let q = supabase.from('clientes').select('id').eq(campo, valor).maybeSingle()
+      if (myNegocioId) q = q.eq('negocio_id', myNegocioId)
+      const { data: cl } = await q
+      if (cl?.id) clienteDomiId = cl.id
+      else {
+        const { data: nuevo } = await supabase.from('clientes').insert({
+          nombre: domiCliente.nombre.trim(),
+          cedula: domiCliente.cedula.trim() || null,
+          telefono: domiCliente.telefono.trim() || null,
+          ...(myNegocioId ? { negocio_id: myNegocioId } : {}),
+        }).select('id').single()
+        clienteDomiId = nuevo?.id || null
+      }
+    }
+
     async function insertarItemsPedido(pedidoId: string) {
       for (const item of carrito) {
         const { data: itemCreado, error: itemError } = await supabase
@@ -397,6 +433,7 @@ export default function MeseraPage() {
           turno_id: turno.id,
           tipo: modoDomi ? 'domi' : 'mesera',
           notas: notaGeneral || null,
+          cliente_id: modoDomi ? clienteDomiId : null,
           cliente_nombre: modoDomi ? domiCliente.nombre.trim() : null,
           cliente_cedula: modoDomi && domiCliente.cedula ? domiCliente.cedula.trim() : null,
           cliente_telefono: modoDomi && domiCliente.telefono ? domiCliente.telefono.trim() : null,
@@ -902,9 +939,11 @@ export default function MeseraPage() {
               className="w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
             <input type="text" placeholder="Cédula (opcional)" value={domiCliente.cedula}
               onChange={e => setDomiCliente(p => ({ ...p, cedula: e.target.value }))}
+              onBlur={e => buscarClienteDomi(e.target.value, 'cedula')}
               className="w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
             <input type="tel" placeholder="Teléfono / Celular" value={domiCliente.telefono}
               onChange={e => setDomiCliente(p => ({ ...p, telefono: e.target.value }))}
+              onBlur={e => buscarClienteDomi(e.target.value, 'telefono')}
               className="w-full text-sm bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/50" />
             <input type="text" placeholder="Dirección de entrega" value={domiCliente.direccion}
               onChange={e => setDomiCliente(p => ({ ...p, direccion: e.target.value }))}
