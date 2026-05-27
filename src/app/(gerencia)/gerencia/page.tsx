@@ -1921,12 +1921,63 @@ export default function GerenciaPage() {
     toast.success('Plato eliminado'); cargarCarta()
   }
 
+  async function ajustarInventarioPlato(platoId: string | null | undefined, delta: number) {
+    if (!platoId || delta === 0) return
+    const { data } = await supabase
+      .from('inventario')
+      .select('cantidad_disponible, alerta_minima')
+      .eq('plato_id', platoId)
+      .maybeSingle()
+    if (!data) return
+    const inv = data as { cantidad_disponible: number; alerta_minima: number }
+    await supabase
+      .from('inventario')
+      .update({
+        cantidad_disponible: Math.max(0, inv.cantidad_disponible + delta),
+        alerta_minima: inv.alerta_minima,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('plato_id', platoId)
+  }
+
+  async function ajustarInventarioItemPedido(itemId: string, direccion: 'restaurar' | 'descontar') {
+    const signo = direccion === 'restaurar' ? 1 : -1
+    const { data: item } = await supabase
+      .from('items_pedido')
+      .select('plato_id, cantidad')
+      .eq('id', itemId)
+      .maybeSingle()
+    if (!item) return null
+    const base = item as { plato_id: string | null; cantidad: number }
+    await ajustarInventarioPlato(base.plato_id, signo * base.cantidad)
+
+    const { data: mods } = await supabase
+      .from('items_pedido_modificadores')
+      .select('cantidad_descontada, descuenta_inventario, opcion:opciones_modificador(componente_plato_id)')
+      .eq('item_pedido_id', itemId)
+    for (const mod of (mods || []) as unknown as {
+      cantidad_descontada: number
+      descuenta_inventario: boolean
+      opcion: { componente_plato_id: string | null } | null
+    }[]) {
+      if (!mod.descuenta_inventario || !mod.opcion?.componente_plato_id || mod.cantidad_descontada <= 0) continue
+      await ajustarInventarioPlato(mod.opcion.componente_plato_id, signo * mod.cantidad_descontada * base.cantidad)
+    }
+    return base
+  }
+
   // ── CANCELAR / REEMPLAZAR ÍTEM ────────────────────────────────
   async function cancelarItem(itemId: string) {
     if (!confirm('¿Cancelar este plato del pedido? Se eliminará de cocina también.')) return
     setGuardandoEdicion(true)
+    await ajustarInventarioItemPedido(itemId, 'restaurar')
     const { error } = await supabase.from('items_pedido').delete().eq('id', itemId)
-    if (error) { toast.error('Error al cancelar plato'); setGuardandoEdicion(false); return }
+    if (error) {
+      await ajustarInventarioItemPedido(itemId, 'descontar')
+      toast.error('Error al cancelar plato')
+      setGuardandoEdicion(false)
+      return
+    }
     setMesaDetalle(prev => prev
       ? { ...prev, pedido: { ...prev.pedido, items: prev.pedido.items.filter(i => i.id !== itemId) } }
       : null)
@@ -1938,10 +1989,18 @@ export default function GerenciaPage() {
     const plato = platos.find(p => p.id === nuevoPlatoId)
     if (!plato) return
     setGuardandoEdicion(true)
+    await ajustarInventarioItemPedido(itemId, 'restaurar')
     const { error } = await supabase.from('items_pedido')
       .update({ plato_id: nuevoPlatoId, precio_unitario: plato.precio, estado: 'pendiente' })
       .eq('id', itemId)
-    if (error) { toast.error('Error al reemplazar plato'); setGuardandoEdicion(false); return }
+    if (error) {
+      await ajustarInventarioItemPedido(itemId, 'descontar')
+      toast.error('Error al reemplazar plato')
+      setGuardandoEdicion(false)
+      return
+    }
+    await supabase.from('items_pedido_modificadores').delete().eq('item_pedido_id', itemId)
+    await ajustarInventarioPlato(nuevoPlatoId, -(itemAnterior?.cantidad ?? 1))
     setMesaDetalle(prev => {
       if (!prev) return null
       return { ...prev, pedido: { ...prev.pedido, items: prev.pedido.items.map(i =>
@@ -3905,7 +3964,7 @@ export default function GerenciaPage() {
                   <button
                     onClick={() => { setModoEdicionPedido(v => !v); setItemReemplazando(null) }}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${modoEdicionPedido ? 'bg-[#FF7A00] text-white shadow-sm shadow-orange-200' : 'bg-orange-50 text-[#FF7A00] border border-orange-200 hover:bg-orange-100'}`}>
-                    {modoEdicionPedido ? '✓ Listo' : '✏️ Editar'}
+                    {modoEdicionPedido ? '✓ Listo' : 'Cancelar/cambiar'}
                   </button>
                 )}
                 <button onClick={() => { setMesaDetalle(null); setVistaModal('pago'); setModoEdicionPedido(false); setItemReemplazando(null) }} className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"><X size={18} className="text-gray-500" /></button>
