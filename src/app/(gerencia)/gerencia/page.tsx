@@ -1971,20 +1971,23 @@ export default function GerenciaPage() {
 
   // ── CANCELAR / REEMPLAZAR ÍTEM ────────────────────────────────
   async function cancelarItem(itemId: string) {
-    if (!confirm('¿Cancelar este plato del pedido? Se eliminará de cocina también.')) return
+    if (!confirm('Eliminar solo este plato de la cuenta? El pedido seguira abierto y se devolvera al inventario.')) return
     setGuardandoEdicion(true)
     await ajustarInventarioItemPedido(itemId, 'restaurar')
     const { error } = await supabase.from('items_pedido').delete().eq('id', itemId)
     if (error) {
       await ajustarInventarioItemPedido(itemId, 'descontar')
-      toast.error('Error al cancelar plato')
+      toast.error('Error al eliminar plato')
       setGuardandoEdicion(false)
       return
     }
     setMesaDetalle(prev => prev
       ? { ...prev, pedido: { ...prev.pedido, items: prev.pedido.items.filter(i => i.id !== itemId) } }
       : null)
-    toast.success('Plato cancelado ✓')
+    toast.success('Plato eliminado de la cuenta e inventario restaurado')
+    await cargarDatos()
+    await cargarMesas()
+    await cargarInventarioModal()
     setGuardandoEdicion(false)
   }
 
@@ -4064,13 +4067,11 @@ export default function GerenciaPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {!mesaDetalle.isDomi && (
-                  <button
-                    onClick={() => { setModoEdicionPedido(v => !v); setItemReemplazando(null) }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${modoEdicionPedido ? 'bg-[#FF7A00] text-white shadow-sm shadow-orange-200' : 'bg-orange-50 text-[#FF7A00] border border-orange-200 hover:bg-orange-100'}`}>
-                    {modoEdicionPedido ? '✓ Listo' : 'Cancelar/cambiar'}
-                  </button>
-                )}
+                <button
+                  onClick={() => { setModoEdicionPedido(v => !v); setItemReemplazando(null) }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${modoEdicionPedido ? 'bg-[#FF7A00] text-white shadow-sm shadow-orange-200' : 'bg-orange-50 text-[#FF7A00] border border-orange-200 hover:bg-orange-100'}`}>
+                  {modoEdicionPedido ? '✓ Listo' : 'Eliminar/cambiar'}
+                </button>
                 <button onClick={() => { setMesaDetalle(null); setVistaModal('pago'); setModoEdicionPedido(false); setItemReemplazando(null) }} className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"><X size={18} className="text-gray-500" /></button>
               </div>
             </div>
@@ -4116,7 +4117,7 @@ export default function GerenciaPage() {
                             onClick={() => cancelarItem(item.id!)}
                             disabled={guardandoEdicion}
                             className="flex items-center gap-1 text-xs bg-red-50 hover:bg-red-100 text-red-600 font-bold px-2.5 py-1 rounded-lg border border-red-200 transition-colors disabled:opacity-50">
-                            <X size={11} /> Cancelar
+                            <X size={11} /> Eliminar plato
                           </button>
                           <button
                             onClick={() => { setItemReemplazando({ id: item.id!, nombre: item.nombre }); setCategoriaReemplazo('todas') }}
