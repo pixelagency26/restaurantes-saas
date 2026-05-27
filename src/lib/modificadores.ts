@@ -52,7 +52,8 @@ export function seleccionInicial(plato: Plato): SeleccionModificadores {
       return
     }
     if (grupo.tiene_opcion_todos) {
-      seleccion[grupo.id] = new Set(grupo.opciones.filter(o => !o.es_opcion_no_aplica).map(o => o.id))
+      const ids = grupo.opciones.filter(o => !o.es_opcion_no_aplica).map(o => o.id)
+      seleccion[grupo.id] = new Set(grupo.max_selecciones ? ids.slice(0, grupo.max_selecciones) : ids)
       return
     }
     seleccion[grupo.id] = new Set()

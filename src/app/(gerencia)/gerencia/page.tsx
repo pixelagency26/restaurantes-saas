@@ -314,7 +314,7 @@ export default function GerenciaPage() {
   const [nuevaOpcionNombre, setNuevaOpcionNombre] = useState('')
   const [guardandoOpcion, setGuardandoOpcion] = useState(false)
   const [gruposMod, setGruposMod] = useState<GrupoModificador[]>([])
-  const [nuevoGrupoMod, setNuevoGrupoMod] = useState({ nombre: '', tipo: 'radio' as 'radio' | 'checkbox', tiene_opcion_todos: false })
+  const [nuevoGrupoMod, setNuevoGrupoMod] = useState({ nombre: '', tipo: 'radio' as 'radio' | 'checkbox', tiene_opcion_todos: false, max_selecciones: '' })
   const [nuevasOpcionesMod, setNuevasOpcionesMod] = useState<Record<string, { nombre: string; componente_plato_id: string; no_aplica: boolean }>>({})
 
   const supabase = createClient()
@@ -1792,7 +1792,7 @@ export default function GerenciaPage() {
   function abrirNuevoPlato() {
     setPlatoForm({ ...PLATO_VACIO, categoria_id: categorias[0]?.id || 0 })
     setPlatoOpciones([]); setNuevaOpcionNombre('')
-    setGruposMod([]); setNuevoGrupoMod({ nombre: '', tipo: 'radio', tiene_opcion_todos: false }); setNuevasOpcionesMod({})
+    setGruposMod([]); setNuevoGrupoMod({ nombre: '', tipo: 'radio', tiene_opcion_todos: false, max_selecciones: '' }); setNuevasOpcionesMod({})
     setPlatoEditandoId(null); setModalPlato('nuevo')
   }
   function abrirEditarPlato(plato: Plato) {
@@ -1803,7 +1803,7 @@ export default function GerenciaPage() {
       controla_inventario: plato.controla_inventario ?? true,
     })
     setNuevaOpcionNombre('')
-    setNuevoGrupoMod({ nombre: '', tipo: 'radio', tiene_opcion_todos: false }); setNuevasOpcionesMod({})
+    setNuevoGrupoMod({ nombre: '', tipo: 'radio', tiene_opcion_todos: false, max_selecciones: '' }); setNuevasOpcionesMod({})
     setPlatoEditandoId(plato.id); setModalPlato('editar')
     cargarOpcionesPlato(plato.id)
     cargarModificadoresPlato(plato.id)
@@ -1905,13 +1905,13 @@ export default function GerenciaPage() {
       nombre,
       tipo: nuevoGrupoMod.tipo,
       min_selecciones: nuevoGrupoMod.tipo === 'radio' ? 1 : 0,
-      max_selecciones: nuevoGrupoMod.tipo === 'radio' ? 1 : null,
+      max_selecciones: nuevoGrupoMod.tipo === 'radio' ? 1 : (nuevoGrupoMod.max_selecciones ? Math.max(1, parseInt(nuevoGrupoMod.max_selecciones) || 1) : null),
       obligatorio: nuevoGrupoMod.tipo === 'radio',
       tiene_opcion_todos: nuevoGrupoMod.tipo === 'checkbox' && nuevoGrupoMod.tiene_opcion_todos,
       orden: gruposMod.length,
     })
     if (error) { toast.error('Error al crear grupo: ' + error.message); return }
-    setNuevoGrupoMod({ nombre: '', tipo: 'radio', tiene_opcion_todos: false })
+    setNuevoGrupoMod({ nombre: '', tipo: 'radio', tiene_opcion_todos: false, max_selecciones: '' })
     await cargarModificadoresPlato(platoEditandoId)
   }
 
@@ -1921,6 +1921,13 @@ export default function GerenciaPage() {
     const { error } = await supabase.from('grupos_modificadores').delete().eq('id', grupoId)
     if (error) toast.error('Error al eliminar grupo: ' + error.message)
     else await cargarModificadoresPlato(platoEditandoId)
+  }
+
+  async function actualizarGrupoModificador(grupoId: string, cambios: Partial<Pick<GrupoModificador, 'max_selecciones' | 'tiene_opcion_todos'>>) {
+    if (!platoEditandoId) return
+    const { error } = await supabase.from('grupos_modificadores').update(cambios).eq('id', grupoId)
+    if (error) { toast.error('Error al actualizar grupo: ' + error.message); return }
+    await cargarModificadoresPlato(platoEditandoId)
   }
 
   async function agregarOpcionModificador(grupo: GrupoModificador, opcionRapida?: { nombre: string; componente_plato_id: string | null; no_aplica: boolean }) {
@@ -4758,7 +4765,7 @@ export default function GerenciaPage() {
                     <div className="grid grid-cols-2 gap-2">
                       <select
                         value={nuevoGrupoMod.tipo}
-                        onChange={e => setNuevoGrupoMod(p => ({ ...p, tipo: e.target.value as 'radio' | 'checkbox', tiene_opcion_todos: e.target.value === 'checkbox' ? p.tiene_opcion_todos : false }))}
+                        onChange={e => setNuevoGrupoMod(p => ({ ...p, tipo: e.target.value as 'radio' | 'checkbox', tiene_opcion_todos: e.target.value === 'checkbox' ? p.tiene_opcion_todos : false, max_selecciones: e.target.value === 'checkbox' ? p.max_selecciones : '' }))}
                         className="bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40">
                         <option value="radio">Una opci?n</option>
                         <option value="checkbox">Varias opciones</option>
@@ -4768,10 +4775,23 @@ export default function GerenciaPage() {
                       </button>
                     </div>
                     {nuevoGrupoMod.tipo === 'checkbox' && (
-                      <label className="flex items-center gap-2 text-xs text-gray-700">
-                        <input type="checkbox" checked={nuevoGrupoMod.tiene_opcion_todos} onChange={e => setNuevoGrupoMod(p => ({ ...p, tiene_opcion_todos: e.target.checked }))} />
-                        Mostrar opci?n r?pida ?Todos los acompa?antes?
-                      </label>
+                      <div className="space-y-2">
+                        <label className="block text-xs text-gray-500 font-bold">
+                          Maximo de complementos de esta base
+                          <input
+                            type="number"
+                            min={1}
+                            value={nuevoGrupoMod.max_selecciones}
+                            onChange={e => setNuevoGrupoMod(p => ({ ...p, max_selecciones: e.target.value }))}
+                            placeholder="Sin limite"
+                            className="mt-1 w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                          />
+                        </label>
+                        <label className="flex items-center gap-2 text-xs text-gray-700">
+                          <input type="checkbox" checked={nuevoGrupoMod.tiene_opcion_todos} onChange={e => setNuevoGrupoMod(p => ({ ...p, tiene_opcion_todos: e.target.checked }))} />
+                          Mostrar opci?n r?pida ?Todos los acompa?antes?
+                        </label>
+                      </div>
                     )}
                   </div>
 
@@ -4787,12 +4807,38 @@ export default function GerenciaPage() {
                             <div className="flex items-center justify-between gap-2">
                               <div>
                                 <p className="text-sm font-bold text-gray-900">{grupo.nombre}</p>
-                                <p className="text-[11px] text-gray-500">{grupo.tipo === 'radio' ? 'Una opci?n' : 'Varias opciones'}{grupo.tiene_opcion_todos ? ' ? Todos disponible' : ''}</p>
+                                <p className="text-[11px] text-gray-500">
+                                  {grupo.tipo === 'radio' ? 'Una opci?n' : `Hasta ${grupo.max_selecciones || 'sin limite'} complemento(s)`}
+                                  {grupo.tiene_opcion_todos ? ' ? Todos disponible' : ''}
+                                </p>
                               </div>
                               <button onClick={() => eliminarGrupoModificador(grupo.id)} className="w-8 h-8 bg-red-50 hover:bg-red-100 rounded-lg flex items-center justify-center border border-red-100">
                                 <Trash2 size={14} className="text-red-500" />
                               </button>
                             </div>
+                            {grupo.tipo === 'checkbox' && (
+                              <div className="grid grid-cols-2 gap-2">
+                                <label className="text-[11px] text-gray-500 font-bold">
+                                  Maximo seleccionable
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={grupo.max_selecciones ?? ''}
+                                    onChange={e => actualizarGrupoModificador(grupo.id, { max_selecciones: e.target.value ? Math.max(1, parseInt(e.target.value) || 1) : null })}
+                                    placeholder="Sin limite"
+                                    className="mt-1 w-full bg-gray-50 border border-gray-300 rounded-lg px-2 py-1.5 text-gray-900 placeholder-gray-400 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+                                  />
+                                </label>
+                                <label className="text-[11px] text-gray-500 font-bold flex items-center gap-2 pt-5">
+                                  <input
+                                    type="checkbox"
+                                    checked={grupo.tiene_opcion_todos}
+                                    onChange={e => actualizarGrupoModificador(grupo.id, { tiene_opcion_todos: e.target.checked })}
+                                  />
+                                  Boton todos
+                                </label>
+                              </div>
+                            )}
 
                             <div className="space-y-1.5">
                               {grupo.opciones.map(opcion => (

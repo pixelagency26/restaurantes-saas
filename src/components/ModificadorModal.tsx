@@ -46,12 +46,21 @@ export default function ModificadorModal({
           const seleccionGrupo = seleccion[grupo.id] || new Set<string>()
           const opcionesActivas = grupo.opciones.filter(o => !o.es_opcion_no_aplica)
           const todos = opcionesActivas.length > 0 && opcionesActivas.every(o => seleccionGrupo.has(o.id))
+          const max = grupo.max_selecciones ?? null
           return (
             <div key={grupo.id} className="space-y-2">
-              <p className="text-sm font-black text-gray-900">{grupo.nombre}</p>
+              <div>
+                <p className="text-sm font-black text-gray-900">{grupo.nombre}</p>
+                {grupo.tipo === 'checkbox' && max && <p className="text-[11px] text-gray-500">Escoge maximo {max}</p>}
+              </div>
               {grupo.tipo === 'checkbox' && grupo.tiene_opcion_todos && (
                 <button
-                  onClick={() => setSeleccion(prev => ({ ...prev, [grupo.id]: new Set(todos ? [] : opcionesActivas.map(o => o.id)) }))}
+                  onClick={() => setSeleccion(prev => {
+                    if (todos) return { ...prev, [grupo.id]: new Set() }
+                    const ids = opcionesActivas.map(o => o.id)
+                    if (max && ids.length > max) toast(`Este grupo permite maximo ${max}`)
+                    return { ...prev, [grupo.id]: new Set(max ? ids.slice(0, max) : ids) }
+                  })}
                   className={`w-full text-left rounded-xl px-3 py-2.5 text-sm font-bold border transition-colors ${todos ? 'bg-orange-50 border-orange-300 text-gray-900' : 'bg-gray-50 border-gray-200 text-gray-700'}`}>
                   {todos ? '✓ ' : ''}Todos los acompañantes
                 </button>
@@ -69,6 +78,10 @@ export default function ModificadorModal({
                         if (opcion.es_opcion_no_aplica) return { ...prev, [grupo.id]: new Set([opcion.id]) }
                         if (checked) next.delete(opcion.id)
                         else {
+                          if (max && next.size >= max) {
+                            toast(`Solo puedes escoger ${max} en ${grupo.nombre}`)
+                            return prev
+                          }
                           if (opcionNoAplica) next.delete(opcionNoAplica.id)
                           next.add(opcion.id)
                         }
