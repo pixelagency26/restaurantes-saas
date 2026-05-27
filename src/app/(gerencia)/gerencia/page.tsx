@@ -83,6 +83,17 @@ type MetodoPago = 'efectivo' | 'nequi' | 'daviplata' | 'bancolombia'
 type Seccion = 'mesas' | 'carta' | 'resumen' | 'tiempos' | 'caja' | 'usuarios' | 'clientes' | 'permisos' | 'reservas' | 'marketing'
 type RangoResumen = 'hoy' | 'semana' | 'mes' | 'personalizado'
 
+const GUIA_GERENCIA: { seccion: Seccion; titulo: string; texto: string; accion: string; planReq: 'starter' | 'basico' | 'pro' }[] = [
+  { seccion: 'mesas', titulo: 'Mesas y pedidos', texto: 'Aqui ves mesas ocupadas, domicilios pendientes y puedes cobrar, editar cuentas o tomar pedidos desde gerencia.', accion: 'Revisa una mesa o crea un pedido nuevo cuando haya turno abierto.', planReq: 'starter' },
+  { seccion: 'carta', titulo: 'Carta e inventario', texto: 'Aqui administras platos, precios, fotos, categorias y complementos inventariables.', accion: 'Crea o edita platos antes de abrir el turno.', planReq: 'starter' },
+  { seccion: 'resumen', titulo: 'Informes', texto: 'Aqui ves ventas, pedidos, utilidad, metodos de pago y comparativas contra la semana anterior.', accion: 'Cambia el rango para revisar hoy, semana, mes o fechas exactas.', planReq: 'basico' },
+  { seccion: 'tiempos', titulo: 'Tiempos', texto: 'Aqui miras demoras por plato, cocinero y mesera para detectar cuellos de botella.', accion: 'Usalo al final del dia para mejorar cocina y servicio.', planReq: 'pro' },
+  { seccion: 'clientes', titulo: 'Clientes', texto: 'Aqui consultas clientes, historial, gasto, cumpleanos, notas y advertencias.', accion: 'Importa o edita clientes para que el sistema los autocomplete al pedir.', planReq: 'basico' },
+  { seccion: 'reservas', titulo: 'Reservas', texto: 'Aqui aparecen las solicitudes que llegan desde la pagina publica.', accion: 'Confirma o cancela reservas para mantener el salon organizado.', planReq: 'basico' },
+  { seccion: 'marketing', titulo: 'Marketing', texto: 'Aqui configuras sugeridos, promociones visuales y herramientas para vender mas.', accion: 'Activa el sugerido del mes cuando quieras empujar un plato.', planReq: 'pro' },
+  { seccion: 'caja', titulo: 'Caja y turno', texto: 'Aqui abres turno, cargas inventario inicial, registras movimientos y cierras caja.', accion: 'Abre turno con inventario para que todos vean disponibilidad en tiempo real.', planReq: 'starter' },
+]
+
 const METODOS: { id: MetodoPago; label: string; color: string; emoji: string }[] = [
   { id: 'efectivo',    label: 'Efectivo',    color: 'bg-green-500',  emoji: '💵' },
   { id: 'nequi',       label: 'Nequi',       color: 'bg-gray-600', emoji: '💜' },
@@ -117,6 +128,9 @@ function porcentajeCambio(actual: number, anterior: number) {
 
 export default function GerenciaPage() {
   const [seccion, setSeccion] = useState<Seccion>('mesas')
+  const [preguntarGuia, setPreguntarGuia] = useState(false)
+  const [guiaActiva, setGuiaActiva] = useState(false)
+  const [guiaPaso, setGuiaPaso] = useState(0)
   const [turnoActivo, setTurnoActivo] = useState<{ id: string; abierto_en: string; monto_inicial: number } | null>(null)
   const [stats, setStats] = useState({ ventas: 0, pedidos: 0, utilidad: 0 })
   const [platosTop, setPlatosTop] = useState<PlatoStat[]>([])
@@ -609,6 +623,27 @@ export default function GerenciaPage() {
   }
   function puedeAcceder(planReq: 'starter' | 'basico' | 'pro') {
     return (PLAN_NIVEL[negocioPlan] ?? 0) >= (PLAN_NIVEL[planReq] ?? 0)
+  }
+  const pasosGuia = GUIA_GERENCIA.filter(p => puedeAcceder(p.planReq))
+  const pasoGuiaActual = pasosGuia[guiaPaso] || pasosGuia[0]
+  function iniciarGuia() {
+    if (typeof window !== 'undefined') localStorage.setItem('gerencia_guia_v1', 'started')
+    setPreguntarGuia(false)
+    setGuiaPaso(0)
+    setGuiaActiva(true)
+    const primero = pasosGuia[0]
+    if (primero) setSeccion(primero.seccion)
+  }
+  function cerrarGuia() {
+    if (typeof window !== 'undefined') localStorage.setItem('gerencia_guia_v1', 'done')
+    setPreguntarGuia(false)
+    setGuiaActiva(false)
+  }
+  function avanzarGuia() {
+    const siguiente = guiaPaso + 1
+    if (siguiente >= pasosGuia.length) { cerrarGuia(); return }
+    setGuiaPaso(siguiente)
+    setSeccion(pasosGuia[siguiente].seccion)
   }
   function abrirUpgrade() {
     setModalSettings(true); setSeccionSettings('facturacion'); cargarFacturacion()
@@ -1114,6 +1149,11 @@ export default function GerenciaPage() {
   // Mantener refs sincronizados (para callbacks de realtime que no pueden leer estado fresco)
   useEffect(() => { modalNuevoPedidoRef.current = modalNuevoPedido }, [modalNuevoPedido])
   useEffect(() => { turnoActivoIdRef.current = turnoActivo?.id ?? null }, [turnoActivo])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!localStorage.getItem('gerencia_guia_v1')) setPreguntarGuia(true)
+  }, [])
 
   // Refrescar inventarioModalMap sin depender del estado cerrado (usa refs para evitar stale closure)
   const cargarInventarioModal = useCallback(async () => {
@@ -2456,6 +2496,58 @@ export default function GerenciaPage() {
 
   return (
     <div className="min-h-screen bg-[#FAFAFA]">
+      {preguntarGuia && (
+        <div className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm flex items-end md:items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border border-orange-100">
+            <div className="w-12 h-12 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center font-black text-xl mb-4">?</div>
+            <h2 className="text-xl font-black text-gray-900">Quieres una guia rapida?</h2>
+            <p className="text-sm text-gray-500 leading-relaxed mt-2">
+              Te muestro para que sirve cada panel y que deberias hacer primero. Toma menos de un minuto.
+            </p>
+            <div className="grid grid-cols-2 gap-2 mt-6">
+              <button onClick={cerrarGuia}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-2xl py-3 text-sm">
+                Ahora no
+              </button>
+              <button onClick={iniciarGuia}
+                className="bg-orange-500 hover:bg-orange-600 text-white font-black rounded-2xl py-3 text-sm shadow-lg shadow-orange-200">
+                Si, guiame
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {guiaActiva && pasoGuiaActual && (
+        <div className="fixed inset-x-0 bottom-0 z-[75] p-4 pointer-events-none">
+          <div className="max-w-lg mx-auto bg-gray-950 text-white rounded-3xl p-5 shadow-2xl border border-white/10 pointer-events-auto">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-black text-orange-300 uppercase tracking-widest">
+                  Guia {guiaPaso + 1} de {pasosGuia.length}
+                </p>
+                <h2 className="text-lg font-black mt-1">{pasoGuiaActual.titulo}</h2>
+              </div>
+              <button onClick={cerrarGuia} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/15 flex items-center justify-center">
+                <X size={16} />
+              </button>
+            </div>
+            <p className="text-sm text-white/75 leading-relaxed mt-3">{pasoGuiaActual.texto}</p>
+            <p className="text-sm text-orange-200 font-semibold mt-3">{pasoGuiaActual.accion}</p>
+            <div className="flex gap-2 mt-5">
+              <button onClick={cerrarGuia}
+                className="flex-1 bg-white/10 hover:bg-white/15 text-white/80 font-bold rounded-2xl py-3 text-sm">
+                Terminar
+              </button>
+              <button onClick={avanzarGuia}
+                className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-black rounded-2xl py-3 text-sm">
+                {guiaPaso + 1 >= pasosGuia.length ? 'Finalizar' : 'Siguiente'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {platoConfigNuevoOrden && (
         <ModificadorModal
           plato={platoConfigNuevoOrden as never}
