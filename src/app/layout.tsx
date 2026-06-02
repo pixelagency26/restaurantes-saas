@@ -17,8 +17,8 @@ export default function RootLayout({
       <body className="min-h-full bg-gray-50">
         {children}
         <Toaster
-          position="top-center"
-          containerStyle={{ zIndex: 99998 }}
+          position="top-left"
+          containerStyle={{ zIndex: 99998, top: 12, left: 12 }}
           toastOptions={{
             duration: 4000,
             style: {
