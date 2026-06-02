@@ -6,8 +6,8 @@ import FAQAccordion         from '@/components/landing/FAQAccordion'
 import ClientPreviewPhone   from '@/components/landing/ClientPreviewPhone'
 
 const WA_NUMBER = '573137335448'
-const WA_ASESOR = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent('Hola, quiero información sobre Restaurant Pix 🍽️')}`
-const WA_AGENCIA = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent('Hola, quiero info sobre el plan agencia de Restaurant Pix')}`
+const WA_ASESOR = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent('Hola, quiero información sobre Restaurant sas 🍽️')}`
+const WA_AGENCIA = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent('Hola, quiero info sobre el plan agencia de Restaurant sas')}`
 
 export default async function HomePage() {
   const supabase = await createClient()
@@ -37,7 +37,7 @@ export default async function HomePage() {
             <div className="w-9 h-9 bg-orange-500 rounded-xl flex items-center justify-center shadow-sm">
               <span className="text-lg">🍽️</span>
             </div>
-            <span className="font-black text-gray-900 text-lg tracking-tight">Restaurant Pix</span>
+            <span className="font-black text-gray-900 text-lg tracking-tight">Restaurant sas</span>
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm font-semibold text-gray-500">
             <a href="#preview"   className="hover:text-gray-900 transition-colors">Demo</a>
@@ -200,7 +200,7 @@ export default async function HomePage() {
               Situaciones que vives todos los días
             </h2>
             <p className="text-gray-400 max-w-xl mx-auto">
-              Restaurant Pix no es un software de escritorio pensado para computadores. Está hecho para el caos del mundo real.
+              Restaurant sas no es un software de escritorio pensado para computadores. Está hecho para el caos del mundo real.
             </p>
           </div>
 
@@ -970,7 +970,7 @@ export default async function HomePage() {
             <div className="w-8 h-8 bg-orange-500 rounded-xl flex items-center justify-center">
               <span className="text-base">🍽️</span>
             </div>
-            <span className="font-black text-gray-900">Restaurant Pix</span>
+            <span className="font-black text-gray-900">Restaurant sas</span>
           </div>
           <p className="text-gray-400 text-sm text-center">© 2025 · Hecho con ❤️ en Colombia · Todos los derechos reservados</p>
           <div className="flex items-center gap-4 text-sm text-gray-400">
