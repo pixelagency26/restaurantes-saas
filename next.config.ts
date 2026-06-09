@@ -8,11 +8,11 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.mercadopago.com https://www.mercadopago.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.mercadopago.com https://www.mercadopago.com https://connect.facebook.net",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
-      `connect-src 'self' ${supabaseOrigin} https://*.supabase.co wss://*.supabase.co https://api.mercadopago.com https://www.mercadopago.com`,
+      `connect-src 'self' ${supabaseOrigin} https://*.supabase.co wss://*.supabase.co https://api.mercadopago.com https://www.mercadopago.com https://www.facebook.com https://connect.facebook.net`,
       "frame-src 'self' https://www.mercadopago.com https://mercadopago.com",
       "frame-ancestors 'self'",
       "object-src 'none'",
