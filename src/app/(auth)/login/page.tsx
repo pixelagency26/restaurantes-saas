@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://www.restaurantsas.com'
+
 export default function LoginPage() {
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
@@ -55,7 +57,7 @@ export default function LoginPage() {
     if (!email.trim()) { toast.error('Escribe tu correo'); return }
     setLoading(true)
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${APP_URL}/reset-password`,
     })
     setLoading(false)
     if (error) { toast.error(error.message || 'Error al enviar el correo'); return }
@@ -78,7 +80,7 @@ export default function LoginPage() {
     if (cooldown > 0 || reenvios >= 3) return
     setLoading(true)
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${APP_URL}/reset-password`,
     })
     setLoading(false)
     if (error) { toast.error('Error al reenviar'); return }
