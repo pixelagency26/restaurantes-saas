@@ -81,7 +81,7 @@ export default function DomiPage() {
   const [vistaCuadre, setVistaCuadre] = useState(false)
   const [cuadre, setCuadre] = useState<{
     efectivo: number; transfer: number
-    lista: { nombre: string; total: number; metodo: string }[]
+    lista: { nombre: string; total: number; metodo: string; pagado: boolean }[]
   }>({ efectivo: 0, transfer: 0, lista: [] })
   const [cargandoCuadre, setCargandoCuadre] = useState(false)
 
@@ -426,9 +426,9 @@ export default function DomiPage() {
     if (clienteDomi.cedula.trim() || clienteDomi.telefono.trim()) {
       const campo = clienteDomi.cedula.trim() ? 'cedula' : 'telefono'
       const valor = clienteDomi.cedula.trim() || clienteDomi.telefono.trim()
-      let q = supabase.from('clientes').select('id').eq(campo, valor).maybeSingle()
+      let q = supabase.from('clientes').select('id').eq(campo, valor)
       if (myNegocioId) q = q.eq('negocio_id', myNegocioId)
-      const { data: cl } = await q
+      const { data: cl } = await q.maybeSingle()
       if (cl?.id) clienteId = cl.id
       else {
         const { data: nuevo } = await supabase.from('clientes').insert({

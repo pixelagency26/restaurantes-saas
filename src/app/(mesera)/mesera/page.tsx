@@ -380,9 +380,9 @@ export default function MeseraPage() {
     if (modoDomi && (domiCliente.cedula.trim() || domiCliente.telefono.trim())) {
       const campo = domiCliente.cedula.trim() ? 'cedula' : 'telefono'
       const valor = domiCliente.cedula.trim() || domiCliente.telefono.trim()
-      let q = supabase.from('clientes').select('id').eq(campo, valor).maybeSingle()
+      let q = supabase.from('clientes').select('id').eq(campo, valor)
       if (myNegocioId) q = q.eq('negocio_id', myNegocioId)
-      const { data: cl } = await q
+      const { data: cl } = await q.maybeSingle()
       if (cl?.id) clienteDomiId = cl.id
       else {
         const { data: nuevo } = await supabase.from('clientes').insert({

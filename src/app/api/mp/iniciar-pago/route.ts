@@ -4,7 +4,7 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 
 const PRECIOS: Record<string, number> = { starter: 19000, basico: 89900, pro: 149000 }
 const NOMBRES: Record<string, string> = { starter: 'Básico', basico: 'Profesional', pro: 'Pro' }
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://restaurantes-saas.vercel.app'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://www.restaurantsas.com'
 
 function adminClient() {
   return createClient(
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
 
     // ── Calcular monto y descripción ──────────────────────────────
     let amount = PRECIOS[plan]
-    let title = `Restaurant Pix — Plan ${NOMBRES[plan]}`
+    let title = `Restaurant sas - Plan ${NOMBRES[plan]}`
     let description = `Suscripción mensual Plan ${NOMBRES[plan]}`
 
     const ahora = new Date()

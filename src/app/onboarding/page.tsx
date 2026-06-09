@@ -64,7 +64,8 @@ function OnboardingForm() {
         .select('negocio_id, negocio:negocios(id, nombre, plan, onboarding_completo)')
         .eq('id', data.user.id).single()
       if (!u) { router.push('/login'); return }
-      const neg = u.negocio as { id: string; nombre: string; plan?: string; onboarding_completo: boolean } | null
+      const negocioRel = u.negocio as { id: string; nombre: string; plan?: string; onboarding_completo: boolean } | { id: string; nombre: string; plan?: string; onboarding_completo: boolean }[] | null
+      const neg = Array.isArray(negocioRel) ? negocioRel[0] : negocioRel
       if (esTrial && planSeleccionado && neg?.plan !== planSeleccionado) {
         await supabase.from('negocios')
           .update({ plan: planSeleccionado, suscripcion_activa: true })

@@ -1,32 +1,70 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { requireGerente } from '@/lib/api-auth'
 
-function getAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
+async function validarUsuarioDelNegocio(id: string) {
+  const auth = await requireGerente()
+  if (auth.error) return { ...auth, objetivo: null }
+  if (!auth.admin || !auth.usuario?.negocio_id) {
+    return {
+      error: NextResponse.json({ error: 'No se pudo validar el negocio' }, { status: 403 }),
+      admin: null,
+      usuario: null,
+      objetivo: null,
+    }
+  }
+
+  const { data: objetivo } = await auth.admin
+    .from('usuarios')
+    .select('id, negocio_id, rol')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (!objetivo || objetivo.negocio_id !== auth.usuario.negocio_id) {
+    return {
+      error: NextResponse.json({ error: 'Usuario no pertenece a tu negocio' }, { status: 403 }),
+      admin: null,
+      usuario: null,
+      objetivo: null,
+    }
+  }
+
+  if (objetivo.id === auth.usuario.id) {
+    return {
+      error: NextResponse.json({ error: 'No puedes modificar tu propio acceso desde esta accion' }, { status: 400 }),
+      admin: null,
+      usuario: null,
+      objetivo: null,
+    }
+  }
+
+  return { ...auth, objetivo }
 }
 
-// PATCH — cambiar contraseña y/o estado activo
 export async function PATCH(request: Request) {
   try {
     const { id, nuevaPassword, activo } = await request.json()
     if (!id) return NextResponse.json({ error: 'Falta el ID del usuario' }, { status: 400 })
 
-    const admin = getAdmin()
+    const auth = await validarUsuarioDelNegocio(id)
+    if (auth.error) return auth.error
+    if (!auth.admin) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
     if (nuevaPassword) {
-      const { error } = await admin.auth.admin.updateUserById(id, { password: nuevaPassword })
+      const { error } = await auth.admin.auth.admin.updateUserById(id, { password: nuevaPassword })
       if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
     if (activo !== undefined) {
-      // ban_duration 'none' = activo | '876600h' ≈ 100 años = inhabilitado
-      const { error } = await admin.auth.admin.updateUserById(id, {
+      const { error } = await auth.admin.auth.admin.updateUserById(id, {
         ban_duration: activo ? 'none' : '876600h',
       })
       if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-      await admin.from('usuarios').update({ activo }).eq('id', id)
+
+      await auth.admin
+        .from('usuarios')
+        .update({ activo })
+        .eq('id', id)
+        .eq('negocio_id', auth.usuario!.negocio_id)
     }
 
     return NextResponse.json({ success: true })
@@ -36,19 +74,22 @@ export async function PATCH(request: Request) {
   }
 }
 
-// DELETE — eliminar usuario definitivamente
 export async function DELETE(request: Request) {
   try {
     const { id } = await request.json()
     if (!id) return NextResponse.json({ error: 'Falta el ID del usuario' }, { status: 400 })
 
-    const admin = getAdmin()
+    const auth = await validarUsuarioDelNegocio(id)
+    if (auth.error) return auth.error
+    if (!auth.admin) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-    // Primero borrar de la tabla usuarios (FK)
-    await admin.from('usuarios').delete().eq('id', id)
+    await auth.admin
+      .from('usuarios')
+      .delete()
+      .eq('id', id)
+      .eq('negocio_id', auth.usuario!.negocio_id)
 
-    // Luego eliminar de Auth
-    const { error } = await admin.auth.admin.deleteUser(id)
+    const { error } = await auth.admin.auth.admin.deleteUser(id)
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
     return NextResponse.json({ success: true })

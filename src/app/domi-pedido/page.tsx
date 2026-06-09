@@ -274,15 +274,15 @@ function DomiPedidoInner() {
     // Crear o vincular cliente por cedula o telefono
     let clienteId: string | null = null
     if (cedula.trim()) {
-      let q = supabase.from('clientes').select('id').eq('cedula', cedula.trim()).maybeSingle()
+      let q = supabase.from('clientes').select('id').eq('cedula', cedula.trim())
       if (negocioId) q = q.eq('negocio_id', negocioId)
-      const { data: clData } = await q
+      const { data: clData } = await q.maybeSingle()
       if (clData) clienteId = clData.id
     }
     if (!clienteId && telefono.trim()) {
-      let q = supabase.from('clientes').select('id').eq('telefono', telefono.trim()).maybeSingle()
+      let q = supabase.from('clientes').select('id').eq('telefono', telefono.trim())
       if (negocioId) q = q.eq('negocio_id', negocioId)
-      const { data: clData } = await q
+      const { data: clData } = await q.maybeSingle()
       if (clData) clienteId = clData.id
     }
     if (!clienteId && (cedula.trim() || telefono.trim())) {

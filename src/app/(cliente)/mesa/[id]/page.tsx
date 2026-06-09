@@ -87,7 +87,8 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
       })) as unknown as (Plato & { inventario: Inventario[] })[])
     }
     if (mesaData) {
-      const md = mesaData as { numero: number; estado: string; negocio?: { nombre: string } }
+      const mesaRel = mesaData as { numero: number; estado: string; negocio?: { nombre: string } | { nombre: string }[] }
+      const md = { ...mesaRel, negocio: Array.isArray(mesaRel.negocio) ? mesaRel.negocio[0] : mesaRel.negocio }
       setMesa(md)
       if (md.negocio?.nombre) setNegocioNombre(md.negocio.nombre)
       // Si la mesa no está libre, verificar si hay pedido activo

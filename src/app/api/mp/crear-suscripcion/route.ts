@@ -45,7 +45,7 @@ export async function POST(req: Request) {
         preapproval_plan_id: planId,
         payer_email: user.email,
         external_reference: usuario.negocio_id,
-        back_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://restaurantes-saas.vercel.app'}/gerencia`,
+        back_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.restaurantsas.com'}/gerencia`,
       }),
     })
 

@@ -77,7 +77,7 @@ function BarraProgreso({ fecha, ahora }: { fecha: string; ahora: number }) {
   )
 }
 
-interface ItemPlatoExtended extends Omit<ItemPedido, 'plato'> {
+interface ItemPlatoExtended extends Omit<ItemPedido, 'plato' | 'modificadores'> {
   plato: { nombre: string }
   cocinero?: string | null
   pedido_por_usuario?: { nombre: string } | null

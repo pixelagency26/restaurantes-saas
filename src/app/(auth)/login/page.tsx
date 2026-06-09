@@ -42,7 +42,8 @@ export default function LoginPage() {
       toast.error('Usuario no encontrado'); setLoading(false); return
     }
 
-    const neg = usuario.negocio as { onboarding_completo: boolean } | null
+    const negocioRel = usuario.negocio as { onboarding_completo: boolean } | { onboarding_completo: boolean }[] | null
+    const neg = Array.isArray(negocioRel) ? negocioRel[0] : negocioRel
     if (neg && neg.onboarding_completo === false) { router.push('/onboarding'); return }
 
     const rutas: Record<string, string> = { gerente: '/gerencia', mesera: '/mesera', cocina: '/cocina', domi: '/domi' }

@@ -21,9 +21,10 @@ export default async function HomePage() {
       .single()
 
     if (!u) redirect('/login')
-    const neg = u.negocio as { onboarding_completo: boolean } | null
+    const negocioRel = u.negocio as { onboarding_completo: boolean } | { onboarding_completo: boolean }[] | null
+    const neg = Array.isArray(negocioRel) ? negocioRel[0] : negocioRel
     if (neg && neg.onboarding_completo === false) redirect('/onboarding')
-    const rutas: Record<string, string> = { gerente: '/gerencia', mesera: '/mesera', cocina: '/cocina' }
+    const rutas: Record<string, string> = { gerente: '/gerencia', mesera: '/mesera', cocina: '/cocina', domi: '/domi' }
     redirect(rutas[u.rol] || '/login')
   }
 

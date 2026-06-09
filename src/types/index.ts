@@ -156,6 +156,9 @@ export interface Pedido {
   metodo_pago_cliente?: string | null
   pago_domi_aprobado?: boolean | null
   comprobante_url?: string | null
+  cliente_nombre?: string | null
+  cliente_telefono?: string | null
+  cliente_direccion?: string | null
   created_at: string
   updated_at: string
   mesa?: Mesa

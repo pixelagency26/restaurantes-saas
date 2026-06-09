@@ -504,7 +504,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
     const { data: items } = await supabase.from('items_pedido')
       .select('id, cantidad, estado, plato:platos(nombre)').eq('pedido_id', pedido.id)
     if (items) setItemsSeg(items.map(i => ({
-      id: i.id, nombre: (i.plato as { nombre: string })?.nombre || '',
+      id: i.id, nombre: (Array.isArray(i.plato) ? i.plato[0] : i.plato)?.nombre || '',
       cantidad: i.cantidad, estado: i.estado
     })))
 
