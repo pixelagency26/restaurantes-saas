@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { createClient } from '@/lib/supabase/client'
 
-const WA_NUMBER = '573137335448'
+const WA_NUMBER = '573205612477'
 const WA_MSG = encodeURIComponent('Hola, quiero renovar mi suscripción de Restaurant sas')
 
 type Plan = 'basico' | 'pro'

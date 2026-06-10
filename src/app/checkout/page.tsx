@@ -59,7 +59,7 @@ function CheckoutForm() {
           </div>
           <p className="text-xs text-gray-400">
             ¿Necesitas ayuda?{' '}
-            <a href="https://wa.me/573137335448?text=Hola%2C%20tuve%20un%20problema%20al%20pagar%20en%20Restaurant%20Pix"
+            <a href="https://wa.me/573205612477?text=Hola%2C%20tuve%20un%20problema%20al%20pagar%20en%20Restaurant%20sas"
               target="_blank" rel="noopener noreferrer"
               className="text-orange-500 font-semibold hover:underline">
               Escríbenos por WhatsApp

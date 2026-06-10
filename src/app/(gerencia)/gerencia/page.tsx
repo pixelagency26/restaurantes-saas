@@ -5847,7 +5847,7 @@ export default function GerenciaPage() {
 
                         {/* Ayuda */}
                         <a
-                          href={`https://wa.me/573137335448?text=${encodeURIComponent('Hola, tengo una pregunta sobre mi suscripción de Restaurant Pix 🍽️')}`}
+                          href={`https://wa.me/573205612477?text=${encodeURIComponent('Hola, tengo una pregunta sobre mi suscripción de Restaurant sas')}`}
                           target="_blank" rel="noopener noreferrer"
                           className="flex items-center justify-center gap-2 border-2 border-gray-200 text-gray-500 hover:bg-gray-50 font-semibold py-2.5 rounded-2xl text-xs transition-colors">
                           💬 Ayuda por WhatsApp

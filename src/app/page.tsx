@@ -5,7 +5,7 @@ import AppPreviewTabs       from '@/components/landing/AppPreviewTabs'
 import FAQAccordion         from '@/components/landing/FAQAccordion'
 import ClientPreviewPhone   from '@/components/landing/ClientPreviewPhone'
 
-const WA_NUMBER = '573137335448'
+const WA_NUMBER = '573205612477'
 const WA_ASESOR = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent('Hola, quiero información sobre Restaurant sas 🍽️')}`
 const WA_AGENCIA = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent('Hola, quiero info sobre el plan agencia de Restaurant sas')}`
 
