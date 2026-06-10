@@ -31,10 +31,10 @@ export default function SuscripcionExpiradaPage() {
 
     setProcesando(plan)
     try {
-      const res = await fetch('/api/mp/crear-suscripcion', {
+      const res = await fetch('/api/mp/iniciar-pago', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan, tipo: 'renovar' }),
       })
       const data = await res.json()
 
