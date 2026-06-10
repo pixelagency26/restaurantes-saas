@@ -32,6 +32,10 @@ export async function middleware(request: NextRequest) {
   }
 
   let response = NextResponse.next({ request: { headers: request.headers } })
+  const redirectTo = (path: string) => {
+    if (pathname === path) return response
+    return NextResponse.redirect(new URL(path, request.url))
+  }
 
   // Crear cliente de Supabase con las cookies de la petición
   const supabase = createServerClient(
@@ -63,7 +67,7 @@ export async function middleware(request: NextRequest) {
     // Puede ver rutas públicas sin problema
     if (esPublica) return response
     // Cualquier otra ruta → al login
-    return NextResponse.redirect(new URL('/login', request.url))
+    return redirectTo('/login')
   }
 
   // ── Rutas accesibles para cualquier usuario autenticado ──────
@@ -75,7 +79,7 @@ export async function middleware(request: NextRequest) {
     if (!isSuperAdmin) {
       const { data: adminRec } = await supabase
         .from('admins').select('id').eq('email', user.email).maybeSingle()
-      if (!adminRec) return NextResponse.redirect(new URL('/login', request.url))
+      if (!adminRec) return redirectTo('/login')
     }
     return response
   }
@@ -92,7 +96,8 @@ export async function middleware(request: NextRequest) {
   // Logueado intentando abrir /login o /registro → mandarlo a su panel
   // Excepción: /reset-password siempre debe mostrarse para completar el cambio de clave
   if (esPublica && !pathname.startsWith('/reset-password')) {
-    return NextResponse.redirect(new URL(rutaCorrecta || '/login', request.url))
+    if (rutaCorrecta) return redirectTo(rutaCorrecta)
+    return response
   }
 
   // ── Chequeo de suscripción para rutas del panel ──────────────
@@ -106,14 +111,14 @@ export async function middleware(request: NextRequest) {
     const hasta = neg?.suscripcion_hasta ? new Date(neg.suscripcion_hasta) : null
     const activa = neg?.suscripcion_activa === true || (hasta !== null && hasta > ahora)
     if (!activa) {
-      return NextResponse.redirect(new URL('/suscripcion-expirada', request.url))
+      return redirectTo('/suscripcion-expirada')
     }
   }
 
   // Logueado en una ruta que no le corresponde → redirigir a la suya
   // (ej: una mesera escribiendo /gerencia en la barra de direcciones)
   if (rutaCorrecta && !pathname.startsWith(rutaCorrecta) && pathname !== '/') {
-    return NextResponse.redirect(new URL(rutaCorrecta, request.url))
+    return redirectTo(rutaCorrecta)
   }
 
   return response
