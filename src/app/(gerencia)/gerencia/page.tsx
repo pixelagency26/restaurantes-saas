@@ -5248,11 +5248,11 @@ export default function GerenciaPage() {
                         ✏️ Modo edición
                       </span>
                     )}
-                    {!modoEdicionPedido && mesaDetalle.pedido.items.length > 1 && (
+                    {!modoEdicionPedido && (
                       <button
                         onClick={() => { setModoDividir(v => !v); setItemsSeleccionados(new Set()) }}
-                        className={`text-xs font-bold px-2.5 py-1 rounded-full border transition-all ${modoDividir ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-600 border-indigo-300 hover:bg-indigo-50'}`}>
-                        ÷ Dividir cuenta
+                        className={`text-xs font-bold px-3 py-1.5 rounded-full border transition-all ${modoDividir ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-indigo-50 text-indigo-600 border-indigo-300 hover:bg-indigo-100'}`}>
+                        {modoDividir ? '✓ Seleccionando ítems' : '÷ Pago por persona'}
                       </button>
                     )}
                   </div>
