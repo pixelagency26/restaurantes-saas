@@ -360,6 +360,7 @@ export default function GerenciaPage() {
   const [preciosHistorial, setPreciosHistorial] = useState<Record<string, string>>({})
   const [guardandoHistorialItemId, setGuardandoHistorialItemId] = useState<string | null>(null)
   const [eliminandoHistorialItemId, setEliminandoHistorialItemId] = useState<string | null>(null)
+  const [eliminandoPagoId, setEliminandoPagoId] = useState<string | null>(null)
 
   const supabase = createClient()
   const hoy = new Date().toISOString().split('T')[0]
@@ -1624,6 +1625,17 @@ export default function GerenciaPage() {
       toast.success(`Falta: $${(totalPedidoActual - totalPagadoNuevo).toLocaleString('es-CO')}`)
     }
     setAgregandoPago(false)
+  }
+
+  async function eliminarPago(pagoId: string) {
+    if (!mesaDetalle) return
+    setEliminandoPagoId(pagoId)
+    const { error } = await supabase.from('pagos').delete().eq('id', pagoId)
+    if (error) { toast.error('Error al eliminar pago'); setEliminandoPagoId(null); return }
+    const { data: pagosActualizados } = await supabase.from('pagos').select('*').eq('pedido_id', mesaDetalle.pedido.id).order('created_at')
+    setMesaDetalle(prev => prev ? { ...prev, pagos: (pagosActualizados || []) as PagoRegistrado[] } : null)
+    toast.success('Pago eliminado')
+    setEliminandoPagoId(null)
   }
 
   async function cerrarMesa() {
@@ -5039,7 +5051,20 @@ export default function GerenciaPage() {
                           <span className="capitalize">{pago.metodo}</span>
                           {pago.propina > 0 && <span className="text-gray-400 text-xs">(+${pago.propina.toLocaleString('es-CO')} propina)</span>}
                         </div>
-                        <span className="font-bold text-green-700">${pago.monto.toLocaleString('es-CO')}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-green-700">${pago.monto.toLocaleString('es-CO')}</span>
+                          <button
+                            onClick={() => eliminarPago(pago.id)}
+                            disabled={eliminandoPagoId === pago.id}
+                            className="text-red-400 hover:text-red-600 disabled:opacity-40 transition-colors"
+                            title="Deshacer pago"
+                          >
+                            {eliminandoPagoId === pago.id
+                              ? <span className="text-xs">...</span>
+                              : <Trash2 size={14} />
+                            }
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
