@@ -295,20 +295,20 @@ export default function CocinaPage() {
   const pedidosIdsRef  = useRef<Set<string>>(new Set())
   const primeraVezRef  = useRef(true)
   const audioCtxRef    = useRef<AudioContext | null>(null)
+  const [sonidoActivo, setSonidoActivo] = useState(false)
 
-  // Desbloquear AudioContext en el primer gesto del usuario (política autoplay de Chrome)
-  useEffect(() => {
-    const unlock = () => {
-      try {
-        const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-        if (!audioCtxRef.current) audioCtxRef.current = new AudioCtx()
-        if (audioCtxRef.current.state === 'suspended') void audioCtxRef.current.resume()
-      } catch { /* */ }
+  function activarSonido() {
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+      const ctx = new AudioCtx()
+      audioCtxRef.current = ctx
+      // Toca una campana de prueba para confirmar que funciona
+      tocarCampanaConCtx(ctx)
+      setSonidoActivo(true)
+    } catch {
+      toast.error('No se pudo activar el sonido en este dispositivo')
     }
-    document.addEventListener('click', unlock)
-    document.addEventListener('touchstart', unlock)
-    return () => { document.removeEventListener('click', unlock); document.removeEventListener('touchstart', unlock) }
-  }, [])
+  }
 
   function marcarComplemento(key: string, estado: 'en_preparacion' | 'listo') {
     setComplEstados(prev => ({ ...prev, [key]: estado }))
@@ -487,6 +487,17 @@ export default function CocinaPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* Botón activar sonido */}
+              <button
+                onClick={activarSonido}
+                title={sonidoActivo ? 'Sonido activo — toca para probar la campana' : 'Toca para activar la campana de nuevos pedidos'}
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold border transition-all ${
+                  sonidoActivo
+                    ? 'bg-green-500/10 border-green-500/30 text-green-400'
+                    : 'bg-red-500/10 border-red-500/50 text-red-400 animate-pulse'
+                }`}>
+                {sonidoActivo ? '🔔 Sonido ON' : '🔕 Activar sonido'}
+              </button>
               {/* Chip de cocinero activo */}
               <div className="flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/30 rounded-xl px-3 py-1.5">
                 <User size={12} className="text-orange-400" />
