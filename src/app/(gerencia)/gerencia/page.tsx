@@ -168,7 +168,7 @@ export default function GerenciaPage() {
   const [vistaModal, setVistaModal] = useState<'pago' | 'cliente'>('pago')
 
   // Captura cliente al cobrar
-  const [cedulaCliente, setCedulaCliente] = useState('')
+  const [telefonoCliente, setTelefonoCliente] = useState('')
   const [clienteEncontrado, setClienteEncontrado] = useState<{ id: string; nombre: string; telefono: string | null } | null>(null)
   const [clienteForm, setClienteForm] = useState({ nombre: '', telefono: '', fecha_cumpleanos: '' })
   const [buscandoCl, setBuscandoCl] = useState(false)
@@ -1420,12 +1420,16 @@ export default function GerenciaPage() {
       cliente_cedula:   p.cliente_cedula,
       cliente_telefono: p.cliente_telefono,
     }
-    // Si el pedido ya tiene datos del cliente (vino por QR), pre-llenamos el formulario
-    if (p.cliente_cedula) {
-      setCedulaCliente(p.cliente_cedula)
+    // Pre-llenar cliente si el pedido ya trae teléfono (QR u orden anterior)
+    if (p.cliente_telefono) {
+      setTelefonoCliente(p.cliente_telefono)
       setClienteForm({ nombre: p.cliente_nombre || '', telefono: p.cliente_telefono || '', fecha_cumpleanos: '' })
-      const { data: cl } = await supabase.from('clientes').select('id, nombre, telefono').eq('cedula', p.cliente_cedula).single()
+      const { data: cl } = await supabase.from('clientes').select('id, nombre, telefono').eq('telefono', p.cliente_telefono).maybeSingle()
       if (cl) setClienteEncontrado(cl)
+    } else {
+      setTelefonoCliente('')
+      setClienteEncontrado(null)
+      setClienteForm({ nombre: '', telefono: '', fecha_cumpleanos: '' })
     }
     setMesaDetalle({ mesa, pedido: fmt, pagos: (pagos || []) as PagoRegistrado[] })
     setMontoPago(''); setPropinaPago(''); setPagaCon(''); setPagaCon(''); setMetodoPago('efectivo'); setVistaModal('pago')
@@ -1585,16 +1589,35 @@ export default function GerenciaPage() {
       } else {
         toast.success('✅ Domi pagado')
       }
-      setPedidoPagadoId(mesaDetalle.pedido.id)
-      // Si el pedido ya trae datos del cliente (pedido por QR), no preguntamos de nuevo
-      if (mesaDetalle.pedido.cliente_cedula) {
-        setMesaDetalle(null)
-        setCedulaCliente(''); setClienteEncontrado(null); setClienteForm({ nombre: '', telefono: '', fecha_cumpleanos: '' })
-        setVistaModal('pago')
+      const myPedidoId = mesaDetalle.pedido.id
+      setPedidoPagadoId(myPedidoId)
+      // Auto-guardar cliente si se ingresó teléfono
+      if (telefonoCliente.trim()) {
+        if (clienteEncontrado) {
+          await supabase.from('pedidos').update({ cliente_id: clienteEncontrado.id }).eq('id', myPedidoId)
+          if (!mesaDetalle.isDomi && mesaDetalle.mesa) toast.success(`✅ Mesa ${mesaDetalle.mesa.numero} pagada · ${clienteEncontrado.nombre} registrado`)
+          else toast.success(`✅ Domi pagado · ${clienteEncontrado.nombre} registrado`)
+        } else if (clienteForm.nombre.trim()) {
+          const { data: nuevo } = await supabase.from('clientes').insert({
+            telefono: telefonoCliente.trim(),
+            nombre: clienteForm.nombre.trim(),
+            fecha_cumpleanos: clienteForm.fecha_cumpleanos || null,
+            ...(negocioId ? { negocio_id: negocioId } : {}),
+          }).select('id').single()
+          if (nuevo?.id) await supabase.from('pedidos').update({ cliente_id: nuevo.id }).eq('id', myPedidoId)
+          if (!mesaDetalle.isDomi && mesaDetalle.mesa) toast.success(`✅ Mesa ${mesaDetalle.mesa.numero} pagada · Cliente ${clienteForm.nombre} guardado`)
+          else toast.success(`✅ Domi pagado · Cliente ${clienteForm.nombre} guardado`)
+        } else {
+          if (!mesaDetalle.isDomi && mesaDetalle.mesa) toast.success(`✅ Mesa ${mesaDetalle.mesa.numero} pagada y liberada`)
+          else toast.success('✅ Domi pagado')
+        }
       } else {
-        setCedulaCliente(''); setClienteEncontrado(null); setClienteForm({ nombre: '', telefono: '', fecha_cumpleanos: '' })
-        setVistaModal('cliente')
+        if (!mesaDetalle.isDomi && mesaDetalle.mesa) toast.success(`✅ Mesa ${mesaDetalle.mesa.numero} pagada y liberada`)
+        else toast.success('✅ Domi pagado')
       }
+      setMesaDetalle(null)
+      setTelefonoCliente(''); setClienteEncontrado(null); setClienteForm({ nombre: '', telefono: '', fecha_cumpleanos: '' })
+      setVistaModal('pago')
       cargarMesas(); cargarDatos()
     } else {
       setMesaDetalle(prev => prev ? { ...prev, pagos: (pagosActualizados || []) as PagoRegistrado[] } : null)
@@ -1616,24 +1639,24 @@ export default function GerenciaPage() {
   }
 
   async function buscarCliente() {
-    if (!cedulaCliente.trim()) return
+    if (!telefonoCliente.trim()) return
     setBuscandoCl(true)
-    const { data } = await supabase.from('clientes').select('id, nombre, telefono').eq('cedula', cedulaCliente.trim()).single()
+    const { data } = await supabase.from('clientes').select('id, nombre, telefono').eq('telefono', telefonoCliente.trim()).maybeSingle()
     if (data) { setClienteEncontrado(data); setClienteForm({ nombre: data.nombre, telefono: data.telefono || '', fecha_cumpleanos: '' }) }
-    else { setClienteEncontrado(null); setClienteForm({ nombre: '', telefono: '', fecha_cumpleanos: '' }) }
+    else { setClienteEncontrado(null); setClienteForm({ nombre: '', telefono: telefonoCliente.trim(), fecha_cumpleanos: '' }) }
     setBuscandoCl(false)
   }
 
   async function guardarCliente() {
-    if (!cedulaCliente.trim() || !clienteForm.nombre.trim()) { toast.error('Cédula y nombre son obligatorios'); return }
+    if (!telefonoCliente.trim() || !clienteForm.nombre.trim()) { toast.error('Celular y nombre son obligatorios'); return }
     setGuardandoCl(true)
     let clienteId = clienteEncontrado?.id
     if (!clienteEncontrado) {
       const { data: nuevo } = await supabase.from('clientes').insert({
-        cedula: cedulaCliente.trim(),
+        telefono: telefonoCliente.trim(),
         nombre: clienteForm.nombre.trim(),
-        telefono: clienteForm.telefono || null,
         fecha_cumpleanos: clienteForm.fecha_cumpleanos || null,
+        ...(negocioId ? { negocio_id: negocioId } : {}),
       }).select('id').single()
       clienteId = nuevo?.id
     }
@@ -1641,11 +1664,12 @@ export default function GerenciaPage() {
       await supabase.from('pedidos').update({ cliente_id: clienteId }).eq('id', pedidoPagadoId)
     }
     toast.success(clienteEncontrado ? `Cliente registrado en pedido ✓` : `¡Cliente ${clienteForm.nombre} guardado!`)
-    setMesaDetalle(null); setVistaModal('pago'); setGuardandoCl(false)
+    setTelefonoCliente(''); setClienteEncontrado(null); setClienteForm({ nombre: '', telefono: '', fecha_cumpleanos: '' })
+    setGuardandoCl(false)
   }
 
   function saltarCliente() {
-    setMesaDetalle(null); setVistaModal('pago'); setCedulaCliente(''); setClienteEncontrado(null)
+    setTelefonoCliente(''); setClienteEncontrado(null); setClienteForm({ nombre: '', telefono: '', fecha_cumpleanos: '' })
   }
 
   const totalPedido = mesaDetalle?.pedido.items.reduce((a, i) => a + i.cantidad * i.precio_unitario, 0) ?? 0
@@ -4735,92 +4759,6 @@ export default function GerenciaPage() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-end md:items-center justify-center p-0 md:p-4">
           <div className="bg-white border border-gray-100 w-full md:max-w-lg md:rounded-3xl rounded-t-3xl max-h-[92vh] flex flex-col overflow-hidden fade-in shadow-2xl shadow-black/10">
 
-            {/* ── Paso: captura de cliente (aparece después de pago) ── */}
-            {vistaModal === 'cliente' && (
-              <>
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                  <div>
-                    <h2 className="text-xl font-black text-gray-900">Datos del cliente</h2>
-                    <p className="text-xs text-emerald-600 font-medium">✅ Mesa pagada y liberada</p>
-                  </div>
-                  <button onClick={saltarCliente} className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"><X size={18} className="text-gray-500" /></button>
-                </div>
-                <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
-                  <p className="text-sm text-gray-400">Opcional — para la base de datos de clientes y marketing</p>
-                  <div className="flex gap-2">
-                    <input type="text" value={cedulaCliente} onChange={e => setCedulaCliente(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && buscarCliente()}
-                      placeholder="Cédula del cliente"
-                      className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/40 focus:border-orange-300" />
-                    <button onClick={buscarCliente} disabled={buscandoCl || !cedulaCliente.trim()}
-                      className="bg-[#FF7A00] hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors">
-                      {buscandoCl ? '...' : 'Buscar'}
-                    </button>
-                  </div>
-                  {cedulaCliente && !buscandoCl && (
-                    <div className={`rounded-xl p-3 text-sm ${clienteEncontrado ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50 border border-gray-200'}`}>
-                      {clienteEncontrado
-                        ? <p className="text-emerald-700 font-semibold">✓ Cliente frecuente: {clienteEncontrado.nombre}</p>
-                        : <p className="text-gray-500">Cliente nuevo — completa los datos:</p>
-                      }
-                    </div>
-                  )}
-                  {cedulaCliente && !clienteEncontrado && !buscandoCl && (
-                    <div className="space-y-2">
-                      <input type="text" placeholder="Nombre completo *" value={clienteForm.nombre}
-                        onChange={e => setClienteForm(p => ({ ...p, nombre: e.target.value }))}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/40 focus:border-orange-300" />
-                      <input type="tel" placeholder="Teléfono" value={clienteForm.telefono}
-                        onChange={e => setClienteForm(p => ({ ...p, telefono: e.target.value }))}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/40 focus:border-orange-300" />
-                      <div>
-                        <label className="text-xs text-gray-500 block mb-1">🎂 Cumpleaños (opcional)</label>
-                        <div className="grid grid-cols-3 gap-2">
-                          <select value={clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-')[2] : ''}
-                            onChange={e => {
-                              const parts = clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-') : ['2000', '01', '01']
-                              setClienteForm(p => ({ ...p, fecha_cumpleanos: `${parts[0]}-${parts[1]}-${e.target.value.padStart(2,'0')}` }))
-                            }}
-                            className="bg-gray-50 border border-gray-200 rounded-xl px-2 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400/40">
-                            <option value="">Día</option>
-                            {Array.from({length:31},(_,i)=>i+1).map(d=><option key={d} value={String(d).padStart(2,'0')}>{d}</option>)}
-                          </select>
-                          <select value={clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-')[1] : ''}
-                            onChange={e => {
-                              const parts = clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-') : ['2000', '01', '01']
-                              setClienteForm(p => ({ ...p, fecha_cumpleanos: `${parts[0]}-${e.target.value}-${parts[2]}` }))
-                            }}
-                            className="bg-gray-50 border border-gray-200 rounded-xl px-2 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400/40">
-                            <option value="">Mes</option>
-                            {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((m,i)=><option key={m} value={String(i+1).padStart(2,'0')}>{m}</option>)}
-                          </select>
-                          <select value={clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-')[0] : ''}
-                            onChange={e => {
-                              const parts = clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-') : ['2000', '01', '01']
-                              setClienteForm(p => ({ ...p, fecha_cumpleanos: `${e.target.value}-${parts[1]}-${parts[2]}` }))
-                            }}
-                            className="bg-gray-50 border border-gray-200 rounded-xl px-2 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400/40">
-                            <option value="">Año</option>
-                            {Array.from({length:80},(_,i)=>new Date().getFullYear()-i).map(y=><option key={y} value={y}>{y}</option>)}
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="px-5 py-4 border-t border-gray-100 space-y-2">
-                  {cedulaCliente && (clienteEncontrado || clienteForm.nombre) && (
-                    <button onClick={guardarCliente} disabled={guardandoCl}
-                      className="w-full bg-[#FF7A00] hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold py-3 rounded-xl transition-colors">
-                      {guardandoCl ? 'Guardando...' : clienteEncontrado ? 'Registrar en este pedido' : 'Guardar cliente'}
-                    </button>
-                  )}
-                  <button onClick={saltarCliente} className="w-full bg-gray-50 hover:bg-gray-100 text-gray-500 font-medium py-3 rounded-xl text-sm transition-colors">
-                    Saltar — cerrar sin guardar
-                  </button>
-                </div>
-              </>
-            )}
 
             {/* ── Paso: detalle + pago ── */}
             {vistaModal === 'pago' && (<>
@@ -4866,10 +4804,84 @@ export default function GerenciaPage() {
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${modoEdicionPedido ? 'bg-[#FF7A00] text-white shadow-sm shadow-orange-200' : 'bg-orange-50 text-[#FF7A00] border border-orange-200 hover:bg-orange-100'}`}>
                   {modoEdicionPedido ? '✓ Listo' : 'Eliminar/cambiar'}
                 </button>
-                <button onClick={() => { setMesaDetalle(null); setVistaModal('pago'); setModoEdicionPedido(false); setItemReemplazando(null) }} className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"><X size={18} className="text-gray-500" /></button>
+                <button onClick={() => { setMesaDetalle(null); setVistaModal('pago'); setModoEdicionPedido(false); setItemReemplazando(null); setTelefonoCliente(''); setClienteEncontrado(null); setClienteForm({ nombre: '', telefono: '', fecha_cumpleanos: '' }) }} className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"><X size={18} className="text-gray-500" /></button>
               </div>
             </div>
             <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+
+              {/* ── Cliente (solo mesas, no domi — domi ya trae datos) ── */}
+              {!mesaDetalle.isDomi && (
+                <div className="bg-gray-50 border border-gray-100 rounded-2xl p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Cliente</p>
+                    {(telefonoCliente || clienteEncontrado) && (
+                      <button onClick={saltarCliente} className="text-[10px] text-gray-400 hover:text-gray-600 underline">
+                        Continuar sin guardar
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="tel"
+                      placeholder="Celular del cliente"
+                      value={telefonoCliente}
+                      onChange={e => setTelefonoCliente(e.target.value)}
+                      onBlur={buscarCliente}
+                      onKeyDown={e => e.key === 'Enter' && buscarCliente()}
+                      className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/40 focus:border-orange-300"
+                    />
+                    <button
+                      onClick={buscarCliente}
+                      disabled={buscandoCl || !telefonoCliente.trim()}
+                      className="bg-[#FF7A00] hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white px-3 py-2 rounded-xl text-sm font-bold transition-colors">
+                      {buscandoCl ? '...' : 'Buscar'}
+                    </button>
+                  </div>
+                  {clienteEncontrado && (
+                    <p className="text-sm text-emerald-700 font-semibold bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
+                      ✓ Cliente frecuente: {clienteEncontrado.nombre}
+                    </p>
+                  )}
+                  {telefonoCliente && !clienteEncontrado && !buscandoCl && (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        placeholder="Nombre del cliente *"
+                        value={clienteForm.nombre}
+                        onChange={e => setClienteForm(p => ({ ...p, nombre: e.target.value }))}
+                        className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/40"
+                      />
+                      <div>
+                        <label className="text-xs text-gray-400 block mb-1">🎂 Cumpleaños (opcional)</label>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          <select value={clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-')[2] : ''}
+                            onChange={e => { const p = clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-') : ['2000','01','01']; setClienteForm(f => ({ ...f, fecha_cumpleanos: `${p[0]}-${p[1]}-${e.target.value.padStart(2,'0')}` })) }}
+                            className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-900 focus:outline-none">
+                            <option value="">Día</option>
+                            {Array.from({length:31},(_,i)=>i+1).map(d=><option key={d} value={String(d).padStart(2,'0')}>{d}</option>)}
+                          </select>
+                          <select value={clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-')[1] : ''}
+                            onChange={e => { const p = clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-') : ['2000','01','01']; setClienteForm(f => ({ ...f, fecha_cumpleanos: `${p[0]}-${e.target.value}-${p[2]}` })) }}
+                            className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-900 focus:outline-none">
+                            <option value="">Mes</option>
+                            {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((m,i)=><option key={m} value={String(i+1).padStart(2,'0')}>{m}</option>)}
+                          </select>
+                          <select value={clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-')[0] : ''}
+                            onChange={e => { const p = clienteForm.fecha_cumpleanos ? clienteForm.fecha_cumpleanos.split('-') : ['2000','01','01']; setClienteForm(f => ({ ...f, fecha_cumpleanos: `${e.target.value}-${p[1]}-${p[2]}` })) }}
+                            className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-900 focus:outline-none">
+                            <option value="">Año</option>
+                            {Array.from({length:80},(_,i)=>new Date().getFullYear()-i).map(y=><option key={y} value={y}>{y}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-gray-400">Se guardará automáticamente al procesar el pago</p>
+                    </div>
+                  )}
+                  {!telefonoCliente && (
+                    <p className="text-xs text-gray-400">Opcional — ingresa el celular para reconocer al cliente</p>
+                  )}
+                </div>
+              )}
 
               {/* ── Comprobante de transferencia (solo domi) ── */}
               {mesaDetalle.isDomi && mesaDetalle.pedido.comprobante_url && mesaDetalle.pagos.length === 0 && (
