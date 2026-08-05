@@ -5,7 +5,6 @@ import { ModificadorSeleccionado, Plato } from '@/types'
 import {
   gruposDelPlato,
   seleccionAmodificadores,
-  seleccionInicial,
   SeleccionModificadores,
   validarSeleccion,
 } from '@/lib/modificadores'
@@ -21,7 +20,7 @@ export default function ModificadorModal({
   onCancel: () => void
   onConfirm: (mods: ModificadorSeleccionado[]) => void
 }) {
-  const [seleccion, setSeleccion] = useState<SeleccionModificadores>(() => seleccionInicial(plato))
+  const [seleccion, setSeleccion] = useState<SeleccionModificadores>({})
 
   function confirmar() {
     const error = validarSeleccion(plato, seleccion)

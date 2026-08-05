@@ -317,8 +317,8 @@ export default function MeseraPage() {
 
   function agregarAlCarrito(plato: Plato) {
     if (tieneModificadores(plato)) {
-      agregarItem({ plato, cantidad: 1, notas: '', modificadores: [] })
-      toast('Puedes escoger los complementos al confirmar el pedido')
+      setPlatoConfig(plato)
+      setSeleccionMods({})
       return
     }
     agregarItem({ plato, cantidad: 1, notas: '', modificadores: [] })

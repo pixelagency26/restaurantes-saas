@@ -2341,6 +2341,7 @@ export default function GerenciaPage() {
 
   function agregarNuevoOrdenPlato(plato: Plato, modificadores?: ModificadorSeleccionado[]) {
     const requiereConfig = !modificadores && tieneModificadores(plato as never)
+    if (requiereConfig) { setPlatoConfigNuevoOrden(plato); return }
     const mods = modificadores || []
     const itemNuevo: ItemConModificadores = { plato: plato as never, cantidad: 1, notas: '', modificadores: mods }
     const consumoProyectado = consumoInventarioCarrito([
@@ -2358,14 +2359,13 @@ export default function GerenciaPage() {
         return
       }
     }
-    if (requiereConfig || mods.length > 0) {
+    if (mods.length > 0) {
       const keyNuevo = itemKey(itemNuevo)
       setNuevoOrdenItemsMod(prev => {
         const existe = prev.find(i => itemKey(i) === keyNuevo)
         if (existe) return prev.map(i => itemKey(i) === keyNuevo ? { ...i, cantidad: i.cantidad + 1 } : i)
         return [...prev, itemNuevo]
       })
-      if (requiereConfig) toast('Puedes escoger los complementos al confirmar el pedido')
       return
     }
     setNuevoOrdenCarrito(prev => ({ ...prev, [plato.id]: (prev[plato.id] ?? 0) + 1 }))

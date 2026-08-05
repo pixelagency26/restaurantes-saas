@@ -341,11 +341,11 @@ export default function DomiPage() {
 
   function agregarAlCarrito(plato: Plato, modificadores?: ModificadorSeleccionado[]) {
     const requiereConfig = !modificadores && tieneModificadores(plato)
+    if (requiereConfig) { setPlatoConfig(plato); return }
     const mods = modificadores || []
     const keyNuevo = itemKey({ plato, cantidad: 1, notas: '', modificadores: mods })
     const errorConsumo = validarConsumo([...carrito, { plato, cantidad: 1, notas: '', modificadores: mods }])
     if (errorConsumo) { toast.error(errorConsumo); return }
-    // Solo limitar si el plato tiene inventario de turno configurado
     if (turnoInventarioIds.has(plato.id)) {
       const disp = stockDisponible(plato.id)
       if (disp === 0) { toast.error(`${plato.nombre} no está disponible`); return }
@@ -358,7 +358,6 @@ export default function DomiPage() {
       return [...prev, { plato, cantidad: 1, notas: '', modificadores: mods }]
     })
     toast.success(`${plato.nombre} agregado`)
-    if (requiereConfig) toast('Puedes escoger los complementos al confirmar el pedido')
   }
 
   function cambiarCantidad(id: string, delta: number) {
