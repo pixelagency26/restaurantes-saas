@@ -1602,9 +1602,13 @@ export default function GerenciaPage() {
       toast.error('⏳ Hay platos que aún no han salido de cocina. Espera a que todo esté listo.')
       return
     }
-    setAgregandoPago(true)
     const monto = parseFloat(montoPago); const propina = parseFloat(propinaPago || '0')
-    if (isNaN(monto) || monto <= 0) { toast.error('Monto inválido'); setAgregandoPago(false); return }
+    if (isNaN(monto) || monto <= 0) { toast.error('Monto inválido'); return }
+    if (!modoDividir && monto < saldoPendiente) {
+      toast.error(`Debes cubrir el saldo completo: $${saldoPendiente.toLocaleString('es-CO')}`)
+      return
+    }
+    setAgregandoPago(true)
     await supabase.from('pagos').insert({ pedido_id: mesaDetalle.pedido.id, metodo: metodoPago, monto, propina })
     const { data: pagosActualizados } = await supabase.from('pagos').select('*').eq('pedido_id', mesaDetalle.pedido.id).order('created_at')
     const totalPagadoNuevo = (pagosActualizados || []).reduce((a: number, p: PagoRegistrado) => a + p.monto + p.propina, 0)
@@ -5539,18 +5543,24 @@ export default function GerenciaPage() {
                   {pedidoListoPagar && (
                     <button onClick={() => setMontoPago(String(saldoPendiente))} className="text-xs text-[#FF7A00] font-medium mb-3 hover:underline">→ Usar saldo exacto (${saldoPendiente.toLocaleString('es-CO')})</button>
                   )}
+                  {(() => {
+                    const montoNum = parseFloat(montoPago || '0')
+                    const montoInsuficiente = !modoDividir && !!montoPago && montoNum < saldoPendiente
+                    return (
                   <button
                     onClick={agregarPago}
-                    disabled={agregandoPago || !montoPago || !pedidoListoPagar}
-                    title={!pedidoListoPagar ? 'Hay platos que aún no han salido de cocina' : ''}
+                    disabled={agregandoPago || !montoPago || !pedidoListoPagar || montoInsuficiente}
+                    title={!pedidoListoPagar ? 'Hay platos que aún no han salido de cocina' : montoInsuficiente ? `Faltan $${(saldoPendiente - montoNum).toLocaleString('es-CO')} para cubrir el saldo` : ''}
                     className={`w-full font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
-                      !pedidoListoPagar
+                      !pedidoListoPagar || montoInsuficiente
                         ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         : 'bg-[#FF7A00] hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white shadow-md shadow-orange-200'
                     }`}>
                     <Banknote size={18} />
-                    {!pedidoListoPagar ? '🔒 Pago bloqueado — pedido en curso' : agregandoPago ? 'Registrando...' : 'Agregar pago'}
+                    {!pedidoListoPagar ? '🔒 Pago bloqueado — pedido en curso' : montoInsuficiente ? `🔒 Faltan $${(saldoPendiente - montoNum).toLocaleString('es-CO')}` : agregandoPago ? 'Registrando...' : 'Agregar pago'}
                   </button>
+                    )
+                  })()}
                 </div>
               )}
             </div>

@@ -12,11 +12,10 @@ import {
 const MINUTOS_LIMITE = 20
 const LS_KEY = 'cocina_mi_nombre'
 
-function tocarCampana() {
+function tocarCampanaConCtx(ctx: AudioContext) {
   try {
-    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
     const master = ctx.createGain()
-    master.gain.value = 2.0 // 200%
+    master.gain.value = 2.0
     master.connect(ctx.destination)
     const ring = (delay: number) => {
       [[880, 1.0], [1320, 0.5], [2200, 0.25]].forEach(([freq, amp]) => {
@@ -24,15 +23,14 @@ function tocarCampana() {
         const g   = ctx.createGain()
         osc.connect(g); g.connect(master)
         osc.type = 'sine'
-        osc.frequency.value = freq
-        g.gain.setValueAtTime(amp, ctx.currentTime + delay)
+        osc.frequency.value = freq as number
+        g.gain.setValueAtTime(amp as number, ctx.currentTime + delay)
         g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 1.0)
         osc.start(ctx.currentTime + delay)
         osc.stop(ctx.currentTime + delay + 1.0)
       })
     }
     ring(0); ring(0.4); ring(0.8)
-    setTimeout(() => ctx.close(), 3000)
   } catch { /* audio no disponible */ }
 }
 function tiempoTranscurrido(fecha: string, ahora: number) {
@@ -296,6 +294,21 @@ export default function CocinaPage() {
   const [complEstados, setComplEstados]     = useState<Record<string, 'pendiente' | 'en_preparacion' | 'listo'>>({})
   const pedidosIdsRef  = useRef<Set<string>>(new Set())
   const primeraVezRef  = useRef(true)
+  const audioCtxRef    = useRef<AudioContext | null>(null)
+
+  // Desbloquear AudioContext en el primer gesto del usuario (política autoplay de Chrome)
+  useEffect(() => {
+    const unlock = () => {
+      try {
+        const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+        if (!audioCtxRef.current) audioCtxRef.current = new AudioCtx()
+        if (audioCtxRef.current.state === 'suspended') void audioCtxRef.current.resume()
+      } catch { /* */ }
+    }
+    document.addEventListener('click', unlock)
+    document.addEventListener('touchstart', unlock)
+    return () => { document.removeEventListener('click', unlock); document.removeEventListener('touchstart', unlock) }
+  }, [])
 
   function marcarComplemento(key: string, estado: 'en_preparacion' | 'listo') {
     setComplEstados(prev => ({ ...prev, [key]: estado }))
@@ -353,7 +366,10 @@ export default function CocinaPage() {
         p.tipo !== 'domi' || p.pago_domi_aprobado === true
       )
       const nuevos = visibles.filter(p => !pedidosIdsRef.current.has(p.id))
-      if (!primeraVezRef.current && nuevos.length > 0) tocarCampana()
+      if (!primeraVezRef.current && nuevos.length > 0) {
+        const ctx = audioCtxRef.current
+        if (ctx) tocarCampanaConCtx(ctx)
+      }
       primeraVezRef.current = false
       pedidosIdsRef.current = new Set(visibles.map(p => p.id))
       setPedidos(visibles)
