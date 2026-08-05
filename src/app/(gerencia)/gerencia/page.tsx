@@ -1619,9 +1619,6 @@ export default function GerenciaPage() {
       await supabase.from('pedidos').update({ estado: 'pagado', pagado_en: new Date().toISOString() }).eq('id', mesaDetalle.pedido.id)
       if (!mesaDetalle.isDomi && mesaDetalle.mesa) {
         await supabase.from('mesas').update({ estado: 'libre' }).eq('id', mesaDetalle.mesa.id)
-        toast.success(`✅ Mesa ${mesaDetalle.mesa.numero} pagada y liberada`)
-      } else {
-        toast.success('✅ Domi pagado')
       }
       const myPedidoId = mesaDetalle.pedido.id
       setPedidoPagadoId(myPedidoId)
@@ -1629,8 +1626,6 @@ export default function GerenciaPage() {
       if (telefonoCliente.trim()) {
         if (clienteEncontrado) {
           await supabase.from('pedidos').update({ cliente_id: clienteEncontrado.id }).eq('id', myPedidoId)
-          if (!mesaDetalle.isDomi && mesaDetalle.mesa) toast.success(`✅ Mesa ${mesaDetalle.mesa.numero} pagada · ${clienteEncontrado.nombre} registrado`)
-          else toast.success(`✅ Domi pagado · ${clienteEncontrado.nombre} registrado`)
         } else if (clienteForm.nombre.trim()) {
           const { data: nuevo } = await supabase.from('clientes').insert({
             telefono: telefonoCliente.trim(),
@@ -1639,19 +1634,10 @@ export default function GerenciaPage() {
             ...(negocioId ? { negocio_id: negocioId } : {}),
           }).select('id').single()
           if (nuevo?.id) await supabase.from('pedidos').update({ cliente_id: nuevo.id }).eq('id', myPedidoId)
-          if (!mesaDetalle.isDomi && mesaDetalle.mesa) toast.success(`✅ Mesa ${mesaDetalle.mesa.numero} pagada · Cliente ${clienteForm.nombre} guardado`)
-          else toast.success(`✅ Domi pagado · Cliente ${clienteForm.nombre} guardado`)
-        } else {
-          if (!mesaDetalle.isDomi && mesaDetalle.mesa) toast.success(`✅ Mesa ${mesaDetalle.mesa.numero} pagada y liberada`)
-          else toast.success('✅ Domi pagado')
         }
-      } else {
-        if (!mesaDetalle.isDomi && mesaDetalle.mesa) toast.success(`✅ Mesa ${mesaDetalle.mesa.numero} pagada y liberada`)
-        else toast.success('✅ Domi pagado')
       }
-      setMesaDetalle(null)
-      setTelefonoCliente(''); setClienteEncontrado(null); setClienteForm({ nombre: '', telefono: '', fecha_cumpleanos: '' })
-      setVistaModal('pago')
+      // Mantener modal abierto para que el cajero pueda anular si se equivocó de método
+      setMesaDetalle(prev => prev ? { ...prev, pagos: (pagosActualizados || []) as PagoRegistrado[] } : null)
       cargarMesas(); cargarDatos()
     } else {
       setMesaDetalle(prev => prev ? { ...prev, pagos: (pagosActualizados || []) as PagoRegistrado[] } : null)
@@ -1669,10 +1655,21 @@ export default function GerenciaPage() {
     if (!mesaDetalle) return
     setEliminandoPagoId(pagoId)
     const { error } = await supabase.from('pagos').delete().eq('id', pagoId)
-    if (error) { toast.error('Error al eliminar pago'); setEliminandoPagoId(null); return }
+    if (error) { toast.error('Error al anular pago'); setEliminandoPagoId(null); return }
     const { data: pagosActualizados } = await supabase.from('pagos').select('*').eq('pedido_id', mesaDetalle.pedido.id).order('created_at')
+    const totalPagadoNuevo = (pagosActualizados || []).reduce((a: number, p: PagoRegistrado) => a + p.monto + p.propina, 0)
+    const totalPedidoActual = mesaDetalle.pedido.items.reduce((a, i) => a + i.cantidad * i.precio_unitario, 0)
+    // Si el pago que se anuló había cerrado el pedido, revertir
+    if (totalPagadoNuevo < totalPedidoActual) {
+      await supabase.from('pedidos').update({ estado: 'en_preparacion', pagado_en: null }).eq('id', mesaDetalle.pedido.id)
+      if (!mesaDetalle.isDomi && mesaDetalle.mesa) {
+        await supabase.from('mesas').update({ estado: 'ocupada' }).eq('id', mesaDetalle.mesa.id)
+      }
+      setPedidoPagadoId(null)
+      cargarMesas()
+    }
     setMesaDetalle(prev => prev ? { ...prev, pagos: (pagosActualizados || []) as PagoRegistrado[] } : null)
-    toast.success('Pago eliminado')
+    toast.success('Pago anulado')
     setEliminandoPagoId(null)
   }
 
@@ -5424,23 +5421,24 @@ export default function GerenciaPage() {
                   <h3 className="font-bold text-gray-700 text-sm mb-2">Pagos recibidos</h3>
                   <div className="space-y-2">
                     {mesaDetalle.pagos.map(pago => (
-                      <div key={pago.id} className="flex items-center justify-between bg-green-50 rounded-xl px-3 py-2 text-sm">
+                      <div key={pago.id} className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-3 py-2 text-sm">
                         <div className="flex items-center gap-2">
                           <span>{METODOS.find(m => m.id === pago.metodo)?.emoji}</span>
-                          <span className="capitalize">{pago.metodo}</span>
-                          {pago.propina > 0 && <span className="text-gray-400 text-xs">(+${pago.propina.toLocaleString('es-CO')} propina)</span>}
+                          <div>
+                            <p className="capitalize font-semibold text-gray-800">{pago.metodo}</p>
+                            {pago.propina > 0 && <p className="text-gray-400 text-xs">+${pago.propina.toLocaleString('es-CO')} propina</p>}
+                          </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-green-700">${pago.monto.toLocaleString('es-CO')}</span>
                           <button
                             onClick={() => eliminarPago(pago.id)}
                             disabled={eliminandoPagoId === pago.id}
-                            className="text-red-400 hover:text-red-600 disabled:opacity-40 transition-colors"
-                            title="Deshacer pago"
+                            className="flex items-center gap-1 text-xs font-bold text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg px-2 py-1 disabled:opacity-40 transition-colors"
                           >
                             {eliminandoPagoId === pago.id
-                              ? <span className="text-xs">...</span>
-                              : <Trash2 size={14} />
+                              ? '...'
+                              : <><Trash2 size={12} /> Anular</>
                             }
                           </button>
                         </div>
