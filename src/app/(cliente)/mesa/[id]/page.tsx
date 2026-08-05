@@ -15,7 +15,7 @@ import {
 import ModificadorModal from '@/components/ModificadorModal'
 import ConfigurarModificadoresPedido from '@/components/ConfigurarModificadoresPedido'
 import toast from 'react-hot-toast'
-import { Plus, Minus, ShoppingBag, CheckCircle, ChevronLeft, User, Bell, RefreshCw } from 'lucide-react'
+import { Plus, Minus, ShoppingBag, CheckCircle, ChevronLeft, User, Bell, RefreshCw, Search, X } from 'lucide-react'
 import { use } from 'react'
 
 type ItemCarrito    = ItemConModificadores
@@ -49,6 +49,7 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
   const [carrito, setCarrito]             = useState<ItemCarrito[]>([])
   const [platoConfig, setPlatoConfig]     = useState<Plato | null>(null)
   const [configurandoComplementos, setConfigurandoComplementos] = useState(false)
+  const [busquedaPlato, setBusquedaPlato] = useState('')
   const [mesa, setMesa]                   = useState<{ numero: number; estado: string } | null>(null)
   const [negocioNombre, setNegocioNombre] = useState('Restaurant Pix')
   const [enviando, setEnviando]           = useState(false)
@@ -344,7 +345,11 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
     setLlamandoMesera(false)
   }
 
-  const platosFiltrados = platos.filter(p => p.categoria_id === categoriaActiva)
+  const busq = busquedaPlato.trim().toLowerCase()
+  const platosFiltrados = (busq
+    ? platos.filter(p => p.nombre.toLowerCase().includes(busq) || (p.descripcion || '').toLowerCase().includes(busq))
+    : platos.filter(p => p.categoria_id === categoriaActiva)
+  ).slice().sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
   const total           = carrito.reduce((a, i) => a + i.plato.precio * i.cantidad, 0)
   const totalItems      = carrito.reduce((a, i) => a + i.cantidad, 0)
   const todoEntregado   = itemsSeguimiento.length > 0 && itemsSeguimiento.every(i => i.estado === 'entregado')
@@ -583,11 +588,30 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
         </button>
       </div>
 
+      {/* Buscador */}
+      <div className="px-4 pt-3 pb-2 bg-white border-b shrink-0">
+        <div className="relative">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={busquedaPlato}
+            onChange={e => setBusquedaPlato(e.target.value)}
+            placeholder="Buscar en el menú..."
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-9 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+          />
+          {busquedaPlato && (
+            <button onClick={() => setBusquedaPlato('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+
       <div className="flex gap-2 px-4 py-3 overflow-x-auto bg-white border-b shrink-0">
         {categorias.map(cat => (
-          <button key={cat.id} onClick={() => setCategoriaActiva(cat.id)}
+          <button key={cat.id} onClick={() => { setCategoriaActiva(cat.id); setBusquedaPlato('') }}
             className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-              categoriaActiva === cat.id ? 'bg-orange-500 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              categoriaActiva === cat.id && !busquedaPlato ? 'bg-orange-500 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}>
             {cat.nombre}
           </button>
@@ -595,6 +619,9 @@ export default function MesaClientePage({ params }: { params: Promise<{ id: stri
       </div>
 
       <div className="flex-1 p-4 space-y-3">
+        {busquedaPlato && platosFiltrados.length === 0 && (
+          <p className="text-center text-gray-400 text-sm py-8">Sin resultados para &ldquo;{busquedaPlato}&rdquo;</p>
+        )}
         {platosFiltrados.map(plato => {
           const disp      = disponibilidad(plato)
           const sinStock  = disp === 0

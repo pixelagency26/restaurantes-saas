@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Pedido, ItemPedido } from '@/types'
 import toast from 'react-hot-toast'
@@ -11,6 +11,30 @@ import {
 
 const MINUTOS_LIMITE = 20
 const LS_KEY = 'cocina_mi_nombre'
+
+function tocarCampana() {
+  try {
+    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+    const master = ctx.createGain()
+    master.gain.value = 2.0 // 200%
+    master.connect(ctx.destination)
+    const ring = (delay: number) => {
+      [[880, 1.0], [1320, 0.5], [2200, 0.25]].forEach(([freq, amp]) => {
+        const osc = ctx.createOscillator()
+        const g   = ctx.createGain()
+        osc.connect(g); g.connect(master)
+        osc.type = 'sine'
+        osc.frequency.value = freq
+        g.gain.setValueAtTime(amp, ctx.currentTime + delay)
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 1.0)
+        osc.start(ctx.currentTime + delay)
+        osc.stop(ctx.currentTime + delay + 1.0)
+      })
+    }
+    ring(0); ring(0.4); ring(0.8)
+    setTimeout(() => ctx.close(), 3000)
+  } catch { /* audio no disponible */ }
+}
 function tiempoTranscurrido(fecha: string, ahora: number) {
   return Math.floor((ahora - new Date(fecha).getTime()) / 1000 / 60)
 }
@@ -270,6 +294,8 @@ export default function CocinaPage() {
   const [nombresConfig, setNombresConfig]   = useState<string[]>([])
   const [nombresCargados, setNombresCargados] = useState(false)
   const [complEstados, setComplEstados]     = useState<Record<string, 'pendiente' | 'en_preparacion' | 'listo'>>({})
+  const pedidosIdsRef  = useRef<Set<string>>(new Set())
+  const primeraVezRef  = useRef(true)
 
   function marcarComplemento(key: string, estado: 'en_preparacion' | 'listo') {
     setComplEstados(prev => ({ ...prev, [key]: estado }))
@@ -326,6 +352,10 @@ export default function CocinaPage() {
       const visibles = (data as unknown as Pedido[]).filter(p =>
         p.tipo !== 'domi' || p.pago_domi_aprobado === true
       )
+      const nuevos = visibles.filter(p => !pedidosIdsRef.current.has(p.id))
+      if (!primeraVezRef.current && nuevos.length > 0) tocarCampana()
+      primeraVezRef.current = false
+      pedidosIdsRef.current = new Set(visibles.map(p => p.id))
       setPedidos(visibles)
     }
     setCargando(false)

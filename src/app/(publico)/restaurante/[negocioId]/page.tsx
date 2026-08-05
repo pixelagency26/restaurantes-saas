@@ -9,7 +9,7 @@ import {
   Plus, Minus, ChevronLeft, Star,
   CalendarDays, CheckCircle, MessageSquare,
   Bike, UtensilsCrossed, AlertTriangle, ArrowRight,
-  Loader2, Send, ChevronRight, Upload, X, Banknote, CreditCard
+  Loader2, Send, ChevronRight, Upload, X, Banknote, CreditCard, Search
 } from 'lucide-react'
 import {
   ItemConModificadores,
@@ -99,6 +99,7 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
   const [categorias, setCategorias]         = useState<Categoria[]>([])
   const [platos, setPlatos]                 = useState<PlatoConInv[]>([])
   const [catActiva, setCatActiva]           = useState<number | null>(null)
+  const [busquedaPlato, setBusquedaPlato]   = useState('')
   const [carrito, setCarrito]               = useState<ItemCarrito[]>([])
   const [platoConfig, setPlatoConfig]       = useState<Plato | null>(null)
   const [configurandoComplementos, setConfigurandoComplementos] = useState(false)
@@ -784,13 +785,30 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
       {/* BROWSE */}
       {pasoOrden === 'browse' && (
         <>
-          {/* Categorías — fondo blanco, pills negras/naranja */}
+          {/* Buscador + Categorías */}
           <div className="bg-white border-b border-gray-200 sticky top-[57px] z-10">
-            <div className="flex gap-2 px-4 py-3 overflow-x-auto">
+            <div className="px-4 pt-3 pb-2">
+              <div className="relative max-w-2xl mx-auto">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={busquedaPlato}
+                  onChange={e => setBusquedaPlato(e.target.value)}
+                  placeholder="Buscar en el menú..."
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-9 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+                />
+                {busquedaPlato && (
+                  <button onClick={() => setBusquedaPlato('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-2 px-4 py-2 overflow-x-auto">
               {categorias.map(c => (
-                <button key={c.id} onClick={() => setCatActiva(c.id)}
+                <button key={c.id} onClick={() => { setCatActiva(c.id); setBusquedaPlato('') }}
                   className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all ${
-                    catActiva === c.id
+                    catActiva === c.id && !busquedaPlato
                       ? 'bg-orange-500 text-white shadow-sm shadow-orange-200'
                       : 'bg-gray-900 text-white hover:bg-gray-700'
                   }`}>
@@ -802,7 +820,13 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
 
           {/* Platos */}
           <div className="p-4 max-w-2xl mx-auto space-y-3 pb-32">
-            {platos.filter(p => p.categoria_id === catActiva).map(plato => {
+            {(() => {
+              const bq = busquedaPlato.trim().toLowerCase()
+              return (bq
+                ? platos.filter(p => p.nombre.toLowerCase().includes(bq) || (p.descripcion || '').toLowerCase().includes(bq))
+                : platos.filter(p => p.categoria_id === catActiva)
+              ).slice().sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+            })().map(plato => {
               const cant      = cantPlato(plato.id)
               const requiereConfig = tieneModificadores(plato as never)
               const disp      = plato.inv?.cantidad_disponible ?? null
@@ -857,12 +881,18 @@ function RestaurantePublicoInner({ params }: { params: Promise<{ negocioId: stri
               )
             })}
 
-            {platos.filter(p => p.categoria_id === catActiva).length === 0 && (
-              <div className="text-center py-16">
-                <UtensilsCrossed size={36} className="mx-auto mb-3 text-gray-200" />
-                <p className="text-gray-400 text-sm">Sin platos en esta categoría</p>
-              </div>
-            )}
+            {(() => {
+              const bq = busquedaPlato.trim().toLowerCase()
+              const lista = bq
+                ? platos.filter(p => p.nombre.toLowerCase().includes(bq) || (p.descripcion || '').toLowerCase().includes(bq))
+                : platos.filter(p => p.categoria_id === catActiva)
+              return lista.length === 0 ? (
+                <div className="text-center py-16">
+                  <UtensilsCrossed size={36} className="mx-auto mb-3 text-gray-200" />
+                  <p className="text-gray-400 text-sm">{bq ? `Sin resultados para "${bq}"` : 'Sin platos en esta categoría'}</p>
+                </div>
+              ) : null
+            })()}
           </div>
 
           {/* Carrito flotante */}
