@@ -408,10 +408,11 @@ export default function GerenciaPage() {
 
   // ── CARGAR CARTA ─────────────────────────────────────────────
   const cargarCarta = useCallback(async () => {
-    const [{ data: cats }, { data: pls }, { data: mods }] = await Promise.all([
+    const [{ data: cats }, { data: pls }, { data: mods }, { data: invData }] = await Promise.all([
       supabase.from('categorias').select('*').order('orden'),
       supabase.from('platos').select('*').order('nombre'),
       supabase.from('grupos_modificadores').select('*, opciones:opciones_modificador(*, componente:platos(nombre))').order('orden'),
+      supabase.from('inventario').select('plato_id, cantidad_disponible'),
     ])
     if (cats) setCategorias(cats)
     if (pls) {
@@ -419,7 +420,20 @@ export default function GerenciaPage() {
       ;((mods || []) as unknown as (GrupoModificador & { plato_id: string })[]).forEach(g => {
         modsPorPlato.set(g.plato_id, [...(modsPorPlato.get(g.plato_id) || []), g])
       })
-      setPlatos((pls as Plato[]).map(p => ({ ...p, modificadores: modsPorPlato.get(p.id) || [] })))
+      const invMap = new Map<string, number>()
+      ;((invData || []) as { plato_id: string; cantidad_disponible: number }[]).forEach(i => invMap.set(i.plato_id, i.cantidad_disponible))
+      setPlatos((pls as Plato[]).map(p => ({
+        ...p,
+        modificadores: (modsPorPlato.get(p.id) || []).map(grupo => ({
+          ...grupo,
+          opciones: grupo.opciones.map(op => {
+            if (!op.descuenta_inventario || !op.componente_plato_id) return op
+            const stock = invMap.get(op.componente_plato_id)
+            if (stock !== undefined && stock <= 0) return { ...op, activo: false }
+            return op
+          }),
+        })),
+      })))
     }
   }, [supabase])
 

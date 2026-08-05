@@ -116,10 +116,23 @@ export default function MeseraPage() {
       ;((modsData || []) as { plato_id: string }[]).forEach(g => {
         modsPorPlato.set(g.plato_id, [...(modsPorPlato.get(g.plato_id) || []), g])
       })
+      const invMap = new Map<string, number>()
+      ;(invData || []).forEach((i: Inventario) => invMap.set(i.plato_id, i.cantidad_disponible))
       const platosConInv = platosData.map(p => ({
         ...p,
         inventario: (invData || []).filter((i: Inventario) => i.plato_id === p.id),
-        modificadores: modsPorPlato.get(p.id) || [],
+        modificadores: (modsPorPlato.get(p.id) || []).map((grupo: unknown) => {
+          const g = grupo as { id: string; opciones: { componente_plato_id: string | null; descuenta_inventario: boolean; activo: boolean }[] }
+          return {
+            ...g,
+            opciones: (g.opciones || []).map(op => {
+              if (!op.descuenta_inventario || !op.componente_plato_id) return op
+              const stock = invMap.get(op.componente_plato_id)
+              if (stock !== undefined && stock <= 0) return { ...op, activo: false }
+              return op
+            }),
+          }
+        }),
       }))
       setPlatos(platosConInv as unknown as (Plato & { inventario: Inventario[] })[])
     }
