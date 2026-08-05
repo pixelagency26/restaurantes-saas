@@ -23,6 +23,15 @@ import { UtensilsCrossed, ShoppingBag, Bell, CheckCircle, X, Plus, Minus, Bike, 
 
 type ItemCarrito = ItemConModificadores
 
+type ItemPedidoActual = {
+  id: string
+  estado: 'pendiente' | 'en_preparacion' | 'listo' | 'entregado'
+  cantidad: number
+  notas: string | null
+  precio_unitario: number
+  plato: { nombre: string }
+}
+
 export default function MeseraPage() {
   const [mesas, setMesas] = useState<Mesa[]>([])
   const [mesaSeleccionada, setMesaSeleccionada] = useState<Mesa | null>(null)
@@ -32,7 +41,7 @@ export default function MeseraPage() {
   const [carrito, setCarrito] = useState<ItemCarrito[]>([])
   const [notaGeneral, setNotaGeneral] = useState('')
   const [pedidosListos, setPedidosListos] = useState<{ id: string; mesa: number }[]>([])
-  const [vista, setVista] = useState<'mesas' | 'menu' | 'carrito'>('mesas')
+  const [vista, setVista] = useState<'mesas' | 'menu' | 'carrito' | 'pedido'>('mesas')
   const [enviando, setEnviando] = useState(false)
   const [modoDomi, setModoDomi] = useState(false)
   const [domiCliente, setDomiCliente] = useState({ nombre: '', cedula: '', telefono: '', direccion: '' })
@@ -40,6 +49,9 @@ export default function MeseraPage() {
   const [seleccionMods, setSeleccionMods] = useState<SeleccionModificadores>({})
   const [configurandoComplementos, setConfigurandoComplementos] = useState(false)
   const [busquedaPlato, setBusquedaPlato] = useState('')
+  const [pedidoActualItems, setPedidoActualItems] = useState<ItemPedidoActual[]>([])
+  const [verPedidoId, setVerPedidoId] = useState<string | null>(null)
+  const verPedidoIdRef = useRef<string | null>(null)
 
   // Mesa ocupada — pedido existente
   const [modalMesaOcupada, setModalMesaOcupada] = useState(false)
@@ -139,6 +151,15 @@ export default function MeseraPage() {
     }
   }, [supabase, categoriaActiva])
 
+  const cargarPedidoActual = useCallback(async (pedidoId: string) => {
+    const { data } = await supabase
+      .from('items_pedido')
+      .select('id, estado, cantidad, notas, precio_unitario, plato:platos(nombre)')
+      .eq('pedido_id', pedidoId)
+      .order('created_at')
+    if (data) setPedidoActualItems(data as unknown as ItemPedidoActual[])
+  }, [supabase])
+
   const cargarPedidosListos = useCallback(async () => {
     const { data } = await supabase
       .from('pedidos')
@@ -175,6 +196,10 @@ export default function MeseraPage() {
       // Notificación plato a plato cuando cocina marca listo (items_pedido ya está en realtime pub)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'items_pedido' }, (payload) => {
         const item = payload.new as { id: string; estado: string; pedido_id: string }
+        // Actualizar vista "Ver pedido actual" si estamos viendo este pedido
+        if (verPedidoIdRef.current && item.pedido_id === verPedidoIdRef.current) {
+          cargarPedidoActual(verPedidoIdRef.current)
+        }
         if (item.estado !== 'listo') return
 
         supabase
@@ -223,7 +248,7 @@ export default function MeseraPage() {
       supabase.removeChannel(canal)
       clearInterval(intervalo)
     }
-  }, [cargarDatos, cargarPedidosListos, supabase])
+  }, [cargarDatos, cargarPedidosListos, cargarPedidoActual, supabase])
 
   // ── SELECCIONAR MESA ─────────────────────────────────────────
   async function seleccionarMesa(mesa: Mesa) {
@@ -714,6 +739,18 @@ export default function MeseraPage() {
             </div>
             <p className="text-gray-500 text-sm mb-5">Esta mesa ya tiene un pedido activo. ¿Qué deseas hacer?</p>
             <div className="space-y-3">
+              <button onClick={() => {
+                  if (!pedidoExistenteId) return
+                  setModalMesaOcupada(false)
+                  setMesaSeleccionada(mesaTemporal)
+                  verPedidoIdRef.current = pedidoExistenteId
+                  setVerPedidoId(pedidoExistenteId)
+                  cargarPedidoActual(pedidoExistenteId)
+                  setVista('pedido')
+                }}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2">
+                👁 Ver pedido actual
+              </button>
               <button onClick={confirmarAgregarAPedido}
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2">
                 <Plus size={18} /> Agregar platos al pedido actual
@@ -749,7 +786,16 @@ export default function MeseraPage() {
               <h2 className="font-black text-white text-base">Mesa {mesaSeleccionada?.numero}</h2>
             )}
             {pedidoExistenteId && (
-              <p className="text-[11px] text-orange-400 font-semibold leading-none mt-0.5">Agregando al pedido actual</p>
+              <button
+                onClick={() => {
+                  verPedidoIdRef.current = pedidoExistenteId
+                  setVerPedidoId(pedidoExistenteId)
+                  cargarPedidoActual(pedidoExistenteId)
+                  setVista('pedido')
+                }}
+                className="text-[11px] text-indigo-400 font-bold leading-none mt-0.5 underline underline-offset-2">
+                👁 Ver pedido actual
+              </button>
             )}
           </div>
         </div>
@@ -936,6 +982,91 @@ export default function MeseraPage() {
       )}
     </div>
   )
+
+  // ── VISTA: PEDIDO ACTUAL ─────────────────────────────────────
+  if (vista === 'pedido') {
+    const ESTADOS: Record<string, { label: string; dot: string; bg: string; text: string; order: number }> = {
+      en_preparacion: { label: 'En cocina',        dot: 'bg-orange-500', bg: 'bg-orange-500/10 border-orange-500/30', text: 'text-orange-300', order: 1 },
+      pendiente:      { label: 'Enviado',           dot: 'bg-gray-500',   bg: 'bg-gray-800/60 border-gray-700',       text: 'text-gray-400',   order: 2 },
+      listo:          { label: 'Listo para recoger',dot: 'bg-green-500',  bg: 'bg-green-500/10 border-green-500/30',  text: 'text-green-300',  order: 0 },
+      entregado:      { label: 'Entregado',         dot: 'bg-gray-600',   bg: 'bg-gray-900/60 border-gray-800',       text: 'text-gray-600',   order: 3 },
+    }
+    const ordenado = [...pedidoActualItems].sort((a, b) => (ESTADOS[a.estado]?.order ?? 9) - (ESTADOS[b.estado]?.order ?? 9))
+    const totalPedido = pedidoActualItems.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
+    const hayListos    = pedidoActualItems.some(i => i.estado === 'listo')
+    const todosEntregados = pedidoActualItems.length > 0 && pedidoActualItems.every(i => i.estado === 'entregado')
+
+    return (
+      <div className="min-h-screen bg-gray-950 flex flex-col">
+        {/* Header */}
+        <div className="bg-gray-950/95 backdrop-blur-md border-b border-gray-800 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
+          <button onClick={() => { verPedidoIdRef.current = null; setVerPedidoId(null); setVista('mesas') }}
+            className="w-8 h-8 bg-gray-800 hover:bg-gray-700 rounded-lg flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+            <X size={18} />
+          </button>
+          <div className="flex-1 min-w-0">
+            <h2 className="font-black text-white text-base">Mesa {mesaSeleccionada?.numero} — Pedido actual</h2>
+            <p className="text-[11px] text-gray-500 mt-0.5">Se actualiza en tiempo real</p>
+          </div>
+          <button onClick={() => cargarPedidoActual(verPedidoId!)}
+            className="text-xs text-gray-500 hover:text-white font-semibold px-2 py-1 rounded-lg bg-gray-800 transition-colors">
+            ↻
+          </button>
+        </div>
+
+        {/* Resumen de estado */}
+        {pedidoActualItems.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center text-gray-600 text-sm">Cargando...</div>
+        ) : (
+          <div className="flex-1 p-4 space-y-2 pb-32">
+            {todosEntregados && (
+              <div className="bg-green-500/10 border border-green-500/30 rounded-2xl px-4 py-3 text-center">
+                <p className="text-green-400 font-black text-sm">✅ Todo entregado</p>
+              </div>
+            )}
+            {hayListos && !todosEntregados && (
+              <div className="bg-green-500/10 border-2 border-green-500/40 rounded-2xl px-4 py-3 flex items-center gap-3 animate-pulse">
+                <Bell size={18} className="text-green-400 shrink-0" />
+                <p className="text-green-300 font-black text-sm">¡Hay platos listos para recoger!</p>
+              </div>
+            )}
+
+            {ordenado.map(item => {
+              const est = ESTADOS[item.estado] ?? ESTADOS.pendiente
+              return (
+                <div key={item.id} className={`border rounded-2xl px-4 py-3 flex items-start gap-3 ${est.bg}`}>
+                  <span className={`mt-1.5 w-2.5 h-2.5 rounded-full shrink-0 ${est.dot} ${item.estado === 'listo' ? 'animate-pulse' : ''}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-bold text-sm leading-snug">
+                      {item.cantidad > 1 ? <span className="text-gray-400 mr-1">{item.cantidad}×</span> : null}
+                      {item.plato.nombre}
+                    </p>
+                    {item.notas && <p className="text-gray-500 text-xs mt-0.5 truncate">📝 {item.notas}</p>}
+                  </div>
+                  <span className={`text-xs font-black shrink-0 mt-0.5 ${est.text}`}>{est.label}</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="fixed bottom-0 left-0 right-0 bg-gray-950/95 backdrop-blur-md border-t border-gray-800 p-4 space-y-2">
+          <div className="flex justify-between items-center">
+            <span className="text-gray-500 text-sm font-medium">Total del pedido</span>
+            <span className="text-white font-black">${totalPedido.toLocaleString('es-CO')}</span>
+          </div>
+          <button onClick={() => {
+              verPedidoIdRef.current = null; setVerPedidoId(null)
+              setCarrito([]); confirmarAgregarAPedido()
+            }}
+            className="w-full bg-orange-500 hover:bg-orange-600 text-white font-black py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-colors">
+            <Plus size={18} /> Agregar más platos
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   // ── VISTA: CARRITO ───────────────────────────────────────────
   return (

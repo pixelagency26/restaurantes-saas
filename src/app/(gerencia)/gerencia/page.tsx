@@ -232,6 +232,7 @@ export default function GerenciaPage() {
   const [busquedaCliente, setBusquedaCliente] = useState('')
   const [clienteDetalle, setClienteDetalle] = useState<{ cliente: ClienteStat; pedidos: ClientePedido[] } | null>(null)
   const [clienteEditando, setClienteEditando] = useState<ClienteStat | null>(null)
+  const [creandoClienteModal, setCreandoClienteModal] = useState(false)
   const [clienteFormEdit, setClienteFormEdit] = useState({ nombre: '', cedula: '', telefono: '', fecha_cumpleanos: '', notas: '', advertencias: '' })
   const [cargandoClientes, setCargandoClientes] = useState(false)
   const [importandoClientes, setImportandoClientes] = useState(false)
@@ -2715,17 +2716,40 @@ export default function GerenciaPage() {
 
   async function guardarClienteEditado() {
     if (!clienteEditando || !clienteFormEdit.nombre.trim()) return
-    const { error } = await supabase.from('clientes').update({
-      nombre: clienteFormEdit.nombre.trim(),
-      cedula: clienteFormEdit.cedula.trim() || null,
-      telefono: clienteFormEdit.telefono.trim() || null,
+    // Solo actualizar columnas que existen en la BD (detectadas por lo que retornó select('*'))
+    const payload: Record<string, unknown> = {
+      nombre:           clienteFormEdit.nombre.trim(),
+      cedula:           clienteFormEdit.cedula.trim() || null,
+      telefono:         clienteFormEdit.telefono.trim() || null,
       fecha_cumpleanos: clienteFormEdit.fecha_cumpleanos || null,
-      notas: clienteFormEdit.notas.trim() || null,
-      advertencias: clienteFormEdit.advertencias.trim() || null,
-    }).eq('id', clienteEditando.id)
-    if (error) { toast.error('Error al guardar cliente'); return }
+    }
+    if ('notas' in clienteEditando)       payload.notas       = clienteFormEdit.notas.trim() || null
+    if ('advertencias' in clienteEditando) payload.advertencias = clienteFormEdit.advertencias.trim() || null
+    const { error } = await supabase.from('clientes').update(payload).eq('id', clienteEditando.id)
+    if (error) { toast.error('Error al guardar: ' + error.message); return }
     toast.success('Cliente actualizado')
     setClienteEditando(null)
+    await cargarClientes()
+  }
+
+  async function crearClienteNuevo() {
+    if (!clienteFormEdit.nombre.trim()) { toast.error('El nombre es obligatorio'); return }
+    const payload: Record<string, unknown> = {
+      nombre:           clienteFormEdit.nombre.trim(),
+      cedula:           clienteFormEdit.cedula.trim() || null,
+      telefono:         clienteFormEdit.telefono.trim() || null,
+      fecha_cumpleanos: clienteFormEdit.fecha_cumpleanos || null,
+    }
+    // Intentar con notas/advertencias; si la BD no las tiene se omiten
+    const payloadConExtras = { ...payload, notas: clienteFormEdit.notas.trim() || null, advertencias: clienteFormEdit.advertencias.trim() || null }
+    let { error } = await supabase.from('clientes').insert(payloadConExtras)
+    if (error && (error.message.includes('notas') || error.message.includes('advertencias'))) {
+      ;({ error } = await supabase.from('clientes').insert(payload))
+    }
+    if (error) { toast.error('Error al crear cliente: ' + error.message); return }
+    toast.success('Cliente creado')
+    setClienteEditando(null)
+    setClienteFormEdit({ nombre: '', cedula: '', telefono: '', fecha_cumpleanos: '', notas: '', advertencias: '' })
     await cargarClientes()
   }
 
@@ -3796,6 +3820,10 @@ export default function GerenciaPage() {
                   onChange={e => setBusquedaCliente(e.target.value)}
                   className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
               </div>
+              <button onClick={() => { setCreandoClienteModal(true); setClienteFormEdit({ nombre: '', cedula: '', telefono: '', fecha_cumpleanos: '', notas: '', advertencias: '' }) }}
+                className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-2.5 rounded-xl text-sm whitespace-nowrap shadow-lg shadow-blue-900/20 transition-all">
+                + Nuevo
+              </button>
               <button onClick={exportarClientesCSV}
                 className="flex items-center gap-1.5 bg-emerald-600/80 hover:bg-emerald-600 text-white font-bold px-3 py-2.5 rounded-xl text-sm whitespace-nowrap shadow-lg shadow-emerald-900/30 transition-all">
                 <Download size={15} /> Excel
@@ -4137,6 +4165,35 @@ export default function GerenciaPage() {
                   <button onClick={guardarClienteEditado}
                     className="w-full bg-orange-500 hover:bg-orange-600 text-white font-black rounded-2xl py-3">
                     Guardar cambios
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {creandoClienteModal && (
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-end md:items-center justify-center p-0 md:p-4">
+                <div className="bg-white w-full md:max-w-lg md:rounded-3xl rounded-t-3xl max-h-[90vh] overflow-y-auto p-5 space-y-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h2 className="text-lg font-black text-gray-900">Nuevo cliente</h2>
+                    <button onClick={() => setCreandoClienteModal(false)} className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center"><X size={18} /></button>
+                  </div>
+                  <input value={clienteFormEdit.nombre} onChange={e => setClienteFormEdit(p => ({ ...p, nombre: e.target.value }))}
+                    placeholder="Nombre *" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input value={clienteFormEdit.cedula} onChange={e => setClienteFormEdit(p => ({ ...p, cedula: e.target.value }))}
+                      placeholder="Cedula" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900" />
+                    <input value={clienteFormEdit.telefono} onChange={e => setClienteFormEdit(p => ({ ...p, telefono: e.target.value }))}
+                      placeholder="Telefono" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900" />
+                  </div>
+                  <input type="date" value={clienteFormEdit.fecha_cumpleanos} onChange={e => setClienteFormEdit(p => ({ ...p, fecha_cumpleanos: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900" />
+                  <textarea value={clienteFormEdit.notas} onChange={e => setClienteFormEdit(p => ({ ...p, notas: e.target.value }))}
+                    placeholder="Notas internas del cliente" rows={3} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 resize-none" />
+                  <textarea value={clienteFormEdit.advertencias} onChange={e => setClienteFormEdit(p => ({ ...p, advertencias: e.target.value }))}
+                    placeholder="Advertencias importantes" rows={3} className="w-full border border-red-200 bg-red-50 rounded-xl px-3 py-2.5 text-sm text-gray-900 resize-none" />
+                  <button onClick={async () => { await crearClienteNuevo(); setCreandoClienteModal(false) }}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl py-3">
+                    Crear cliente
                   </button>
                 </div>
               </div>
