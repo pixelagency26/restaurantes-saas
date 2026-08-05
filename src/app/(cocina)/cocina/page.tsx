@@ -269,6 +269,11 @@ export default function CocinaPage() {
   const [miNombre, setMiNombre]             = useState<string>('Cocina')
   const [nombresConfig, setNombresConfig]   = useState<string[]>([])
   const [nombresCargados, setNombresCargados] = useState(false)
+  const [complEstados, setComplEstados]     = useState<Record<string, 'pendiente' | 'en_preparacion' | 'listo'>>({})
+
+  function marcarComplemento(key: string, estado: 'en_preparacion' | 'listo') {
+    setComplEstados(prev => ({ ...prev, [key]: estado }))
+  }
 
   const supabase = createClient()
 
@@ -605,12 +610,12 @@ export default function CocinaPage() {
 
                 {/* Items */}
                 <div className="p-3 space-y-2">
-                  {itemsPedido.map(item => {
+                  {itemsPedido.flatMap(item => {
                     const esAdicional      = (new Date(item.created_at).getTime() - new Date(pedido.created_at).getTime()) > UMBRAL_ADICIONAL_MS
                     const bloqueadoPorOtro = item.cocinero && item.cocinero !== miNombre && item.estado === 'en_preparacion'
                     const esMio            = item.cocinero === miNombre
 
-                    return (
+                    const filaItem = (
                       <div key={item.id}
                         className={`rounded-xl border p-3 transition-all ${
                           item.estado === 'listo'
@@ -640,11 +645,6 @@ export default function CocinaPage() {
                                 </span>
                               )}
                             </div>
-                            {item.acompanantes && item.acompanantes.length > 0 && (
-                              <p className="text-xs text-gray-300 mt-0.5">
-                                Incluye: {item.acompanantes.join(' · ')}
-                              </p>
-                            )}
                             {item.modificadores && item.modificadores.length > 0 && (
                               <div className="mt-1 space-y-0.5">
                                 {Object.entries(
@@ -678,7 +678,6 @@ export default function CocinaPage() {
                                   <CheckCircle size={10} /> Listo
                                 </span>
                               )}
-                              {/* Nombre del cocinero asignado */}
                               {item.cocinero && item.estado !== 'listo' && (
                                 <span className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
                                   esMio
@@ -725,8 +724,108 @@ export default function CocinaPage() {
                         </div>
                       </div>
                     )
+
+                    // Complementos (acompañantes) como filas independientes en color teal
+                    const filasCompl = (item.acompanantes ?? []).map((ac, idx) => {
+                      const cKey = `${item.id}::${idx}`
+                      const est  = complEstados[cKey] ?? 'pendiente'
+                      return (
+                        <div key={cKey}
+                          className={`rounded-xl border p-3 ml-4 border-l-2 transition-all ${
+                            est === 'listo'
+                              ? 'bg-teal-950/40 border-teal-500/25 border-l-teal-500/60'
+                              : est === 'en_preparacion'
+                              ? 'bg-teal-900/30 border-teal-500/35 border-l-teal-400'
+                              : 'bg-teal-950/20 border-teal-700/30 border-l-teal-700/50'
+                          }`}>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className={`font-bold text-sm ${est === 'listo' ? 'text-teal-400' : 'text-teal-300'}`}>
+                                  {item.cantidad > 1 ? `${item.cantidad}× ` : ''}{ac}
+                                </p>
+                                <span className="text-[10px] bg-teal-500/15 border border-teal-500/25 text-teal-400 px-1.5 py-0.5 rounded-full font-bold">
+                                  Complemento
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-1">
+                                {est === 'pendiente' && (
+                                  <span className="flex items-center gap-1 text-[10px] text-gray-500 font-semibold">
+                                    <span className="w-1.5 h-1.5 bg-gray-500 rounded-full" /> Pendiente
+                                  </span>
+                                )}
+                                {est === 'en_preparacion' && (
+                                  <span className="flex items-center gap-1 text-[10px] text-teal-400 font-bold">
+                                    <Flame size={10} className="animate-pulse" /> En preparación
+                                  </span>
+                                )}
+                                {est === 'listo' && (
+                                  <span className="flex items-center gap-1 text-[10px] text-teal-400 font-bold">
+                                    <CheckCircle size={10} /> Listo
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="shrink-0">
+                              {est === 'pendiente' && (
+                                <button
+                                  onClick={() => marcarComplemento(cKey, 'en_preparacion')}
+                                  className="bg-teal-700 hover:bg-teal-600 active:scale-95 text-white text-xs px-3 py-2 rounded-lg font-bold transition-all flex items-center gap-1.5">
+                                  <Flame size={12} /> Preparar
+                                </button>
+                              )}
+                              {est === 'en_preparacion' && (
+                                <button
+                                  onClick={() => marcarComplemento(cKey, 'listo')}
+                                  className="bg-teal-600 hover:bg-teal-500 active:scale-95 text-white text-xs px-3 py-2 rounded-lg font-bold transition-all flex items-center gap-1.5">
+                                  <Zap size={12} /> Listo
+                                </button>
+                              )}
+                              {est === 'listo' && (
+                                <span className="text-teal-400 text-xs font-black flex items-center gap-1">
+                                  <CheckCircle size={12} /> Listo
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })
+
+                    return [filaItem, ...filasCompl]
                   })}
                 </div>
+
+                {/* Resumen final de la comanda */}
+                {(() => {
+                  const resumen: Record<string, number> = {}
+                  itemsPedido.forEach(item => {
+                    const nombre = item.plato?.nombre ?? '?'
+                    resumen[nombre] = (resumen[nombre] ?? 0) + item.cantidad
+                  })
+                  itemsPedido.forEach(item => {
+                    ;(item.acompanantes ?? []).forEach(ac => {
+                      const m = ac.match(/^(.+?)\s+x(\d+)$/i)
+                      const nombre = m ? m[1].trim() : ac
+                      const cant   = m ? parseInt(m[2]) : 1
+                      resumen[nombre] = (resumen[nombre] ?? 0) + cant * item.cantidad
+                    })
+                  })
+                  const entradas = Object.entries(resumen)
+                  if (entradas.length === 0) return null
+                  return (
+                    <div className="border-t border-gray-700/40 px-3 pb-3 pt-2.5">
+                      <p className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1.5">Resumen final</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {entradas.map(([nombre, cant]) => (
+                          <span key={nombre} className="inline-flex items-center gap-1 text-xs bg-gray-800/70 border border-gray-600/40 text-gray-300 px-2.5 py-1 rounded-full">
+                            <span className="font-black text-white">{cant}×</span> {nombre}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             )
           })}
