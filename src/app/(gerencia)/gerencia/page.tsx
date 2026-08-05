@@ -39,8 +39,10 @@ interface Categoria { id: number; nombre: string; orden: number }
 interface ClienteStat {
   id: string; cedula: string | null; nombre: string; telefono: string | null
   fecha_cumpleanos: string | null; notas?: string | null; advertencias?: string | null
-  pedidos: number; totalGastado: number; ultimaVisita: string | null
+  pedidos: number; totalGastado: number; ultimaVisita: string | null; primeraVisita: string | null
 }
+type SegmentoCliente = 'nuevo' | 'ocasional' | 'frecuente' | 'alto_valor' | 'vip'
+type EstadoActividad  = 'activo' | 'en_riesgo' | 'inactivo'
 interface ClientePedidoItem { nombre: string; cantidad: number; precio_unitario: number }
 interface ClientePedido { id: string; created_at: string; total: number; tipo: string; estado: string; items: ClientePedidoItem[] }
 interface HistorialItemPedido {
@@ -233,8 +235,10 @@ export default function GerenciaPage() {
   const [clienteFormEdit, setClienteFormEdit] = useState({ nombre: '', cedula: '', telefono: '', fecha_cumpleanos: '', notas: '', advertencias: '' })
   const [cargandoClientes, setCargandoClientes] = useState(false)
   const [importandoClientes, setImportandoClientes] = useState(false)
-  const [ordenClientes, setOrdenClientes] = useState<'mayor_consumo' | 'menor_consumo' | 'az' | 'cumpleanos'>('mayor_consumo')
+  const [ordenClientes, setOrdenClientes] = useState<'mayor_consumo' | 'menor_consumo' | 'az' | 'cumpleanos' | 'visitas' | 'sin_visitar'>('mayor_consumo')
   const [filtroMesCumple, setFiltroMesCumple] = useState<number>(0) // 0 = todos los meses
+  const [filtroSegmento, setFiltroSegmento] = useState<SegmentoCliente | 'todos'>('todos')
+  const [filtroEstado, setFiltroEstado]     = useState<EstadoActividad | 'todos'>('todos')
 
   // Menús de turno (múltiples menús con nombre)
   const [subSeccionCarta, setSubSeccionCarta] = useState<'carta' | 'menus'>('carta')
@@ -605,22 +609,25 @@ export default function GerenciaPage() {
       .from('pedidos').select('cliente_id, created_at, items:items_pedido(cantidad, precio_unitario)')
       .not('cliente_id', 'is', null).neq('estado', 'cancelado')
 
-    const statsMap: Record<string, { pedidos: number; total: number; ultima: string }> = {}
+    const statsMap: Record<string, { pedidos: number; total: number; ultima: string; primera: string }> = {}
     ;(pedidosClientes || []).forEach((p: unknown) => {
       const ped = p as { cliente_id: string; created_at: string; items: { cantidad: number; precio_unitario: number }[] }
       if (!ped.cliente_id) return
       const total = ped.items?.reduce((a, i) => a + i.cantidad * i.precio_unitario, 0) ?? 0
-      if (!statsMap[ped.cliente_id]) statsMap[ped.cliente_id] = { pedidos: 0, total: 0, ultima: '' }
+      if (!statsMap[ped.cliente_id]) statsMap[ped.cliente_id] = { pedidos: 0, total: 0, ultima: '', primera: '' }
       statsMap[ped.cliente_id].pedidos++
       statsMap[ped.cliente_id].total += total
       if (!statsMap[ped.cliente_id].ultima || ped.created_at > statsMap[ped.cliente_id].ultima)
         statsMap[ped.cliente_id].ultima = ped.created_at
+      if (!statsMap[ped.cliente_id].primera || ped.created_at < statsMap[ped.cliente_id].primera)
+        statsMap[ped.cliente_id].primera = ped.created_at
     })
     setClientes(data.map((c: ClienteStat) => ({
       ...c,
       pedidos: statsMap[c.id]?.pedidos ?? 0,
       totalGastado: statsMap[c.id]?.total ?? 0,
       ultimaVisita: statsMap[c.id]?.ultima ?? null,
+      primeraVisita: statsMap[c.id]?.primera ?? null,
     })))
     setCargandoClientes(false)
   }, [supabase])
@@ -2500,6 +2507,48 @@ export default function GerenciaPage() {
   // ── CLIENTES: filtrado, ordenado y exportación ────────────────
   const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
+  // ── SEGMENTACIÓN DE CLIENTES (calculada client-side) ────────
+  const SEG_LABELS: Record<SegmentoCliente, string> = { nuevo: '🆕 Nuevo', ocasional: 'Ocasional', frecuente: '🔁 Frecuente', alto_valor: '⭐ Alto valor', vip: '👑 VIP' }
+  const SEG_STYLES: Record<SegmentoCliente, string> = {
+    nuevo:      'bg-blue-100 text-blue-600 border-blue-200',
+    ocasional:  'bg-gray-100 text-gray-500 border-gray-200',
+    frecuente:  'bg-emerald-100 text-emerald-600 border-emerald-200',
+    alto_valor: 'bg-purple-100 text-purple-600 border-purple-200',
+    vip:        'bg-amber-100 text-amber-600 border-amber-200',
+  }
+  const ESTADO_LABELS: Record<EstadoActividad, string> = { activo: '● Activo', en_riesgo: '⚠ En riesgo', inactivo: '✕ Inactivo' }
+  const ESTADO_STYLES: Record<EstadoActividad, string> = {
+    activo:   'bg-emerald-100 text-emerald-600 border-emerald-200',
+    en_riesgo:'bg-orange-100 text-orange-500 border-orange-200',
+    inactivo: 'bg-red-100 text-red-500 border-red-200',
+  }
+  const segmentacionClientes = (() => {
+    const ahora = new Date()
+    const conPedidos = clientes.filter(c => c.pedidos > 0)
+    const consumosOrdenados = [...conPedidos].map(c => c.totalGastado).sort((a, b) => a - b)
+    const n = consumosOrdenados.length
+    const umbral90 = n >= 20 ? consumosOrdenados[Math.floor(n * 0.9)] : Infinity
+    const umbral80 = n >= 20 ? consumosOrdenados[Math.floor(n * 0.8)] : Infinity
+    const map: Record<string, { segmento: SegmentoCliente; estado: EstadoActividad; diasSinVisitar: number }> = {}
+    clientes.forEach(c => {
+      const diasSinVisitar = c.ultimaVisita
+        ? Math.floor((ahora.getTime() - new Date(c.ultimaVisita).getTime()) / (1000 * 60 * 60 * 24))
+        : 9999
+      const diasDesdeCreacion = c.primeraVisita
+        ? Math.floor((ahora.getTime() - new Date(c.primeraVisita).getTime()) / (1000 * 60 * 60 * 24))
+        : 9999
+      const estado: EstadoActividad = diasSinVisitar <= 30 ? 'activo' : diasSinVisitar <= 60 ? 'en_riesgo' : 'inactivo'
+      let segmento: SegmentoCliente
+      if (c.pedidos >= 5 && c.totalGastado >= umbral90 && diasSinVisitar <= 30) segmento = 'vip'
+      else if (c.totalGastado >= umbral80) segmento = 'alto_valor'
+      else if (c.pedidos >= 3) segmento = 'frecuente'
+      else if (diasDesdeCreacion <= 30 && c.pedidos <= 2) segmento = 'nuevo'
+      else segmento = 'ocasional'
+      map[c.id] = { segmento, estado, diasSinVisitar }
+    })
+    return map
+  })()
+
   const clientesFiltradosOrdenados = clientes
     .filter(c =>
       (!busquedaCliente ||
@@ -2507,14 +2556,21 @@ export default function GerenciaPage() {
         (c.cedula || '').includes(busquedaCliente)) &&
       (filtroMesCumple === 0 ||
         (c.fecha_cumpleanos != null &&
-          new Date(c.fecha_cumpleanos + 'T12:00:00').getMonth() + 1 === filtroMesCumple))
+          new Date(c.fecha_cumpleanos + 'T12:00:00').getMonth() + 1 === filtroMesCumple)) &&
+      (filtroSegmento === 'todos' || segmentacionClientes[c.id]?.segmento === filtroSegmento) &&
+      (filtroEstado   === 'todos' || segmentacionClientes[c.id]?.estado   === filtroEstado)
     )
     .sort((a, b) => {
       if (ordenClientes === 'mayor_consumo') return b.totalGastado - a.totalGastado
       if (ordenClientes === 'menor_consumo') return a.totalGastado - b.totalGastado
       if (ordenClientes === 'az') return a.nombre.localeCompare(b.nombre, 'es')
+      if (ordenClientes === 'visitas') return b.pedidos - a.pedidos
+      if (ordenClientes === 'sin_visitar') {
+        const da = segmentacionClientes[a.id]?.diasSinVisitar ?? 9999
+        const db = segmentacionClientes[b.id]?.diasSinVisitar ?? 9999
+        return db - da
+      }
       if (ordenClientes === 'cumpleanos') {
-        // Ordena por proximidad del cumpleaños al día de hoy
         const hoy = new Date()
         const mesHoy = hoy.getMonth() + 1
         const diaHoy = hoy.getDate()
@@ -3561,6 +3617,63 @@ export default function GerenciaPage() {
                 {pedidosHoy.length === 0 && <p className="text-center text-gray-400 py-6 text-sm">Sin pedidos en este período</p>}
               </div>
             </div>
+
+            {/* Segmentación de clientes */}
+            {clientes.length > 0 && (() => {
+              const vals = Object.values(segmentacionClientes)
+              const total = vals.length
+              if (total === 0) return null
+              const contarEst = (e: EstadoActividad) => vals.filter(v => v.estado === e).length
+              const activos   = contarEst('activo')
+              const riesgo    = contarEst('en_riesgo')
+              const inactivos = contarEst('inactivo')
+              const topSegmentos: { label: string; n: number; color: string }[] = [
+                { label: '👑 VIP',        n: vals.filter(v => v.segmento === 'vip').length,        color: 'bg-amber-400' },
+                { label: '⭐ Alto valor', n: vals.filter(v => v.segmento === 'alto_valor').length, color: 'bg-purple-400' },
+                { label: '🔁 Frecuente', n: vals.filter(v => v.segmento === 'frecuente').length,  color: 'bg-emerald-400' },
+                { label: 'Ocasional',    n: vals.filter(v => v.segmento === 'ocasional').length,  color: 'bg-gray-300' },
+                { label: '🆕 Nuevo',     n: vals.filter(v => v.segmento === 'nuevo').length,      color: 'bg-blue-400' },
+              ]
+              return (
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Users size={15} className="text-orange-500" />
+                      <h3 className="font-bold text-gray-800">Segmentación de clientes</h3>
+                    </div>
+                    <span className="text-xs text-gray-400">{total} identificados</span>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+                        <p className="text-xl font-black text-emerald-700">{activos}</p>
+                        <p className="text-xs text-emerald-600 font-bold">● Activos</p>
+                      </div>
+                      <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-center">
+                        <p className="text-xl font-black text-orange-600">{riesgo}</p>
+                        <p className="text-xs text-orange-500 font-bold">⚠ En riesgo</p>
+                      </div>
+                      <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
+                        <p className="text-xl font-black text-red-600">{inactivos}</p>
+                        <p className="text-xs text-red-500 font-bold">✕ Inactivos</p>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      {topSegmentos.map(s => (
+                        <div key={s.label} className="flex items-center gap-2">
+                          <span className="text-xs text-gray-600 font-bold w-20 shrink-0">{s.label}</span>
+                          <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                            <div className={`h-full rounded-full ${s.color}`} style={{ width: total > 0 ? `${Math.round(s.n / total * 100)}%` : '0%' }} />
+                          </div>
+                          <span className="text-xs text-gray-400 font-bold w-4 text-right shrink-0">{s.n}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
+
             </>)}
           </div>
         )}
@@ -3701,11 +3814,37 @@ export default function GerenciaPage() {
                     ['mayor_consumo', '💰 Mayor consumo'],
                     ['menor_consumo', '📉 Menor consumo'],
                     ['az',            '🔤 A → Z'],
+                    ['visitas',       '🔁 Más visitas'],
+                    ['sin_visitar',   '⚠ Sin visitar'],
                     ['cumpleanos',    '🎂 Cumpleaños próximo'],
-                  ] as ['mayor_consumo'|'menor_consumo'|'az'|'cumpleanos', string][]).map(([v, label]) => (
+                  ] as Array<['mayor_consumo'|'menor_consumo'|'az'|'cumpleanos'|'visitas'|'sin_visitar', string]>).map(([v, label]) => (
                     <button key={v} onClick={() => setOrdenClientes(v)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${ordenClientes === v ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200'}`}>
                       {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Filtrar por segmento comercial */}
+              <div>
+                <p className="text-xs text-gray-500 font-medium mb-1.5 flex items-center gap-1">📊 Segmento</p>
+                <div className="flex gap-1.5 flex-wrap">
+                  {(['todos', 'nuevo', 'ocasional', 'frecuente', 'alto_valor', 'vip'] as const).map(v => (
+                    <button key={v} onClick={() => setFiltroSegmento(v)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${filtroSegmento === v ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200'}`}>
+                      {v === 'todos' ? 'Todos' : SEG_LABELS[v]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Filtrar por estado de actividad */}
+              <div>
+                <p className="text-xs text-gray-500 font-medium mb-1.5 flex items-center gap-1">🕐 Actividad</p>
+                <div className="flex gap-1.5 flex-wrap">
+                  {(['todos', 'activo', 'en_riesgo', 'inactivo'] as const).map(v => (
+                    <button key={v} onClick={() => setFiltroEstado(v)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${filtroEstado === v ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/30' : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200'}`}>
+                      {v === 'todos' ? 'Todos' : ESTADO_LABELS[v]}
                     </button>
                   ))}
                 </div>
@@ -3772,6 +3911,16 @@ export default function GerenciaPage() {
                               </span>
                             )}
                           </div>
+                          {segmentacionClientes[c.id] && (
+                            <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${SEG_STYLES[segmentacionClientes[c.id].segmento]}`}>
+                                {SEG_LABELS[segmentacionClientes[c.id].segmento]}
+                              </span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${ESTADO_STYLES[segmentacionClientes[c.id].estado]}`}>
+                                {ESTADO_LABELS[segmentacionClientes[c.id].estado]}
+                              </span>
+                            </div>
+                          )}
                         </div>
                         <div className="text-right shrink-0">
                           <p className="font-black text-gray-900 text-sm">${c.totalGastado.toLocaleString('es-CO')}</p>
@@ -3833,6 +3982,43 @@ export default function GerenciaPage() {
                         </div>
                       )}
                     </div>
+                    {/* Segmentación */}
+                    {segmentacionClientes[clienteDetalle.cliente.id] && (() => {
+                      const seg = segmentacionClientes[clienteDetalle.cliente.id]
+                      const c = clienteDetalle.cliente
+                      const ticketProm = c.pedidos > 0 ? Math.round(c.totalGastado / c.pedidos) : 0
+                      const diasSin = seg.diasSinVisitar === 9999 ? null : seg.diasSinVisitar
+                      return (
+                        <div className="bg-orange-500/10 border border-orange-500/20 rounded-2xl p-4 space-y-3">
+                          <p className="text-xs font-black text-orange-400 uppercase tracking-wider">📊 Segmentación</p>
+                          <div className="flex gap-2 flex-wrap">
+                            <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${SEG_STYLES[seg.segmento]}`}>{SEG_LABELS[seg.segmento]}</span>
+                            <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${ESTADO_STYLES[seg.estado]}`}>{ESTADO_LABELS[seg.estado]}</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="bg-white/8 rounded-xl p-2.5">
+                              <p className="text-[10px] text-white/40 uppercase tracking-wide">Visitas totales</p>
+                              <p className="text-sm font-black text-white">{c.pedidos}</p>
+                            </div>
+                            <div className="bg-white/8 rounded-xl p-2.5">
+                              <p className="text-[10px] text-white/40 uppercase tracking-wide">Ticket promedio</p>
+                              <p className="text-sm font-black text-white">${ticketProm.toLocaleString('es-CO')}</p>
+                            </div>
+                            <div className="bg-white/8 rounded-xl p-2.5">
+                              <p className="text-[10px] text-white/40 uppercase tracking-wide">Primera visita</p>
+                              <p className="text-sm font-black text-white">{c.primeraVisita ? new Date(c.primeraVisita).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</p>
+                            </div>
+                            <div className="bg-white/8 rounded-xl p-2.5">
+                              <p className="text-[10px] text-white/40 uppercase tracking-wide">Días sin visitar</p>
+                              <p className={`text-sm font-black ${diasSin !== null && diasSin > 60 ? 'text-red-400' : diasSin !== null && diasSin > 30 ? 'text-orange-400' : 'text-white'}`}>
+                                {diasSin !== null ? `${diasSin} días` : '—'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })()}
+
                     {(clienteDetalle.cliente.advertencias || clienteDetalle.cliente.notas) && (
                       <div className="space-y-2">
                         {clienteDetalle.cliente.advertencias && (
@@ -3952,6 +4138,106 @@ export default function GerenciaPage() {
                 </div>
               </div>
             )}
+
+            {/* ── INFORME DE SEGMENTACIÓN ─────────────────────────── */}
+            {clientes.length > 0 && (() => {
+              const vals = Object.values(segmentacionClientes)
+              const total = vals.length
+              if (total === 0) return null
+              const contarSeg = (s: SegmentoCliente) => vals.filter(v => v.segmento === s).length
+              const contarEst = (e: EstadoActividad) => vals.filter(v => v.estado === e).length
+              const nuevos    = contarSeg('nuevo')
+              const ocasion   = contarSeg('ocasional')
+              const frecuente = contarSeg('frecuente')
+              const alto      = contarSeg('alto_valor')
+              const vip       = contarSeg('vip')
+              const activos   = contarEst('activo')
+              const riesgo    = contarEst('en_riesgo')
+              const inactivos = contarEst('inactivo')
+              const pct = (n: number) => total > 0 ? Math.round(n / total * 100) : 0
+
+              const enRiesgoValiosos = clientes.filter(c => {
+                const seg = segmentacionClientes[c.id]
+                return seg && seg.estado === 'en_riesgo' && (seg.segmento === 'vip' || seg.segmento === 'alto_valor' || seg.segmento === 'frecuente')
+              }).sort((a, b) => (segmentacionClientes[b.id]?.diasSinVisitar ?? 0) - (segmentacionClientes[a.id]?.diasSinVisitar ?? 0))
+
+              return (
+                <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                    <span className="text-sm font-black text-gray-900">📊 Informe de segmentación</span>
+                    <span className="text-xs text-gray-400 font-medium">{total} clientes</span>
+                  </div>
+                  <div className="p-4 space-y-4">
+                    {/* Estado de actividad */}
+                    <div>
+                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Estado de actividad</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+                          <p className="text-xl font-black text-emerald-700">{activos}</p>
+                          <p className="text-xs text-emerald-600 font-bold">● Activos</p>
+                          <p className="text-[10px] text-gray-400">{pct(activos)}%</p>
+                        </div>
+                        <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-center">
+                          <p className="text-xl font-black text-orange-600">{riesgo}</p>
+                          <p className="text-xs text-orange-500 font-bold">⚠ En riesgo</p>
+                          <p className="text-[10px] text-gray-400">{pct(riesgo)}%</p>
+                        </div>
+                        <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
+                          <p className="text-xl font-black text-red-600">{inactivos}</p>
+                          <p className="text-xs text-red-500 font-bold">✕ Inactivos</p>
+                          <p className="text-[10px] text-gray-400">{pct(inactivos)}%</p>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Segmentos comerciales */}
+                    <div>
+                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Segmentos comerciales</p>
+                      <div className="space-y-1.5">
+                        {([
+                          ['vip',        vip,       'bg-amber-400',   'text-amber-700', '👑 VIP'],
+                          ['alto_valor', alto,      'bg-purple-400',  'text-purple-700', '⭐ Alto valor'],
+                          ['frecuente',  frecuente, 'bg-emerald-400', 'text-emerald-700','🔁 Frecuente'],
+                          ['ocasional',  ocasion,   'bg-gray-300',    'text-gray-600',   'Ocasional'],
+                          ['nuevo',      nuevos,    'bg-blue-400',    'text-blue-700',   '🆕 Nuevo'],
+                        ] as [SegmentoCliente, number, string, string, string][]).map(([, n, barClr, textClr, label]) => (
+                          <div key={label} className="flex items-center gap-2">
+                            <span className={`text-xs font-bold w-20 shrink-0 ${textClr}`}>{label}</span>
+                            <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                              <div className={`h-full rounded-full ${barClr}`} style={{ width: `${pct(n)}%` }} />
+                            </div>
+                            <span className="text-xs text-gray-500 font-bold w-6 text-right shrink-0">{n}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Clientes valiosos en riesgo */}
+                    {enRiesgoValiosos.length > 0 && (
+                      <div>
+                        <p className="text-xs font-bold text-orange-500 uppercase tracking-wider mb-2">⚠ Clientes frecuentes/top sin visitar — prioridad de contacto</p>
+                        <div className="space-y-1">
+                          {enRiesgoValiosos.slice(0, 5).map(c => {
+                            const seg = segmentacionClientes[c.id]
+                            return (
+                              <button key={c.id} onClick={() => abrirClienteDetalle(c)}
+                                className="w-full flex items-center gap-3 bg-orange-50 border border-orange-100 rounded-xl px-3 py-2 text-left hover:bg-orange-100 transition-colors">
+                                <div className="w-7 h-7 rounded-full bg-orange-100 border border-orange-200 flex items-center justify-center shrink-0">
+                                  <span className="text-xs font-black text-orange-600">{c.nombre.charAt(0)}</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-bold text-gray-800 truncate">{c.nombre}</p>
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${SEG_STYLES[seg.segmento]}`}>{SEG_LABELS[seg.segmento]}</span>
+                                </div>
+                                <span className="text-xs font-black text-orange-500 shrink-0">{seg.diasSinVisitar}d sin visitar</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         )}
 
