@@ -43,6 +43,18 @@ interface ClienteStat {
 }
 interface ClientePedidoItem { nombre: string; cantidad: number; precio_unitario: number }
 interface ClientePedido { id: string; created_at: string; total: number; tipo: string; estado: string; items: ClientePedidoItem[] }
+interface HistorialItemPedido {
+  id: string; plato_id: string | null; cantidad: number; precio_unitario: number; notas: string | null; estado: string
+  plato: { nombre: string; controla_inventario: boolean } | null
+}
+interface HistorialPedido {
+  id: string; created_at: string; tipo: string; estado: string; turno_id: string | null; cliente_nombre: string | null
+  mesa: { numero: number } | null
+  cliente: { nombre: string; cedula: string | null } | null
+  mesera: { nombre: string } | null
+  items: HistorialItemPedido[]
+  pagos: { id: string; metodo: string; monto: number; propina: number }[]
+}
 interface Plato {
   id: string; nombre: string; descripcion: string | null; precio: number; costo: number | null
   categoria_id: number; imagen_url: string | null; activo: boolean
@@ -82,7 +94,7 @@ interface InventarioTurnoItem {
 }
 
 type MetodoPago = 'efectivo' | 'nequi' | 'daviplata' | 'bancolombia'
-type Seccion = 'mesas' | 'carta' | 'resumen' | 'tiempos' | 'caja' | 'usuarios' | 'clientes' | 'permisos' | 'reservas' | 'marketing'
+type Seccion = 'mesas' | 'carta' | 'resumen' | 'tiempos' | 'caja' | 'usuarios' | 'clientes' | 'permisos' | 'reservas' | 'marketing' | 'historial'
 type RangoResumen = 'hoy' | 'semana' | 'mes' | 'personalizado'
 
 const GUIA_GERENCIA: { seccion: Seccion; titulo: string; texto: string; accion: string; planReq: 'starter' | 'basico' | 'pro' }[] = [
@@ -336,6 +348,18 @@ export default function GerenciaPage() {
   const [gruposMod, setGruposMod] = useState<GrupoModificador[]>([])
   const [nuevoGrupoMod, setNuevoGrupoMod] = useState({ nombre: '', tipo: 'radio' as 'radio' | 'checkbox', tiene_opcion_todos: false, max_selecciones: '' })
   const [nuevasOpcionesMod, setNuevasOpcionesMod] = useState<Record<string, { nombre: string; componente_plato_id: string; no_aplica: boolean }>>({})
+
+  // Historial
+  const [historialPedidos, setHistorialPedidos] = useState<HistorialPedido[]>([])
+  const [cargandoHistorial, setCargandoHistorial] = useState(false)
+  const [historialBusqueda, setHistorialBusqueda] = useState('')
+  const [historialFechaDesde, setHistorialFechaDesde] = useState('')
+  const [historialFechaHasta, setHistorialFechaHasta] = useState('')
+  const [pedidoHistorial, setPedidoHistorial] = useState<HistorialPedido | null>(null)
+  const [editandoHistorial, setEditandoHistorial] = useState(false)
+  const [preciosHistorial, setPreciosHistorial] = useState<Record<string, string>>({})
+  const [guardandoHistorialItemId, setGuardandoHistorialItemId] = useState<string | null>(null)
+  const [eliminandoHistorialItemId, setEliminandoHistorialItemId] = useState<string | null>(null)
 
   const supabase = createClient()
   const hoy = new Date().toISOString().split('T')[0]
@@ -619,6 +643,78 @@ export default function GerenciaPage() {
     await supabase.from('reservas').update({ estado }).eq('id', id)
     toast.success(estado === 'confirmada' ? '✅ Reserva confirmada' : '❌ Reserva cancelada')
     cargarReservas()
+  }
+
+  // ── HISTORIAL ────────────────────────────────────────────────
+  const cargarHistorial = useCallback(async (desde?: string, hasta?: string) => {
+    setCargandoHistorial(true)
+    let q = supabase
+      .from('pedidos')
+      .select(`
+        id, created_at, tipo, estado, turno_id, cliente_nombre,
+        mesa:mesas(numero),
+        cliente:clientes(nombre, cedula),
+        mesera:usuarios!mesera_id(nombre),
+        items:items_pedido(id, plato_id, cantidad, precio_unitario, notas, estado, plato:platos(nombre, controla_inventario)),
+        pagos(id, metodo, monto, propina)
+      `)
+      .in('estado', ['pagado', 'entregado', 'cancelado'])
+      .order('created_at', { ascending: false })
+      .limit(200)
+    const d = desde || historialFechaDesde
+    const h = hasta || historialFechaHasta
+    if (d) q = q.gte('created_at', `${d}T00:00:00`)
+    if (h) q = q.lte('created_at', `${h}T23:59:59`)
+    const { data } = await q
+    if (data) setHistorialPedidos(data as unknown as HistorialPedido[])
+    setCargandoHistorial(false)
+  }, [supabase, historialFechaDesde, historialFechaHasta])
+
+  function abrirHistorialDetalle(ped: HistorialPedido) {
+    const init: Record<string, string> = {}
+    ped.items?.forEach(i => { init[i.id] = String(i.precio_unitario) })
+    setPreciosHistorial(init)
+    setPedidoHistorial(ped)
+    setEditandoHistorial(false)
+  }
+
+  async function guardarPrecioHistorial(itemId: string) {
+    const precio = Number(preciosHistorial[itemId])
+    if (isNaN(precio) || precio < 0) { toast.error('Precio inválido'); return }
+    setGuardandoHistorialItemId(itemId)
+    const { error } = await supabase.from('items_pedido').update({ precio_unitario: precio }).eq('id', itemId)
+    if (error) { toast.error('Error al guardar precio'); setGuardandoHistorialItemId(null); return }
+    const actualizar = (items: HistorialItemPedido[]) =>
+      items?.map(i => i.id === itemId ? { ...i, precio_unitario: precio } : i)
+    setHistorialPedidos(prev => prev.map(p => ({ ...p, items: actualizar(p.items) })))
+    setPedidoHistorial(prev => prev ? { ...prev, items: actualizar(prev.items) } : null)
+    toast.success('Precio corregido')
+    setGuardandoHistorialItemId(null)
+  }
+
+  async function eliminarItemHistorial(
+    itemId: string, platoId: string | null, cantidad: number, restaurarInventario: boolean
+  ) {
+    setEliminandoHistorialItemId(itemId)
+    const { error } = await supabase.from('items_pedido').delete().eq('id', itemId)
+    if (error) { toast.error('Error al eliminar ítem'); setEliminandoHistorialItemId(null); return }
+    if (restaurarInventario && platoId) {
+      const { data: inv } = await supabase.from('inventario')
+        .select('id, cantidad_disponible').eq('plato_id', platoId).maybeSingle()
+      if (inv) {
+        await supabase.from('inventario')
+          .update({ cantidad_disponible: inv.cantidad_disponible + cantidad }).eq('id', inv.id)
+        toast.success(`Ítem eliminado · Inventario +${cantidad}`)
+      } else {
+        toast.success('Ítem eliminado')
+      }
+    } else {
+      toast.success('Ítem eliminado')
+    }
+    const filtrar = (items: HistorialItemPedido[]) => items?.filter(i => i.id !== itemId)
+    setHistorialPedidos(prev => prev.map(p => ({ ...p, items: filtrar(p.items) })))
+    setPedidoHistorial(prev => prev ? { ...prev, items: filtrar(prev.items) } : null)
+    setEliminandoHistorialItemId(null)
   }
 
   // ── PLAN / ACCESO ────────────────────────────────────────────
@@ -1293,12 +1389,13 @@ export default function GerenciaPage() {
     }
     if (seccion === 'clientes') cargarClientes()
     if (seccion === 'reservas') cargarReservas()
+    if (seccion === 'historial') cargarHistorial()
     if (seccion === 'usuarios') {
       supabase.from('usuarios').select('id, nombre, rol, activo').order('nombre').then(({ data }) => {
         if (data) setListaUsuarios(data)
       })
     }
-  }, [seccion, rangoResumen, cargarResumen, cargarClientes, cargarReservas, hoyStr, supabase])
+  }, [seccion, rangoResumen, cargarResumen, cargarClientes, cargarReservas, cargarHistorial, hoyStr, supabase])
 
   // ── DETALLE MESA ─────────────────────────────────────────────
   async function abrirDetalleMesa(mesa: typeof mesas[0]) {
@@ -2519,15 +2616,25 @@ export default function GerenciaPage() {
     a === 'Sin zona' ? 1 : b === 'Sin zona' ? -1 : a.localeCompare(b, 'es')
   )
 
+  const historialFiltrado = historialPedidos.filter(ped => {
+    if (!historialBusqueda.trim()) return true
+    const q = historialBusqueda.toLowerCase()
+    const mesa = ped.mesa?.numero ? String(ped.mesa.numero) : ''
+    const cliente = (ped.cliente_nombre || ped.cliente?.nombre || '').toLowerCase()
+    const platos = ped.items?.map(i => i.plato?.nombre || '').join(' ').toLowerCase() || ''
+    return mesa.includes(q) || cliente.includes(q) || platos.includes(q)
+  })
+
   const nav = [
-    { id: 'mesas',    label: 'Mesas',    icon: <MapPin size={16} />,          planReq: 'starter' as const },
-    { id: 'carta',    label: 'Carta',    icon: <UtensilsCrossed size={16} />, planReq: 'starter' as const },
-    { id: 'resumen',  label: 'Informes', icon: <BarChart3 size={16} />,       planReq: 'basico'  as const },
-    { id: 'tiempos',  label: 'Tiempos',  icon: <Timer size={16} />,           planReq: 'pro'     as const },
-    { id: 'clientes', label: 'Clientes',  icon: <UserCircle size={16} />,      planReq: 'basico'  as const },
-    { id: 'reservas', label: 'Reservas',  icon: <CalendarDays size={16} />,    planReq: 'basico'  as const },
+    { id: 'mesas',     label: 'Mesas',     icon: <MapPin size={16} />,          planReq: 'starter' as const },
+    { id: 'carta',     label: 'Carta',     icon: <UtensilsCrossed size={16} />, planReq: 'starter' as const },
+    { id: 'resumen',   label: 'Informes',  icon: <BarChart3 size={16} />,       planReq: 'basico'  as const },
+    { id: 'tiempos',   label: 'Tiempos',   icon: <Timer size={16} />,           planReq: 'pro'     as const },
+    { id: 'clientes',  label: 'Clientes',  icon: <UserCircle size={16} />,      planReq: 'basico'  as const },
+    { id: 'reservas',  label: 'Reservas',  icon: <CalendarDays size={16} />,    planReq: 'basico'  as const },
+    { id: 'historial', label: 'Historial', icon: <ClipboardList size={16} />,   planReq: 'basico'  as const },
     { id: 'marketing', label: 'Marketing', icon: <TrendingUp size={16} />,      planReq: 'pro'     as const },
-    { id: 'caja',     label: 'Caja',      icon: <DollarSign size={16} />,      planReq: 'starter' as const },
+    { id: 'caja',      label: 'Caja',      icon: <DollarSign size={16} />,      planReq: 'starter' as const },
   ]
 
   return (
@@ -4311,7 +4418,317 @@ export default function GerenciaPage() {
           </div>
         ))}
 
+        {/* ══ HISTORIAL ══════════════════════════════════════════════ */}
+        {seccion === 'historial' && (!puedeAcceder('basico') ? renderPlanLock('basico') : (
+          <div className="space-y-4">
+
+            {/* Filtros */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 space-y-3">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="w-9 h-9 bg-orange-100 rounded-xl flex items-center justify-center">
+                  <ClipboardList size={18} className="text-orange-500" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-gray-900 text-sm">Historial de pedidos</h2>
+                  <p className="text-xs text-gray-400">Busca, filtra y corrige cuentas pasadas</p>
+                </div>
+              </div>
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Mesa, cliente o producto..."
+                  value={historialBusqueda}
+                  onChange={e => setHistorialBusqueda(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+                />
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide block mb-1">Desde</label>
+                  <input type="date" value={historialFechaDesde}
+                    onChange={e => setHistorialFechaDesde(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide block mb-1">Hasta</label>
+                  <input type="date" value={historialFechaHasta}
+                    onChange={e => setHistorialFechaHasta(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30" />
+                </div>
+              </div>
+              <button
+                onClick={() => cargarHistorial()}
+                disabled={cargandoHistorial}
+                className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white font-bold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors">
+                {cargandoHistorial
+                  ? <RotateCcw size={14} className="animate-spin" />
+                  : <Search size={14} />}
+                {cargandoHistorial ? 'Cargando...' : 'Buscar pedidos'}
+              </button>
+            </div>
+
+            {/* Lista */}
+            {cargandoHistorial ? (
+              <div className="text-center py-12">
+                <RotateCcw size={24} className="mx-auto mb-3 text-orange-400 animate-spin" />
+                <p className="text-gray-400 text-sm">Cargando historial...</p>
+              </div>
+            ) : historialPedidos.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-2xl border border-gray-200">
+                <ClipboardList size={32} className="mx-auto mb-3 text-gray-300" />
+                <p className="text-gray-500 font-medium text-sm">Sin resultados</p>
+                <p className="text-gray-400 text-xs mt-1">Ajusta las fechas y presiona Buscar</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {historialFiltrado.map(ped => {
+                  const totalItems = ped.items?.reduce((a, i) => a + i.cantidad * i.precio_unitario, 0) ?? 0
+                  const totalPagado = ped.pagos?.reduce((a, p) => a + p.monto + p.propina, 0) ?? 0
+                  const difiere = Math.abs(totalItems - totalPagado) > 1
+                  const esTurnoActual = ped.turno_id === turnoActivo?.id
+                  const fecha = new Date(ped.created_at)
+                  return (
+                    <button key={ped.id}
+                      onClick={() => abrirHistorialDetalle(ped)}
+                      className="w-full bg-white rounded-2xl border border-gray-200 shadow-sm p-4 text-left hover:border-orange-200 transition-all active:scale-[0.99]">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 ${
+                            ped.tipo === 'domi' ? 'bg-blue-100 text-blue-600' : 'bg-orange-100 text-orange-600'
+                          }`}>
+                            {ped.tipo === 'domi' ? '🛵' : ped.mesa?.numero ?? '?'}
+                          </div>
+                          <div>
+                            <p className="font-bold text-gray-900 text-sm">
+                              {ped.tipo === 'domi' ? 'Domicilio' : `Mesa ${ped.mesa?.numero}`}
+                              {(ped.cliente_nombre || ped.cliente?.nombre) && (
+                                <span className="text-gray-400 font-normal"> · {ped.cliente_nombre || ped.cliente?.nombre}</span>
+                              )}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {fecha.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })} · {fecha.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {ped.items?.length ?? 0} plato{(ped.items?.length ?? 0) !== 1 ? 's' : ''}
+                              {ped.mesera && <span className="text-gray-300"> · {ped.mesera.nombre}</span>}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0 space-y-1">
+                          <p className="font-black text-gray-900">${totalItems.toLocaleString('es-CO')}</p>
+                          {difiere && (
+                            <span className="text-[10px] bg-amber-100 text-amber-700 font-bold px-1.5 py-0.5 rounded-full block">
+                              Pagado ${totalPagado.toLocaleString('es-CO')}
+                            </span>
+                          )}
+                          {esTurnoActual && (
+                            <span className="text-[10px] bg-green-100 text-green-700 font-bold px-1.5 py-0.5 rounded-full block">Turno actual</span>
+                          )}
+                          {ped.estado === 'cancelado' && (
+                            <span className="text-[10px] bg-red-100 text-red-600 font-bold px-1.5 py-0.5 rounded-full block">Cancelado</span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+                {historialFiltrado.length === 0 && historialBusqueda && (
+                  <div className="text-center py-8 bg-white rounded-2xl border border-gray-200">
+                    <p className="text-gray-400 text-sm">Sin resultados para &ldquo;{historialBusqueda}&rdquo;</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+
       </div>
+
+      {/* ══ MODAL DETALLE HISTORIAL ══════════════════════════════════ */}
+      {pedidoHistorial && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-end md:items-center justify-center p-0 md:p-4">
+          <div className="bg-white w-full md:max-w-lg md:rounded-3xl rounded-t-3xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl shadow-black/10">
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm ${
+                  pedidoHistorial.tipo === 'domi' ? 'bg-blue-100 text-blue-600' : 'bg-orange-100 text-orange-600'
+                }`}>
+                  {pedidoHistorial.tipo === 'domi' ? '🛵' : pedidoHistorial.mesa?.numero ?? '?'}
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900">
+                    {pedidoHistorial.tipo === 'domi' ? 'Domicilio' : `Mesa ${pedidoHistorial.mesa?.numero}`}
+                  </h3>
+                  <p className="text-xs text-gray-400">
+                    {new Date(pedidoHistorial.created_at).toLocaleString('es-CO', {
+                      day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+                    })}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {!editandoHistorial ? (
+                  <button
+                    onClick={() => setEditandoHistorial(true)}
+                    className="flex items-center gap-1.5 bg-orange-50 border border-orange-200 text-orange-600 text-xs font-bold px-3 py-2 rounded-xl hover:bg-orange-100 transition-colors">
+                    <Pencil size={12} /> Editar
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setEditandoHistorial(false)}
+                    className="flex items-center gap-1.5 bg-gray-100 text-gray-600 text-xs font-bold px-3 py-2 rounded-xl hover:bg-gray-200 transition-colors">
+                    <X size={12} /> Cancelar
+                  </button>
+                )}
+                <button
+                  onClick={() => { setPedidoHistorial(null); setEditandoHistorial(false) }}
+                  className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center justify-center transition-colors">
+                  <X size={16} className="text-gray-500" />
+                </button>
+              </div>
+            </div>
+
+            {/* Contenido */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+
+              {/* Cliente */}
+              {(pedidoHistorial.cliente_nombre || pedidoHistorial.cliente?.nombre) && (
+                <div className="bg-gray-50 rounded-xl p-3">
+                  <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mb-1">Cliente</p>
+                  <p className="font-semibold text-gray-900 text-sm">
+                    {pedidoHistorial.cliente_nombre || pedidoHistorial.cliente?.nombre}
+                  </p>
+                  {pedidoHistorial.cliente?.cedula && (
+                    <p className="text-xs text-gray-400 mt-0.5">CC {pedidoHistorial.cliente.cedula}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Aviso turno */}
+              {pedidoHistorial.turno_id === turnoActivo?.id ? (
+                <div className="bg-green-50 border border-green-100 rounded-xl px-3 py-2.5 flex items-start gap-2">
+                  <CheckCircle size={14} className="text-green-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-green-700 font-semibold leading-snug">
+                    Turno activo — al eliminar un ítem con inventario, se devolverá la cantidad al stock del día
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5 flex items-start gap-2">
+                  <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-700 font-semibold leading-snug">
+                    Turno cerrado — solo se puede corregir precios o eliminar ítems, sin tocar inventario
+                  </p>
+                </div>
+              )}
+
+              {/* Ítems */}
+              <div>
+                <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mb-2">Productos</p>
+                <div className="space-y-2">
+                  {pedidoHistorial.items?.map(item => {
+                    const esTurnoActual = pedidoHistorial.turno_id === turnoActivo?.id
+                    const puedeRestaurar = esTurnoActual && (item.plato?.controla_inventario ?? false)
+                    const precioActual = Number(preciosHistorial[item.id] ?? item.precio_unitario)
+                    const totalItem = precioActual * item.cantidad
+                    return (
+                      <div key={item.id}
+                        className={`bg-white border rounded-xl p-3 transition-all ${editandoHistorial ? 'border-orange-100' : 'border-gray-100'}`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-gray-900 text-sm">
+                              {item.cantidad}× {item.plato?.nombre || 'Producto'}
+                            </p>
+                            {item.notas && <p className="text-xs text-amber-600 mt-0.5">⚠️ {item.notas}</p>}
+                          </div>
+                          <div className="text-right shrink-0">
+                            {editandoHistorial ? (
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-gray-400">$</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={preciosHistorial[item.id] ?? item.precio_unitario}
+                                  onChange={e => setPreciosHistorial(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                  className="w-24 text-right bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+                                />
+                                <span className="text-xs text-gray-400">c/u</span>
+                              </div>
+                            ) : (
+                              <p className="font-semibold text-gray-900 text-sm">${totalItem.toLocaleString('es-CO')}</p>
+                            )}
+                            {editandoHistorial && (
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                = ${totalItem.toLocaleString('es-CO')}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {editandoHistorial && (
+                          <div className="flex gap-2 mt-2.5 pt-2.5 border-t border-gray-100">
+                            <button
+                              onClick={() => guardarPrecioHistorial(item.id)}
+                              disabled={guardandoHistorialItemId === item.id}
+                              className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1 transition-colors">
+                              {guardandoHistorialItemId === item.id
+                                ? <RotateCcw size={11} className="animate-spin" />
+                                : <CheckCircle size={11} />}
+                              Guardar precio
+                            </button>
+                            <button
+                              onClick={() => eliminarItemHistorial(item.id, item.plato_id, item.cantidad, puedeRestaurar)}
+                              disabled={eliminandoHistorialItemId === item.id}
+                              className="flex-1 bg-red-50 hover:bg-red-100 disabled:opacity-50 border border-red-200 text-red-600 text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1 transition-colors">
+                              {eliminandoHistorialItemId === item.id
+                                ? <RotateCcw size={11} className="animate-spin" />
+                                : <Trash2 size={11} />}
+                              {puedeRestaurar ? 'Eliminar + reponer' : 'Eliminar ítem'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {(pedidoHistorial.items?.length ?? 0) === 0 && (
+                    <p className="text-center text-gray-400 text-sm py-4">Sin ítems registrados</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Totales */}
+              <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Total productos</span>
+                  <span className="font-bold text-gray-900">
+                    ${(pedidoHistorial.items?.reduce((a, i) => a + Number(preciosHistorial[i.id] ?? i.precio_unitario) * i.cantidad, 0) ?? 0).toLocaleString('es-CO')}
+                  </span>
+                </div>
+                {pedidoHistorial.pagos && pedidoHistorial.pagos.length > 0 && (
+                  <>
+                    <div className="flex justify-between text-sm border-t pt-2">
+                      <span className="text-gray-500">Total cobrado</span>
+                      <span className="font-black text-gray-900">
+                        ${(pedidoHistorial.pagos.reduce((a, p) => a + p.monto + p.propina, 0)).toLocaleString('es-CO')}
+                      </span>
+                    </div>
+                    <div className="space-y-1 pt-1">
+                      {pedidoHistorial.pagos.map(pago => (
+                        <div key={pago.id} className="flex justify-between text-xs text-gray-400">
+                          <span className="capitalize">{pago.metodo}{pago.propina > 0 && ` (inc. propina $${pago.propina.toLocaleString('es-CO')})`}</span>
+                          <span>${(pago.monto + pago.propina).toLocaleString('es-CO')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══ MODAL DETALLE MESA ══════════════════════════════════════ */}
       {mesaDetalle && (
