@@ -29,9 +29,10 @@ export default function ConfigurarModificadoresPedido({ items, onCancel, onConfi
   const [selecciones, setSelecciones] = useState<Record<string, SeleccionModificadores>>(() => {
     const inicial: Record<string, SeleccionModificadores> = {}
     slots.forEach(({ origIndex, unitIndex, item }) => {
-      // Pre-fill unit 0 from existing modifiers; fresh selection for subsequent units
-      const mods = unitIndex === 0 ? item.modificadores : []
-      inicial[`${origIndex}-${unitIndex}`] = seleccionDesdeModificadores(item.plato, mods)
+      // Only pre-fill when mods are already confirmed; empty mods → empty selection so user must choose explicitly per unit
+      inicial[`${origIndex}-${unitIndex}`] = item.modificadores.length > 0
+        ? seleccionDesdeModificadores(item.plato, item.modificadores)
+        : {}
     })
     return inicial
   })
