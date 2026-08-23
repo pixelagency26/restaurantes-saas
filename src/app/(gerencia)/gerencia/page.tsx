@@ -3313,6 +3313,8 @@ export default function GerenciaPage() {
                 <div className="space-y-2">
                   {platosFiltradosCarta.map(plato => {
                     const margen = utilidadPlato(plato)
+                    const complementarios = (plato.modificadores || [])
+                      .flatMap(g => g.opciones.filter(o => o.componente_plato_id && !o.es_opcion_no_aplica))
                     return (
                       <div key={plato.id} className={`bg-white rounded-2xl p-4 border shadow-sm transition-all ${plato.activo ? 'border-gray-200 hover:bg-gray-50' : 'border-gray-200 opacity-50'}`}>
                         <div className="flex items-start justify-between gap-2">
@@ -3328,6 +3330,18 @@ export default function GerenciaPage() {
                               {plato.costo ? <span className="text-sm text-gray-500">${plato.costo.toLocaleString('es-CO')} <span className="text-gray-400">costo</span></span> : <span className="text-xs text-orange-500">Sin costo registrado</span>}
                             </div>
                             <p className="text-xs text-gray-400 mt-0.5">{categorias.find(c => c.id === plato.categoria_id)?.nombre}</p>
+                            {complementarios.length > 0 ? (
+                              <div className="mt-2 flex flex-wrap gap-1 items-center">
+                                <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mr-0.5">Con:</span>
+                                {complementarios.map(o => (
+                                  <span key={o.id} className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-full font-medium">
+                                    {o.componente?.nombre || o.nombre}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-[10px] text-gray-300 mt-1.5">Sin complementarios configurados</p>
+                            )}
                           </div>
                           <div className="flex gap-1 shrink-0">
                             <button onClick={() => abrirEditarPlato(plato)} className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center justify-center border border-gray-200 transition-all"><Pencil size={14} className="text-gray-500" /></button>
