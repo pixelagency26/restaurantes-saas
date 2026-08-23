@@ -111,13 +111,31 @@ export default function MeseraPage() {
     ])
     // Cargar IDs de platos con inventario en el turno activo (para restricción por plato)
     let platoIdsConInv = new Set<string>()
+    // stockPorTurno: stock calculado desde turnos_inventario (fuente de verdad del turno)
+    // Es más fiable que inventario.cantidad_disponible que puede tener residuos de turnos anteriores
+    const stockPorTurno = new Map<string, number>()
     if (turnoData?.id) {
       const td = turnoData as { id: string; abierto_en: string }
       const { data: tiData } = await supabase.from('turnos_inventario')
-        .select('plato_id').eq('turno_id', td.id)
+        .select('plato_id, cantidad_inicial').eq('turno_id', td.id)
       if (tiData && tiData.length > 0) {
-        // Fuente única de verdad: solo platos explícitamente configurados en este turno
         platoIdsConInv = new Set(tiData.map((r: { plato_id: string }) => r.plato_id))
+        // Calcular stock real = cantidad_inicial - lo ya consumido en pedidos de este turno
+        const { data: pedidosTurno } = await supabase.from('pedidos')
+          .select('id').gte('created_at', td.abierto_en).neq('estado', 'cancelado')
+        const consumidoMap = new Map<string, number>()
+        if (pedidosTurno && pedidosTurno.length > 0) {
+          const ids = pedidosTurno.map((p: { id: string }) => p.id)
+          const { data: itemsConsumidos } = await supabase.from('items_pedido')
+            .select('plato_id, cantidad').in('pedido_id', ids)
+          ;(itemsConsumidos || []).forEach((it: { plato_id: string; cantidad: number }) => {
+            consumidoMap.set(it.plato_id, (consumidoMap.get(it.plato_id) || 0) + it.cantidad)
+          })
+        }
+        tiData.forEach((r: { plato_id: string; cantidad_inicial: number }) => {
+          const consumido = consumidoMap.get(r.plato_id) || 0
+          stockPorTurno.set(r.plato_id, Math.max(0, r.cantidad_inicial - consumido))
+        })
       }
       // Sin fallback: si turnos_inventario no tiene registros → sin restricciones de stock
     }
@@ -129,11 +147,20 @@ export default function MeseraPage() {
       ;((modsData || []) as { plato_id: string }[]).forEach(g => {
         modsPorPlato.set(g.plato_id, [...(modsPorPlato.get(g.plato_id) || []), g])
       })
+      // Usar stockPorTurno calculado como fuente de verdad; fallback a inventario.cantidad_disponible
       const invMap = new Map<string, number>()
-      ;(invData || []).forEach((i: Inventario) => invMap.set(i.plato_id, i.cantidad_disponible))
+      ;(invData || []).forEach((i: Inventario) => {
+        invMap.set(i.plato_id, stockPorTurno.has(i.plato_id)
+          ? stockPorTurno.get(i.plato_id)!
+          : i.cantidad_disponible)
+      })
+      // También aplicar stockPorTurno a platos que existen en el turno pero pueden no tener fila en invData
+      stockPorTurno.forEach((qty, platoId) => { if (!invMap.has(platoId)) invMap.set(platoId, qty) })
       const platosConInv = platosData.map(p => ({
         ...p,
-        inventario: (invData || []).filter((i: Inventario) => i.plato_id === p.id),
+        inventario: platoIdsConInv.has(p.id)
+          ? [{ plato_id: p.id, cantidad_disponible: invMap.get(p.id) ?? 0 }]
+          : (invData || []).filter((i: Inventario) => i.plato_id === p.id),
         modificadores: (modsPorPlato.get(p.id) || []).map((grupo: unknown) => {
           const g = grupo as { id: string; opciones: { componente_plato_id: string | null; descuenta_inventario: boolean; activo: boolean }[] }
           return {
@@ -293,10 +320,13 @@ export default function MeseraPage() {
   }
 
   function disponibilidadPlato(plato: Plato & { inventario: Inventario[] }): number {
+    if (!turnoInventarioIds.has(plato.id)) return 0
     return plato.inventario?.[0]?.cantidad_disponible ?? 0
   }
 
   function stockDisponible(plato: Plato): number | null {
+    // Solo aplica restricción si el plato está en el inventario del turno ACTUAL
+    if (!turnoInventarioIds.has(plato.id)) return null
     const inv = (plato as Plato & { inventario?: Inventario[] }).inventario
     return inv?.[0]?.cantidad_disponible ?? null
   }
@@ -306,6 +336,8 @@ export default function MeseraPage() {
   }
 
   function stockDisponiblePorId(platoId: string): number | null {
+    // Solo aplica restricción si el plato está en el inventario del turno ACTUAL
+    if (!turnoInventarioIds.has(platoId)) return null
     const plato = platos.find(p => p.id === platoId)
     return plato?.inventario?.[0]?.cantidad_disponible ?? null
   }
