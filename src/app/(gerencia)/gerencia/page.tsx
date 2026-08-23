@@ -90,6 +90,7 @@ interface InventarioTurnoItem {
   nombre: string
   categoria: string
   cantidad_inicial: number
+  cantidad_agregada: number
   cantidad_actual: number
   alerta_minima: number
   en_turno: boolean
@@ -1106,11 +1107,11 @@ export default function GerenciaPage() {
     if (!turnoActivo) { setInventarioTurnoItems([]); setInventarioTurnoValores({}); return }
 
     const [{ data: snapshots }, { data: inventarioActual }] = await Promise.all([
-      supabase.from('turnos_inventario').select('plato_id, cantidad_inicial').eq('turno_id', turnoActivo.id),
+      supabase.from('turnos_inventario').select('plato_id, cantidad_inicial, cantidad_agregada').eq('turno_id', turnoActivo.id),
       supabase.from('inventario').select('plato_id, cantidad_disponible, alerta_minima'),
     ])
 
-    const snapMap = new Map((snapshots || []).map((s: { plato_id: string; cantidad_inicial: number }) => [s.plato_id, s]))
+    const snapMap = new Map((snapshots || []).map((s: { plato_id: string; cantidad_inicial: number; cantidad_agregada: number }) => [s.plato_id, s]))
     const invMap = new Map((inventarioActual || []).map((i: { plato_id: string; cantidad_disponible: number; alerta_minima: number }) => [i.plato_id, i]))
     const catMap = new Map(categorias.map(c => [c.id, c.nombre]))
 
@@ -1124,6 +1125,7 @@ export default function GerenciaPage() {
           nombre: p.nombre,
           categoria: catMap.get(p.categoria_id) || 'Sin categoria',
           cantidad_inicial: snap?.cantidad_inicial ?? 0,
+          cantidad_agregada: snap?.cantidad_agregada ?? 0,
           cantidad_actual: inv?.cantidad_disponible ?? 0,
           alerta_minima: inv?.alerta_minima ?? 3,
           en_turno: Boolean(snap),
@@ -1144,7 +1146,7 @@ export default function GerenciaPage() {
 
     setGuardandoInventarioId(item.plato_id)
     const delta = nuevaCantidad - item.cantidad_actual
-    const nuevaInicial = Math.max(0, item.cantidad_inicial + delta)
+    const nuevaAgregada = item.cantidad_agregada + delta
 
     const { data: invActualizado, error: invUpdateError } = await supabase
       .from('inventario')
@@ -1173,12 +1175,12 @@ export default function GerenciaPage() {
     const { error: turnoInvError } = item.en_turno
       ? await supabase
         .from('turnos_inventario')
-        .update({ cantidad_inicial: nuevaInicial })
+        .update({ cantidad_agregada: nuevaAgregada })
         .eq('turno_id', turnoActivo.id)
         .eq('plato_id', item.plato_id)
       : await supabase
         .from('turnos_inventario')
-        .insert({ turno_id: turnoActivo.id, plato_id: item.plato_id, cantidad_inicial: nuevaInicial })
+        .insert({ turno_id: turnoActivo.id, plato_id: item.plato_id, cantidad_inicial: 0, cantidad_agregada: nuevaCantidad })
 
     setGuardandoInventarioId(null)
     if (turnoInvError) {
@@ -6016,6 +6018,9 @@ export default function GerenciaPage() {
                               <div className="flex flex-wrap gap-x-3 gap-y-1 mt-0.5 text-xs text-gray-400">
                                 <span>Disponible: <strong className="text-gray-700">{item.cantidad_actual}</strong></span>
                                 <span>Inicial: <strong className="text-gray-700">{item.cantidad_inicial}</strong></span>
+                                {item.en_turno && item.cantidad_agregada !== 0 && (
+                                  <span>Agregados: <strong className={item.cantidad_agregada > 0 ? 'text-emerald-600' : 'text-red-500'}>{item.cantidad_agregada > 0 ? `+${item.cantidad_agregada}` : item.cantidad_agregada}</strong></span>
+                                )}
                                 {!item.en_turno && <span className="text-orange-600 font-bold">Se agregara al turno</span>}
                               </div>
                             </div>
