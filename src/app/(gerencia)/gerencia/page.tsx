@@ -24,7 +24,7 @@ import { ModificadorSeleccionado } from '@/types'
 interface PlatoStat { nombre: string; cantidad: number; total: number }
 interface MeseraStat { nombre: string; pedidos: number; total: number }
 interface PedidoResumen { id: string; mesa: number; total: number; estado: string; created_at: string; pagado_en?: string | null; tipo: string; turno_id?: string | null }
-interface ItemDetalle { id?: string; plato_id?: string | null; nombre: string; cantidad: number; precio_unitario: number; notas: string | null; estado: string; pedido_por_nombre?: string | null }
+interface ItemDetalle { id?: string; plato_id?: string | null; nombre: string; cantidad: number; precio_unitario: number; notas: string | null; estado: string; pedido_por_nombre?: string | null; acompanantes?: string[] | null }
 interface PedidoDetalle {
   id: string; estado: string; tipo: string; created_at: string; notas: string | null
   mesa: { numero: number }; mesera: { nombre: string } | null; items: ItemDetalle[]
@@ -1454,7 +1454,7 @@ export default function GerenciaPage() {
     const { data: pedido } = await supabase.from('pedidos').select(`
       id, estado, tipo, created_at, notas, cliente_nombre, cliente_cedula, cliente_telefono,
       mesa:mesas(numero), mesera:usuarios(nombre),
-      items:items_pedido(id, plato_id, estado, cantidad, precio_unitario, notas, plato:platos(nombre), pedido_por_usuario:usuarios!pedido_por(nombre))
+      items:items_pedido(id, plato_id, estado, cantidad, precio_unitario, notas, acompanantes, plato:platos(nombre), pedido_por_usuario:usuarios!pedido_por(nombre))
     `).eq('mesa_id', mesa.id).in('estado', ['pendiente','en_preparacion','listo','entregado','esperando_pago'])
       .order('created_at', { ascending: false }).limit(1).single()
     if (!pedido) { toast.error('No se encontró el pedido'); return }
@@ -1464,8 +1464,8 @@ export default function GerenciaPage() {
       ...pedido,
       mesa: (pedido.mesa as unknown as { numero: number }),
       mesera: pedido.mesera as unknown as { nombre: string } | null,
-      items: (pedido.items as unknown as { id: string; plato_id: string | null; estado: string; cantidad: number; precio_unitario: number; notas: string | null; plato: { nombre: string } | null; pedido_por_usuario: { nombre: string } | null }[])
-        .map(i => ({ id: i.id, plato_id: i.plato_id, nombre: i.plato?.nombre || i.notas?.replace(/^Cargo extra:\s*/i, '') || 'Cargo extra', cantidad: i.cantidad, precio_unitario: i.precio_unitario, notas: i.plato_id ? i.notas : null, estado: i.estado, pedido_por_nombre: i.pedido_por_usuario?.nombre || null })),
+      items: (pedido.items as unknown as { id: string; plato_id: string | null; estado: string; cantidad: number; precio_unitario: number; notas: string | null; acompanantes: string[] | null; plato: { nombre: string } | null; pedido_por_usuario: { nombre: string } | null }[])
+        .map(i => ({ id: i.id, plato_id: i.plato_id, nombre: i.plato?.nombre || i.notas?.replace(/^Cargo extra:\s*/i, '') || 'Cargo extra', cantidad: i.cantidad, precio_unitario: i.precio_unitario, notas: i.plato_id ? i.notas : null, estado: i.estado, pedido_por_nombre: i.pedido_por_usuario?.nombre || null, acompanantes: i.acompanantes?.length ? i.acompanantes : null })),
       cliente_nombre:   p.cliente_nombre,
       cliente_cedula:   p.cliente_cedula,
       cliente_telefono: p.cliente_telefono,
@@ -1490,7 +1490,7 @@ export default function GerenciaPage() {
       id, estado, tipo, created_at, notas, cliente_nombre, cliente_cedula, cliente_telefono, cliente_direccion,
       comprobante_url, metodo_pago_cliente,
       mesera:usuarios(nombre),
-      items:items_pedido(id, plato_id, estado, cantidad, precio_unitario, notas, plato:platos(nombre))
+      items:items_pedido(id, plato_id, estado, cantidad, precio_unitario, notas, acompanantes, plato:platos(nombre))
     `).eq('id', pedidoId).single()
     if (!pedido) { toast.error('No se encontró el domi'); return }
     const { data: pagos } = await supabase.from('pagos').select('*').eq('pedido_id', pedido.id).order('created_at')
@@ -1503,8 +1503,8 @@ export default function GerenciaPage() {
       ...pedido,
       mesa: { numero: 0 } as { numero: number },
       mesera: pedido.mesera as unknown as { nombre: string } | null,
-      items: (pedido.items as unknown as { id: string; plato_id: string | null; estado: string; cantidad: number; precio_unitario: number; notas: string | null; plato: { nombre: string } | null }[])
-        .map(i => ({ id: i.id, plato_id: i.plato_id, nombre: i.plato?.nombre || i.notas?.replace(/^Cargo extra:\s*/i, '') || 'Cargo extra', cantidad: i.cantidad, precio_unitario: i.precio_unitario, notas: i.plato_id ? i.notas : null, estado: i.estado })),
+      items: (pedido.items as unknown as { id: string; plato_id: string | null; estado: string; cantidad: number; precio_unitario: number; notas: string | null; acompanantes: string[] | null; plato: { nombre: string } | null }[])
+        .map(i => ({ id: i.id, plato_id: i.plato_id, nombre: i.plato?.nombre || i.notas?.replace(/^Cargo extra:\s*/i, '') || 'Cargo extra', cantidad: i.cantidad, precio_unitario: i.precio_unitario, notas: i.plato_id ? i.notas : null, estado: i.estado, acompanantes: i.acompanantes?.length ? i.acompanantes : null })),
       cliente_nombre: p.cliente_nombre,
       cliente_cedula: p.cliente_cedula,
       cliente_telefono: p.cliente_telefono,
@@ -5395,9 +5395,19 @@ export default function GerenciaPage() {
                                 {!modoDividir && <span className={`w-2 h-2 rounded-full shrink-0 mt-0.5 ${!item.plato_id ? 'bg-sky-500' : item.estado === 'listo' || item.estado === 'entregado' ? 'bg-green-500' : item.estado === 'en_preparacion' ? 'bg-orange-400' : 'bg-gray-300'}`} />}
                                 <span className={pagado ? 'line-through text-gray-400' : ''}>{unitQty > 1 ? `${unitQty}× ` : ''}{item.nombre}</span>
                                 {!item.plato_id && <span className="text-[10px] bg-sky-50 text-sky-600 border border-sky-200 px-1.5 py-0.5 rounded-full font-bold">cargo extra</span>}
+                                {item.precio_unitario === 0 && item.plato_id && <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-full font-bold">incluido</span>}
                                 {item.notas && <span className="text-yellow-600 text-xs">({item.notas})</span>}
                                 {pagado && <span className="text-[10px] bg-green-100 text-green-700 border border-green-200 px-1.5 py-0.5 rounded-full font-bold">Pagado</span>}
                               </div>
+                              {item.acompanantes && item.acompanantes.length > 0 && (
+                                <div className="ml-4 mt-0.5 flex flex-wrap gap-1">
+                                  {item.acompanantes.map((ac, ai) => (
+                                    <span key={ai} className="inline-block text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-full font-medium">
+                                      {ac}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                               {item.pedido_por_nombre && (
                                 <span className="ml-4 inline-flex items-center gap-1 text-xs text-orange-400 font-semibold mt-0.5">
                                   ↳ agregado por {item.pedido_por_nombre}
@@ -5405,7 +5415,10 @@ export default function GerenciaPage() {
                               )}
                             </div>
                             <div className="shrink-0 text-right">
-                              <span className={`font-semibold ${pagado ? 'text-gray-400 line-through' : ''}`}>${(unitQty * item.precio_unitario).toLocaleString('es-CO')}</span>
+                              {item.precio_unitario === 0 && item.plato_id
+                                ? <span className="text-xs font-semibold text-emerald-600">Incluido</span>
+                                : <span className={`font-semibold ${pagado ? 'text-gray-400 line-through' : ''}`}>${(unitQty * item.precio_unitario).toLocaleString('es-CO')}</span>
+                              }
                               {modoEdicionPedido && item.id && (
                                 <div className="mt-2 flex items-center justify-end gap-1.5">
                                   <input
