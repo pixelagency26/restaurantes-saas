@@ -6034,12 +6034,14 @@ export default function GerenciaPage() {
                         const valor = inventarioTurnoValores[item.plato_id] ?? String(item.cantidad_actual)
                         const nuevo = Math.max(0, Math.floor(Number(valor || 0)))
                         const delta = Number.isFinite(nuevo) ? nuevo - item.cantidad_actual : 0
+                        const colorDisp = item.cantidad_actual < 5 ? 'text-red-500' : item.cantidad_actual < 10 ? 'text-orange-500' : 'text-emerald-600'
+                        const bgDisp   = item.cantidad_actual < 5 ? 'bg-red-50 border border-red-200' : item.cantidad_actual < 10 ? 'bg-orange-50 border border-orange-200' : 'bg-emerald-50 border border-emerald-200'
                         return (
                           <div key={item.plato_id} className="px-4 py-3 bg-white flex items-center gap-3">
                             <div className="flex-1 min-w-0">
                               <p className="font-bold text-gray-900 text-sm truncate">{item.nombre}</p>
                               <div className="flex flex-wrap gap-x-3 gap-y-1 mt-0.5 text-xs text-gray-400">
-                                <span>Disponible: <strong className="text-gray-700">{item.cantidad_actual}</strong></span>
+                                <span>Disponible: <strong className={`inline-block px-1.5 py-0.5 rounded-md font-black ${bgDisp} ${colorDisp}`}>{item.cantidad_actual}</strong></span>
                                 <span>Inicial: <strong className="text-gray-700">{item.cantidad_inicial}</strong></span>
                                 {item.en_turno && item.cantidad_agregada !== 0 && (
                                   <span>Agregados: <strong className={item.cantidad_agregada > 0 ? 'text-emerald-600' : 'text-red-500'}>{item.cantidad_agregada > 0 ? `+${item.cantidad_agregada}` : item.cantidad_agregada}</strong></span>
@@ -6409,7 +6411,7 @@ export default function GerenciaPage() {
                             </div>
                             <div className="flex gap-4 mt-1 text-xs text-gray-400">
                               <span>Inicial: <span className="font-semibold text-gray-600">{item.cantidad_inicial}</span></span>
-                              <span>Restante: <span className={`font-semibold ${item.cantidad_restante === 0 ? 'text-red-500' : 'text-gray-600'}`}>{item.cantidad_restante}</span></span>
+                              <span>Restante: <span className={`font-semibold ${item.cantidad_restante < 5 ? 'text-red-500' : item.cantidad_restante < 10 ? 'text-orange-500' : 'text-emerald-600'}`}>{item.cantidad_restante}</span></span>
                             </div>
                           </div>
                         )
