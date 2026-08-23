@@ -2234,8 +2234,17 @@ export default function GerenciaPage() {
   }
   async function eliminarPlato(plato: Plato) {
     if (!confirm(`¿Eliminar "${plato.nombre}"? Esta acción no se puede deshacer.`)) return
-    await supabase.from('platos').delete().eq('id', plato.id)
-    toast.success('Plato eliminado'); cargarCarta()
+    const { error } = await supabase.from('platos').delete().eq('id', plato.id)
+    if (error) {
+      if (error.code === '23503') {
+        toast.error(`"${plato.nombre}" tiene pedidos registrados y no se puede eliminar. Puedes desactivarlo con el botón ✕.`, { duration: 6000 })
+      } else {
+        toast.error('No se pudo eliminar: ' + error.message)
+      }
+      return
+    }
+    toast.success('Plato eliminado')
+    cargarCarta()
   }
 
   async function ajustarInventarioPlato(platoId: string | null | undefined, delta: number) {
