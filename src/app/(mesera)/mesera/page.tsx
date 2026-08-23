@@ -343,14 +343,13 @@ export default function MeseraPage() {
       const enCarrito = cantidadEnCarrito(item.plato.id)
       if (enCarrito >= disp) { toast.error(`Solo hay ${disp} unidad(es) de ${item.plato.nombre}`); return }
     }
-    // Complementarios se agregan sin cargo por defecto
-    const sinCargo = item.sinCargo ?? componentePlatoIds.has(item.plato.id)
+    const sinCargo = item.sinCargo ?? false
     setCarrito(prev => {
       const existe = prev.find(i => itemKey(i) === key)
       if (existe) return prev.map(i => itemKey(i) === key ? { ...i, cantidad: i.cantidad + 1 } : i)
       return [...prev, { ...item, sinCargo }]
     })
-    toast.success(`${item.plato.nombre} agregado${sinCargo ? ' (sin cargo)' : ''}`)
+    toast.success(`${item.plato.nombre} agregado`)
   }
 
   function toggleSinCargo(key: string) {
