@@ -130,11 +130,30 @@ export default function MeseraPage() {
         const consumidoMap = new Map<string, number>()
         if (pedidosTurno && pedidosTurno.length > 0) {
           const ids = pedidosTurno.map((p: { id: string }) => p.id)
+          // Platos directos en items_pedido
           const { data: itemsConsumidos } = await supabase.from('items_pedido')
-            .select('plato_id, cantidad').in('pedido_id', ids)
-          ;(itemsConsumidos || []).forEach((it: { plato_id: string; cantidad: number }) => {
+            .select('id, plato_id, cantidad').in('pedido_id', ids)
+          const typedItems = (itemsConsumidos || []) as { id: string; plato_id: string; cantidad: number }[]
+          typedItems.forEach(it => {
             consumidoMap.set(it.plato_id, (consumidoMap.get(it.plato_id) || 0) + it.cantidad)
           })
+          // Complementarios via modificadores en items_pedido_modificadores
+          if (typedItems.length > 0) {
+            const itemQtyMap = new Map(typedItems.map(it => [it.id, it.cantidad]))
+            const { data: modsConsumidos } = await supabase
+              .from('items_pedido_modificadores')
+              .select('item_pedido_id, cantidad_descontada, opcion:opciones_modificador!opcion_id(componente_plato_id)')
+              .in('item_pedido_id', typedItems.map(it => it.id))
+              .eq('descuenta_inventario', true)
+              .gt('cantidad_descontada', 0)
+              .not('opcion_id', 'is', null)
+            ;(modsConsumidos || []).forEach((m: { item_pedido_id: string; cantidad_descontada: number; opcion: { componente_plato_id: string | null }[] }) => {
+              const platoId = m.opcion?.[0]?.componente_plato_id
+              if (!platoId) return
+              const itemQty = itemQtyMap.get(m.item_pedido_id) || 1
+              consumidoMap.set(platoId, (consumidoMap.get(platoId) || 0) + m.cantidad_descontada * itemQty)
+            })
+          }
         }
         tiData.forEach((r: { plato_id: string; cantidad_inicial: number }) => {
           const consumido = consumidoMap.get(r.plato_id) || 0
