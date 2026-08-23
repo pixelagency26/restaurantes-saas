@@ -8,7 +8,7 @@ import {
   Plus, Minus, X, Play, Square, MapPin, CheckCircle, Banknote,
   Pencil, Trash2, UtensilsCrossed, Timer, UserCircle, Search, Bike,
   Download, Upload, SlidersHorizontal, CalendarDays, Settings, Lock, ClipboardList,
-  LogOut, AlertTriangle, RotateCcw, ShieldAlert
+  LogOut, AlertTriangle, RotateCcw, ShieldAlert, Copy
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -859,6 +859,25 @@ export default function GerenciaPage() {
     if (!confirm(`¿Eliminar el menú "${nombre}"? Esta acción no se puede deshacer.`)) return
     await supabase.from('menus_turno').delete().eq('id', id)
     toast.success('Menú eliminado')
+    await cargarMenusTurno()
+  }
+
+  async function duplicarMenuTurno(menu: MenuTurno) {
+    const nuevoNombre = `${menu.nombre} (copia)`
+    const { error } = await supabase.from('menus_turno').insert({
+      nombre: nuevoNombre,
+      items: menu.items,
+      ...(negocioId ? { negocio_id: negocioId } : {}),
+    })
+    if (error) { toast.error('Error al duplicar: ' + error.message); return }
+    toast.success(`✅ "${nuevoNombre}" creado`)
+    await cargarMenusTurno()
+  }
+
+  async function restaurarMenuACero(menu: MenuTurno) {
+    if (!confirm(`¿Poner todas las cantidades de "${menu.nombre}" en 0?`)) return
+    await supabase.from('menus_turno').update({ items: [] }).eq('id', menu.id)
+    toast.success('Cantidades restablecidas a 0')
     await cargarMenusTurno()
   }
 
@@ -3380,11 +3399,19 @@ export default function GerenciaPage() {
                               setMenuForm({ nombre: menu.nombre, items })
                               setEditandoMenuId(menu.id)
                               setModalNuevoMenu('editar')
-                            }} className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center justify-center border border-gray-200 transition-all">
+                            }} className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center justify-center border border-gray-200 transition-all" title="Editar">
                               <Pencil size={14} className="text-gray-500" />
                             </button>
+                            <button onClick={() => duplicarMenuTurno(menu)}
+                              className="w-8 h-8 bg-blue-50 hover:bg-blue-100 rounded-xl flex items-center justify-center border border-blue-200 transition-all" title="Duplicar">
+                              <Copy size={14} className="text-blue-500" />
+                            </button>
+                            <button onClick={() => restaurarMenuACero(menu)}
+                              className="w-8 h-8 bg-amber-50 hover:bg-amber-100 rounded-xl flex items-center justify-center border border-amber-200 transition-all" title="Restaurar a 0">
+                              <RotateCcw size={14} className="text-amber-500" />
+                            </button>
                             <button onClick={() => eliminarMenuTurno(menu.id, menu.nombre)}
-                              className="w-8 h-8 bg-red-50 hover:bg-red-100 rounded-xl flex items-center justify-center border border-red-200 transition-all">
+                              className="w-8 h-8 bg-red-50 hover:bg-red-100 rounded-xl flex items-center justify-center border border-red-200 transition-all" title="Eliminar">
                               <Trash2 size={14} className="text-red-500" />
                             </button>
                           </div>
